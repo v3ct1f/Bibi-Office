@@ -37,6 +37,7 @@
 | 13 | Module: AI email/meeting summaries | ✅ done (14 ai + 14 docs + 15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 37 E2E) |
 | 14 | Module: KPI dashboard (+ SDK metrics, core metrics API) | ✅ done (14 kpi + 14 ai + 14 docs + 15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 42 E2E) |
 | 15 | Hardening: org time zones, per-module DB roles, code-splitting, Docker smoke test | ✅ done (15 kpi + 14 ai + 14 docs + 15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 62 api + 2 worker + 5 web unit + 43 E2E; smoke in CI) |
+| 16 | Test deployment: one-server install (Caddy HTTPS, Keycloak, api/worker), `office.sh`, beginner guide | ✅ done (CI job `trial` runs setup on localhost and signs in through HTTPS) |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
@@ -57,7 +58,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 15)
+## Handoff (Session 16)
+1. Done: `infra/trial/` one-server test install (Caddy auto-HTTPS on one domain: web `/`, API `/api`, Keycloak `/id`; admin console hidden); `office.sh` setup/add-user/reset-password/backup/restore/update; beginner guide `infra/trial/README.md`; API `OIDC_JWKS_URL` (fetch keys internally).
+2. Verify: CI job `trial` (`scripts/trial-check.sh`: setup on localhost, HTTPS, issuer, admin hidden, add-user, token → API, org + module, backup). Can't run in this sandbox (quay.io blocked).
+3. Next: user tries it with a real business; fix what they hit. Then: Keycloak SMTP (self-service reset), Temporal in the trial stack, prebuilt images (GHCR) so servers don't build, Helm for multi-server.
+4. Open (deploy): restore drill only manual; updates rebuild on the server (minutes of downtime); no off-site backup target built in.
+5. Open (carried): see Session 15 handoff items 4 and 5.
+
+## Handoff (Session 15, archived)
 1. Done: org time zone (`PATCH /tenant`, Organization page; every tenant tx sets Postgres `TimeZone`, `ctx.clock`); each module's code runs under its own DB role `office_mod_<prefix>` (only its tables); module UIs and admin pages load on demand (main bundle 668 → 374 KB); fixed api/worker Docker images (didn't start); `scripts/smoke.sh` + CI job `smoke`.
 2. Verify: `scripts/local-pg.sh stop && start` (owner now needs CREATEROLE); `TEST_DATABASE_URL=... pnpm test`; E2E as before; `bash scripts/smoke.sh` on a Docker host (Linux, host network).
 3. Next: suggested Session 16: OpenAPI-generated web types, Helm chart + prod role provisioning (CREATEROLE or pre-created module roles), per-user dashboards, or new modules (purchase orders, timesheets).

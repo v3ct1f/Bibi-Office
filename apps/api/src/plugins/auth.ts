@@ -7,10 +7,10 @@ export type Principal =
   | { kind: "user"; userId: string; email: string }
   | { kind: "api_key"; keyId: string; tenantId: string; scopes: ReadonlySet<string> };
 
-export interface AuthDeps { db: Db; issuer: string; audience: string; pepper: string; jwks?: JWTVerifyGetKey }
+export interface AuthDeps { db: Db; issuer: string; audience: string; pepper: string; jwks?: JWTVerifyGetKey; jwksUrl?: string | undefined }
 
 export function createAuthenticator(d: AuthDeps) {
-  const jwks = d.jwks ?? createRemoteJWKSet(new URL(`${d.issuer}/protocol/openid-connect/certs`));
+  const jwks = d.jwks ?? createRemoteJWKSet(new URL(d.jwksUrl ?? `${d.issuer}/protocol/openid-connect/certs`));
 
   return async function authenticate(req: FastifyRequest): Promise<Principal> {
     const h = req.headers.authorization;

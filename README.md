@@ -2,6 +2,8 @@
 
 Modular business-automation platform. Start with PLAN.md and ARCHITECTURE.md.
 
+**Try it on your own server:** [infra/trial/README.md](infra/trial/README.md) (step-by-step, one setup command).
+
 ## Dev quickstart
 ```bash
 pnpm install

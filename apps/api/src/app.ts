@@ -20,7 +20,7 @@ import type { Config } from "./config.ts";
 
 export interface AppDeps {
   db: Db;
-  config: Pick<Config, "OIDC_ISSUER" | "OIDC_AUDIENCE" | "API_KEY_PEPPER" | "CORS_ORIGINS" | "RATE_LIMIT_PER_MIN" | "TRUST_PROXY" | "NODE_ENV">;
+  config: Pick<Config, "OIDC_ISSUER" | "OIDC_AUDIENCE" | "OIDC_JWKS_URL" | "API_KEY_PEPPER" | "CORS_ORIGINS" | "RATE_LIMIT_PER_MIN" | "TRUST_PROXY" | "NODE_ENV">;
   jwks?: JWTVerifyGetKey;      // injectable for tests
   platform: { registry: ModuleRegistry; secrets: SecretBox; files: FileDeps; mail?: MailEnv | undefined; inboundMailSecret?: string | undefined };
   logger?: boolean | object;
@@ -63,7 +63,7 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   });
 
   const authenticate = createAuthenticator({
-    db: d.db, issuer: d.config.OIDC_ISSUER, audience: d.config.OIDC_AUDIENCE, pepper: d.config.API_KEY_PEPPER,
+    db: d.db, issuer: d.config.OIDC_ISSUER, audience: d.config.OIDC_AUDIENCE, jwksUrl: d.config.OIDC_JWKS_URL, pepper: d.config.API_KEY_PEPPER,
     ...(d.jwks ? { jwks: d.jwks } : {}),
   });
   app.addHook("preHandler", async (req) => {
