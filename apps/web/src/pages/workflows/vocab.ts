@@ -35,9 +35,17 @@ const EVENT_LABELS: Record<string, string> = {
   "expenses.expense.approved": "An expense is approved",
   "expenses.expense.rejected": "An expense is rejected",
   "expenses.expense.paid": "An expense is marked paid",
+  "scheduling.shifts.published": "A week's schedule is published",
+  "scheduling.time_off.requested": "Someone asks for time off",
+  "scheduling.time_off.approved": "Time off is approved",
+  "scheduling.time_off.rejected": "Time off is rejected",
+  "scheduling.swap.requested": "Someone asks to swap a shift",
+  "scheduling.swap.approved": "A shift swap is approved",
+  "scheduling.clock.in": "Someone clocks in",
+  "scheduling.clock.out": "Someone clocks out",
 };
 
-const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing", expenses: "Expenses" };
+const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing", expenses: "Expenses", scheduling: "Schedule & time clock" };
 
 const ENTITY_WORDS: Record<string, [string, string]> = {
   contact: ["A contact", "Contacts"], company: ["A company", "Companies"], document: ["A document", "Documents"], task: ["A task", "Tasks"],
@@ -108,6 +116,14 @@ const OTHER_FIELDS: Record<string, EventField[]> = {
   "core.member.removed": [{ path: "userId", label: "User ID" }],
   "core.module.enabled": [{ path: "key", label: "Module key" }, { path: "version", label: "Module version" }],
   "core.module.disabled": [{ path: "key", label: "Module key" }],
+  "scheduling.shifts.published": [{ path: "weekStart", label: "Week starting" }, { path: "count", label: "Number of shifts" }, { path: "employeeIds", label: "Employee IDs" }],
+  "scheduling.time_off.requested": [{ path: "id", label: "Request ID" }, ...[{ path: "employeeId", label: "Employee ID" }, { path: "kind", label: "Kind of time off" }, { path: "startDate", label: "First day" }, { path: "endDate", label: "Last day" }]],
+  "scheduling.time_off.approved": [{ path: "id", label: "Request ID" }, ...[{ path: "employeeId", label: "Employee ID" }, { path: "kind", label: "Kind of time off" }, { path: "startDate", label: "First day" }, { path: "endDate", label: "Last day" }], { path: "comment", label: "Manager's comment" }],
+  "scheduling.time_off.rejected": [{ path: "id", label: "Request ID" }, ...[{ path: "employeeId", label: "Employee ID" }, { path: "kind", label: "Kind of time off" }, { path: "startDate", label: "First day" }, { path: "endDate", label: "Last day" }], { path: "comment", label: "Manager's comment" }],
+  "scheduling.swap.requested": [{ path: "id", label: "Swap ID" }, { path: "fromEmployeeId", label: "Asked by (employee ID)" }, { path: "toEmployeeId", label: "Asked to (employee ID)" }, { path: "day", label: "Shift day" }],
+  "scheduling.swap.approved": [{ path: "id", label: "Swap ID" }, { path: "fromEmployeeId", label: "Gave away (employee ID)" }, { path: "toEmployeeId", label: "Took over (employee ID)" }],
+  "scheduling.clock.in": [{ path: "employeeId", label: "Employee ID" }, { path: "at", label: "Time" }],
+  "scheduling.clock.out": [{ path: "employeeId", label: "Employee ID" }, { path: "at", label: "Time" }, { path: "minutes", label: "Minutes worked" }],
   "core.notification.requested": [{ path: "userId", label: "User ID" }, { path: "message", label: "Message" }],
   "crm.deal.deleted": [{ path: "title", label: "Deal name" }, { path: "id", label: "Deal ID" }],
   "crm.activity.logged": [

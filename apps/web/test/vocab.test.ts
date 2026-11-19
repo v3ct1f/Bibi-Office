@@ -53,3 +53,12 @@ describe("Expenses vocabulary", () => {
     expect(eventFields("expenses.expense.paid").map((f) => f.path)).not.toContain("payload.comment");
   });
 });
+
+describe("Scheduling vocabulary", () => {
+  it("names scheduling events and their details", () => {
+    expect(eventLabel("scheduling.time_off.requested")).toBe("Someone asks for time off");
+    expect(eventGroup("scheduling.clock.in")).toBe("Schedule & time clock");
+    expect(eventFields("scheduling.time_off.rejected").map((f) => f.path)).toEqual(expect.arrayContaining(["payload.startDate", "payload.comment"]));
+    expect(eventFields("scheduling.clock.out").map((f) => f.path)).toContain("payload.minutes");
+  });
+});

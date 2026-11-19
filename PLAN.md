@@ -30,10 +30,10 @@
 | 6 | Module: CRM | ✅ done (84 unit/integration + 23 E2E green) |
 | 6b | Feature modules: Add features page, Manager role, per-role grants, 403 while off | ✅ done |
 | 7 | Module: Invoices & Expenses (receipt OCR, approvals, CSV) | ✅ done (105 unit/integration + 32 E2E green) |
-| 8 | Module: Staff Scheduling & Time Clock | ⏳ next |
+| 8 | Module: Staff Scheduling & Time Clock (shifts, publish/copy week, time off, swaps, clock, hours CSV) | ✅ done (120 unit/integration + 38 E2E green) |
 | 9 | Module: Support inbox | ☐ |
 | 10 | Module: HR | ☐ |
-| 11 | Module: Inventory | ☐ |
+| 11 | Module: Inventory & Purchasing (pulled forward: Feature Modules request) | ⏳ next |
 | 12 | Module: Docs & e-sign | ☐ |
 | 13 | Module: AI email/meeting summaries | ☐ |
 | 14 | Module: KPI dashboard | ☐ |
@@ -55,7 +55,17 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 6)
+## Handoff (Session 8)
+1. Done: `modules/scheduling`.
+   - Positions; week grid with draft and published shifts, overnight shifts and clash checks.
+   - Copy last week; time off with approval; colleague-then-manager shift swaps.
+   - Time clock; manager time entries; Hours page with planned vs worked hours and CSV export; dashboard widget.
+   - Workflow labels for its 8 events.
+2. Verify: `pnpm typecheck`; `TEST_DATABASE_URL=... pnpm test` (api 77 incl. 10 scheduling, 4 time helpers); `pnpm e2e` (38 flows incl. 6 scheduling).
+3. Next: Inventory & Purchasing (items, stock moves with reasons, low-stock alerts, purchase orders per supplier from core Companies, receiving updates stock).
+4. Open: notifications to staff when a week is published or a request is decided (core `send_email`); geofenced or PIN clock-in for shared tablets.
+
+## Handoff (Session 6, archived)
 1. Done: `modules/crm` (pipelines + ordered stages with open/won/lost kind and probability, deals, activity timeline, next steps, board/list/detail/editor pages, pipeline settings, company/contact Deals tab, dashboard widget, 3 workflow actions, 8 events; `crm.deal.won` feeds Invoicing). Local NATS-free worker (`pnpm dev:local-worker`, also started by E2E) so workflows and module handlers run locally. Workflow vocabulary + recipes for deals.
 2. Verify: Postgres on :55432; `TEST_DATABASE_URL=... pnpm test` (52 api incl. 7 crm, 2 worker, 8 ui, 14 web, 8 invoicing); `pnpm typecheck`; `pnpm e2e` (23 flows incl. 7 CRM). Local stack: `pnpm dev:oidc`, `pnpm dev:local`, `pnpm dev:local-worker`, `pnpm dev:web`.
 3. Next (Session 7): `modules/expenses` (receipts, categories, approval, reimbursement; may emit events Invoicing/KPI can use).
