@@ -163,4 +163,22 @@ test("capture", async ({ page }) => {
   await bob.getByRole("list", { name: "Time off requests" }).waitFor();
   await bob.screenshot({ path: `${dir}/people-timeoff-mobile.png`, fullPage: true });
   await bob.close();
+
+  // Inventory (alice): items, item page, reorder; count sheet
+  await page.goto("/m/inventory/inventory");
+  await page.getByRole("tab", { name: "Items" }).click();
+  await page.getByRole("table", { name: "Items" }).waitFor();
+  await page.screenshot({ path: `${dir}/inventory-items-light.png` });
+  await page.getByRole("table", { name: "Items" }).getByText("Flour 25kg").click();
+  await page.getByRole("table", { name: "Movements" }).waitFor();
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: `${dir}/inventory-item-light.png`, fullPage: true });
+  await page.goto("/m/inventory/inventory");
+  await page.getByRole("tab", { name: "Reorder" }).click();
+  await page.getByRole("table", { name: "Reorder list" }).waitFor();
+  await page.screenshot({ path: `${dir}/inventory-reorder-light.png` });
+  await page.getByRole("tab", { name: "Items" }).click();
+  await page.getByRole("button", { name: "Stock count" }).click();
+  await page.getByRole("table", { name: "Count sheet" }).waitFor();
+  await page.screenshot({ path: `${dir}/inventory-count-light.png` });
 });

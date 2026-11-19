@@ -433,3 +433,9 @@ office/
 - DB guards: management-loop trigger, one live leave request per person per day (`daterange` exclusion), decided requests immutable except cancel, requests may not cross a year boundary.
 - E2E order: … → `triage` → `workforce`.
 
+## 19. Inventory (Session 11, as built)
+
+- `modules/inventory`: see `modules/inventory/README.md`.
+- Ledger pattern: movements are the source of truth (append-only, trigger-enforced); `inventory_stock` is a projection written only by an `AFTER INSERT` `SECURITY DEFINER` trigger (app role: SELECT). RLS still applies because the table forces it for the owner too.
+- Negative stock is impossible: `CHECK (quantity >= 0)` on the projection; the service locks the item row first and maps the check violation to 409. The trigger UPDATEs before INSERT so a negative delta on a missing row fails the CHECK instead of skipping ON CONFLICT.
+- E2E order: … → `workforce` → `yard`.
