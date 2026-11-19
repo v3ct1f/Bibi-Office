@@ -21,7 +21,8 @@
     "react": "19.1.10",
     "react-dom": "19.1.10",
     "@office/module-invoicing": "workspace:*",
-    "@office/sdk": "workspace:*"
+    "@office/sdk": "workspace:*",
+    "@office/module-crm": "workspace:*"
   },
   "devDependencies": {
     "@office/config": "workspace:*",

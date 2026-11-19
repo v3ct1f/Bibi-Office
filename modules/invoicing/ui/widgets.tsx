@@ -27,18 +27,19 @@ export function OutstandingWidget({ api, tenantId, navigate, errorMessage }: Slo
   );
 }
 
-/** entity.tab:contact: this contact's invoices. */
-export function ContactInvoicesTab({ api, tenantId, entity, navigate, can, errorMessage }: SlotProps) {
+/** entity.tab:contact and entity.tab:company: invoices for this contact / company. */
+export function InvoicesTab({ api, tenantId, entity, navigate, can, errorMessage }: SlotProps) {
   const id = entity!.id;
+  const field = entity!.type === "company" ? "companyId" : "contactId";
   const q = useQuery({
-    queryKey: ["tenant", tenantId, "invoicing", "invoices", { contactId: id }],
-    queryFn: () => api.get<Page<Invoice>>(`/invoices?contactId=${id}&limit=50`),
+    queryKey: ["tenant", tenantId, "invoicing", "invoices", { [field]: id }],
+    queryFn: () => api.get<Page<Invoice>>(`/invoices?${field}=${id}&limit=50`),
   });
   return (
     <div className="grid gap-3">
-      {can(P.write) && <div><Button size="sm" onClick={() => navigate(`${ROOT}/new/${id}`)}>New invoice</Button></div>}
+      {can(P.write) && field === "contactId" && <div><Button size="sm" onClick={() => navigate(`${ROOT}/new/${id}`)}>New invoice</Button></div>}
       {q.isPending ? <Spinner /> : q.isError ? <Alert>{errorMessage(q.error)}</Alert> : q.data.data.length === 0 ? (
-        <p className="text-sm text-muted">No invoices for this contact.</p>
+        <p className="text-sm text-muted">No invoices yet.</p>
       ) : (
         <Table>
           <THead><TR><TH>Number</TH><TH>Due</TH><TH className="text-right">Total</TH><TH>Status</TH></TR></THead>

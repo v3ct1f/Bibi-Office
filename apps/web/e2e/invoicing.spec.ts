@@ -9,7 +9,7 @@ test("enable invoicing and set seller details", async ({ page }) => {
   await page.goto("/admin/modules");
   await page.getByRole("switch", { name: "Enable Invoicing" }).click();
   await expect(page.getByRole("switch", { name: "Disable Invoicing" })).toBeChecked();
-  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Invoicing settings" }).click();
   const dlg = page.getByRole("dialog");
   await dlg.getByLabel("Your company name").fill("Acme Bakery Ltd");
   await dlg.getByLabel("Payment instructions (e.g. IBAN)").fill("IBAN DE89 3704 0044 0532 0130 00");

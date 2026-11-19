@@ -26,7 +26,7 @@ Invoices with line items and tax, gapless numbering, PDF, payments, overdue trac
 
 Errors: 404 not found / other tenant, 409 wrong state, 422 business rule (overpayment, no customer/lines).
 
-## Events (payload `v: 1`: `id, number, status, currency, total, amountPaid, balance, issueDate, dueDate, contactId, companyId, customer{name,email}`)
+## Events (payload `v: 1`: `id, number, status, currency, total, amountPaid, balance, issueDate, dueDate, contactId, companyId, customer{name,email}, source` — `source` added in 1.1.0)
 `invoicing.invoice.created|issued|sent(+to)|paid|overdue(+daysOverdue)|voided(+reason)|reminder_requested(+reminderCount)`, `invoicing.payment.recorded(+payment)`. All except `created` are workflow triggers.
 
 Consumes `crm.deal.won` v1 `{dealId, title, amount (minor), currency?, contactId?, companyId?}` → one draft per deal (`source = crm.deal:<dealId>`), if setting `draftOnDealWon`.
@@ -42,7 +42,7 @@ Consumes `crm.deal.won` v1 `{dealId, title, amount (minor), currency?, contactId
 `currency` (EUR), `numberFormat` (`INV-{YYYY}-{seq:5}`; tokens `{YYYY} {YY} {MM} {seq[:N]}`, counter restarts when the text around `{seq}` changes), `paymentTermDays` (30), seller name/address/tax ID/email, `paymentInstructions`, `footer`, `draftOnDealWon` (true), `reminderIntervalDays` (7).
 
 ## UI (`./ui`)
-Page `/m/invoicing/invoices` (list with status filters + search, `/new`, `/:id`, `/:id/edit`), `OutstandingWidget` (dashboard), `ContactInvoicesTab` (contact page).
+Page `/m/invoicing/invoices` (list with status filters + search, `/new`, `/:id`, `/:id/edit`), `OutstandingWidget` (dashboard), `InvoicesTab` (contact and company pages).
 
 ## Not yet
 Email delivery (events carry the recipient; needs core email action), credit notes/refunds, quotes, recurring invoices, multi-currency FX, Stripe payment links, Unicode fonts in PDF (non-Latin-1 chars print as `?`), tenant time zone for due dates (UTC now).

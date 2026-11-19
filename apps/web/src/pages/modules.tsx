@@ -39,7 +39,7 @@ export function ModulesPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={m.enabled ? "success" : "neutral"}>{m.enabled ? "Enabled" : "Off"}</Badge>
                   {m.dependsOn.map((d) => <Badge key={d}>needs {d}</Badge>)}
-                  {manage && <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setEditing(m)}><Settings size={14} />Settings</Button>}
+                  {manage && <Button variant="ghost" size="sm" className="ml-auto" aria-label={`${m.name} settings`} onClick={() => setEditing(m)}><Settings size={14} />Settings</Button>}
                 </div>
               </CardContent>
             </Card>

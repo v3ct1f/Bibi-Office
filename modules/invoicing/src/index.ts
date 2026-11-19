@@ -33,7 +33,7 @@ export default defineModule({
   manifest: {
     key: "invoicing",
     name: "Invoicing",
-    version: "1.0.0",
+    version: "1.1.0",
     office: "^1.0",
     description: "Invoices with line items and tax, gapless numbering, PDF, payments, overdue tracking and reminders.",
     permissions: {
@@ -73,7 +73,8 @@ export default defineModule({
     ui: {
       slots: [
         { slot: "nav.main", label: "Invoices", icon: "receipt", route: "/invoices", permission: P.read },
-        { slot: "entity.tab:contact", label: "Invoices", component: "ContactInvoicesTab", permission: P.read },
+        { slot: "entity.tab:contact", label: "Invoices", component: "InvoicesTab", permission: P.read },
+        { slot: "entity.tab:company", label: "Invoices", component: "InvoicesTab", permission: P.read },
         { slot: "dashboard.widget", label: "Invoices", component: "OutstandingWidget", permission: P.read },
       ],
     },

@@ -6,6 +6,7 @@ import { SessionProvider, useSession } from "./lib/session.tsx";
 import { Shell } from "./components/shell.tsx";
 import { AuthCallbackPage, CreateTenantPage, HomePage } from "./pages/home.tsx";
 import { ContactDetailPage, ContactsPage } from "./pages/contacts.tsx";
+import { CompaniesPage, CompanyDetailPage } from "./pages/companies.tsx";
 import { ModulesPage } from "./pages/modules.tsx";
 import { MembersPage, RolesPage } from "./pages/members.tsx";
 import { ApiKeysPage } from "./pages/api-keys.tsx";
@@ -50,6 +51,8 @@ const app = createRoute({ getParentRoute: () => root, id: "app", component: App 
 const home = createRoute({ getParentRoute: () => app, path: "/", component: HomePage });
 const contacts = createRoute({ getParentRoute: () => app, path: "/contacts", component: ContactsPage });
 const contact = createRoute({ getParentRoute: () => app, path: "/contacts/$id", component: ContactDetailPage });
+const companies = createRoute({ getParentRoute: () => app, path: "/companies", component: CompaniesPage });
+const company = createRoute({ getParentRoute: () => app, path: "/companies/$id", component: CompanyDetailPage });
 const modules = createRoute({ getParentRoute: () => app, path: "/admin/modules", component: ModulesPage });
 const members = createRoute({ getParentRoute: () => app, path: "/admin/members", component: MembersPage });
 const roles = createRoute({ getParentRoute: () => app, path: "/admin/roles", component: RolesPage });
@@ -60,7 +63,7 @@ const webhooks = createRoute({ getParentRoute: () => app, path: "/admin/webhooks
 const audit = createRoute({ getParentRoute: () => app, path: "/admin/audit", component: AuditPage });
 const modulePage = createRoute({ getParentRoute: () => app, path: "/m/$key/$", component: ModulePage });
 
-const routeTree = root.addChildren([callback, newOrg, app.addChildren([home, contacts, contact, modules, members, roles, apiKeys, workflows, workflow, webhooks, audit, modulePage])]);
+const routeTree = root.addChildren([callback, newOrg, app.addChildren([home, contacts, contact, companies, company, modules, members, roles, apiKeys, workflows, workflow, webhooks, audit, modulePage])]);
 
 export const router = createRouter({ routeTree, defaultPreload: "intent" });
 declare module "@tanstack/react-router" { interface Register { router: typeof router } }

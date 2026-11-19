@@ -12,6 +12,7 @@ import { moduleNav } from "../modules/slot.tsx";
 const CORE_NAV = [
   { to: "/", label: "Home", icon: Home },
   { to: "/contacts", label: "Contacts", icon: Contact, perm: "core:contacts.read" },
+  { to: "/companies", label: "Companies", icon: Building2, perm: "core:companies.read" },
 ] as const;
 const ADMIN_NAV = [
   { to: "/admin/modules", label: "Modules", icon: Blocks, perm: "core:modules.read" },

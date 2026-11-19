@@ -2,10 +2,10 @@
 import type { ComponentType } from "react";
 import type { SlotProps } from "@office/sdk/ui";
 import { InvoicesPage } from "./pages.tsx";
-import { ContactInvoicesTab, OutstandingWidget } from "./widgets.tsx";
+import { InvoicesTab, OutstandingWidget } from "./widgets.tsx";
 
 const ui: { pages: Record<string, ComponentType<SlotProps>>; components: Record<string, ComponentType<SlotProps>> } = {
   pages: { "/invoices": InvoicesPage },
-  components: { ContactInvoicesTab, OutstandingWidget },
+  components: { InvoicesTab, OutstandingWidget },
 };
 export default ui;

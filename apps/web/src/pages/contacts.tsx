@@ -7,8 +7,7 @@ import { del, errorMessage, get, post } from "../lib/api.ts";
 import { useSession } from "../lib/session.tsx";
 import type { Contact, Page } from "../lib/types.ts";
 import { ConfirmButton, QueryView, fmtDate, fullName } from "../components/common.tsx";
-import { resolveSlots } from "../modules/slot.tsx";
-import { Hosted } from "../modules/host.tsx";
+import { EntityTabs } from "../modules/entity-tabs.tsx";
 
 export function ContactsPage() {
   const s = useSession();
@@ -89,8 +88,6 @@ export function ContactDetailPage() {
   const { id } = useParams({ strict: false }) as { id: string };
   const s = useSession();
   const q = useQuery({ queryKey: ["tenant", s.tenantId, "contacts", "one", id], queryFn: () => get<Contact>(`/contacts/${id}`) });
-  const tabs = resolveSlots("entity.tab:contact", s.modules, s.permissions);
-  const [tab, setTab] = useState(0);
   return (
     <QueryView q={q}>{(c) => (
       <>
@@ -102,24 +99,11 @@ export function ContactDetailPage() {
                 {([["Email", c.email], ["Phone", c.phone], ["Created", fmtDate(c.createdAt)], ["Updated", fmtDate(c.updatedAt)]] as const).map(([k, v]) => (
                   <div key={k}><dt className="text-muted">{k}</dt><dd>{v || "—"}</dd></div>
                 ))}
+                {c.companyId && <div><dt className="text-muted">Company</dt><dd><Link to="/companies/$id" params={{ id: c.companyId }} className="text-primary hover:underline">Open company</Link></dd></div>}
               </dl>
             </CardContent>
           </Card>
-          <Card>
-            {tabs.length === 0 ? <CardContent><p className="text-sm text-muted">Modules can add tabs here (for example invoices or tickets for this contact).</p></CardContent> : (
-              <>
-                <div role="tablist" className="flex gap-1 border-b px-2">
-                  {tabs.map((t, i) => (
-                    <button key={i} role="tab" aria-selected={tab === i} onClick={() => setTab(i)}
-                      className={cn("border-b-2 px-3 py-2 text-sm", tab === i ? "border-primary font-medium" : "border-transparent text-muted")}>{t.slot.label ?? t.module}</button>
-                  ))}
-                </div>
-                <div role="tabpanel" className="p-4">
-                  {tabs[tab] && (() => { const T = tabs[tab]!; return <Hosted key={T.module} module={T.module} Component={T.Component} entity={{ type: "contact", id: c.id, data: c as never }} />; })()}
-                </div>
-              </>
-            )}
-          </Card>
+          <EntityTabs type="contact" id={c.id} data={c as never} empty="Modules can add tabs here (for example invoices or deals for this contact)." />
         </div>
       </>
     )}</QueryView>

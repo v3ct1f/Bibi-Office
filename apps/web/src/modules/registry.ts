@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { SlotProps } from "@office/sdk/ui";
 import invoicing from "@office/module-invoicing/ui";
+import crm from "@office/module-crm/ui";
 
 export type { SlotProps };
 
@@ -15,4 +16,4 @@ export interface ModuleUi {
   pages?: Record<string, ComponentType<SlotProps>>;
 }
 
-export const MODULE_UI: Record<string, ModuleUi> = { invoicing };
+export const MODULE_UI: Record<string, ModuleUi> = { invoicing, crm };

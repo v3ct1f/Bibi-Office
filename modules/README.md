@@ -12,4 +12,5 @@ Checklist for a new module:
 
 | Module | Status |
 |---|---|
-| `invoicing` | v1.0.0 (Session 5) |
+| `invoicing` | v1.1.0 (Session 5; company tab + `source` in events in Session 6) |
+| `crm` | v1.0.0 (Session 6) |
