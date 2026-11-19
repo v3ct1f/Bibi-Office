@@ -14,7 +14,8 @@
     "@office/platform": "workspace:*",
     "@office/sdk": "workspace:*",
     "@office/module-invoicing": "workspace:*",
-    "@office/module-crm": "workspace:*"
+    "@office/module-crm": "workspace:*",
+    "@office/module-expenses": "workspace:*"
   },
   "devDependencies": {
     "@office/config": "workspace:*"

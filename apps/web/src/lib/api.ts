@@ -13,15 +13,17 @@ export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: unknown) { super(message); }
 }
 
-async function request(path: string, init: { method?: string; body?: unknown; tenant?: boolean }) {
+async function request(path: string, init: { method?: string; body?: unknown; tenant?: boolean; raw?: Blob }) {
   const token = await auth.token();
   if (!token) { await auth.login(); throw new ApiError(401, "unauthorized", "Signing in…"); }
   const headers: Record<string, string> = { authorization: `Bearer ${token}` };
   const tenant = tenantStore.get();
   if (init.tenant !== false && tenant) headers["x-tenant-id"] = tenant;
-  if (init.body !== undefined) headers["content-type"] = "application/json";
+  if (init.raw) headers["content-type"] = init.raw.type || "application/octet-stream";
+  else if (init.body !== undefined) headers["content-type"] = "application/json";
   return fetch(`${BASE}${path}`, {
-    method: init.method ?? "GET", headers, ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    method: init.method ?? "GET", headers,
+    ...(init.raw ? { body: init.raw } : init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
   });
 }
 
@@ -45,6 +47,14 @@ export async function getBlob(path: string): Promise<Blob> {
   const res = await request(path, {});
   if (!res.ok) return fail(res);
   return res.blob();
+}
+
+/** Upload a file as the raw request body (core /documents/upload or a module upload route). */
+export async function uploadFile<T>(path: string, file: Blob, filename: string): Promise<T> {
+  const sep = path.includes("?") ? "&" : "?";
+  const res = await request(`${path}${sep}filename=${encodeURIComponent(filename)}`, { method: "POST", raw: file });
+  if (!res.ok) return fail(res);
+  return res.json() as Promise<T>;
 }
 
 export const get = <T,>(p: string) => api<T>(p);

@@ -1,10 +1,12 @@
 import {
   audit, emitEvent, entityService, forbidden, hasPermission, badRequest, type EntityKey, type RequestContext,
 } from "@office/core";
-import type { Tx } from "@office/db";
+import { memberships, users, type Tx } from "@office/db";
+import { and, eq, inArray } from "drizzle-orm";
 import type { EntityRepo, Logger, ModuleContext, ModuleDefinition } from "@office/sdk";
+import { deleteFileById, readFileById, storeFile, type FileDeps } from "./files.ts";
 
-export interface ModuleState { settings: Record<string, unknown>; secrets: Record<string, string> }
+export interface ModuleState { settings: Record<string, unknown>; secrets: Record<string, string>; files?: FileDeps | undefined }
 
 const consoleLogger = (module: string): Logger => {
   const w = (lvl: "debug" | "info" | "warn" | "error") => (o: object | string, msg?: string) =>
@@ -38,6 +40,19 @@ export function createModuleContext(
     };
   };
 
+  const fileDeps = (a: "read" | "write") => {
+    const p = `core:documents.${a}`;
+    if (!requires.has(p)) throw forbidden(`Module ${m.key} did not declare ${p} in permissions.requires`);
+    if (!state.files) throw new Error("File storage is not configured in this process");
+    return state.files;
+  };
+
+  const files: ModuleContext["files"] = {
+      put: async (f) => { const d = fileDeps("write"); return storeFile(tx, base, d, { filename: f.filename, bytes: f.bytes, declaredType: f.contentType, title: f.title }, m.key); },
+    get: async (id) => readFileById(tx, fileDeps("read"), id, m.key),
+    remove: async (id) => { fileDeps("write"); await deleteFileById(tx, base, id, m.key); },
+  };
+
   return Object.freeze({
     module: m.key,
     tenantId: base.tenantId,
@@ -58,6 +73,17 @@ export function createModuleContext(
     audit: {
       log: (action: string, entity?: { type: string; id: string }, diff?: unknown) =>
         audit(tx, { ...base, actor: { ...base.actor } }, `${m.key}.${action}`, entity, diff),
+    },
+    files,
+    people: {
+      async names(ids: string[]) {
+        const uniq = [...new Set(ids.filter((x) => /^[0-9a-f-]{36}$/i.test(x)))].slice(0, 500);
+        if (!uniq.length) return {};
+        const rows = await tx.select({ id: users.id, name: users.name, email: users.email }).from(memberships)
+          .innerJoin(users, eq(users.id, memberships.userId))
+          .where(and(eq(memberships.tenantId, base.tenantId), inArray(memberships.userId, uniq)));
+        return Object.fromEntries(rows.map((r) => [r.id, r.name || r.email]));
+      },
     },
     settings: { get: <T,>() => structuredClone(state.settings) as T },
     secrets: { get: (k: string) => state.secrets[k] },

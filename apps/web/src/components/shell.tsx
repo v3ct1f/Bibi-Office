@@ -3,11 +3,15 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Button, Select, cn } from "@office/ui";
 import {
   Blocks, Building2, FileClock, Home, KeyRound, LogOut, Menu, Moon, Shield, Sun, SunMoon, Users, Webhook, Workflow, X, Contact,
+  Handshake, ReceiptText, Wallet, type LucideIcon,
 } from "lucide-react";
 import { auth } from "../lib/auth.ts";
 import { useSession } from "../lib/session.tsx";
 import { applyTheme, getTheme, type Theme } from "../lib/theme.ts";
 import { moduleNav } from "../modules/slot.tsx";
+
+/** Icons modules may name in ui.slots[].icon; unknown names fall back to a generic block. */
+const MODULE_ICONS: Record<string, LucideIcon> = { handshake: Handshake, receipt: ReceiptText, wallet: Wallet };
 
 const CORE_NAV = [
   { to: "/", label: "Home", icon: Home },
@@ -59,7 +63,7 @@ export function Shell({ children }: { children: ReactNode }) {
       {mods.length > 0 && (
         <div className="grid gap-0.5">
           <p className="px-2.5 text-xs font-medium uppercase tracking-wide text-muted">Modules</p>
-          {mods.map((m) => <NavLink key={m.to} to={m.to}><Blocks size={16} />{m.label}</NavLink>)}
+          {mods.map((m) => { const I = (m.icon && MODULE_ICONS[m.icon]) || Blocks; return <NavLink key={m.to} to={m.to}><I size={16} />{m.label}</NavLink>; })}
         </div>
       )}
       {admin.length > 0 && (

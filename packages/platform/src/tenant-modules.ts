@@ -8,6 +8,7 @@ import type { ModuleDefinition } from "@office/sdk";
 import type { ModuleRegistry } from "./registry.ts";
 import type { SecretBox } from "./crypto.ts";
 import { createModuleContext, type ModuleState } from "./context.ts";
+import type { FileDeps } from "./files.ts";
 
 const ajv = new Ajv2020({ allErrors: true, useDefaults: true, strict: false });
 const validators = new WeakMap<object, ReturnType<typeof ajv.compile>>();
@@ -21,7 +22,8 @@ const secretKeys = (m: ModuleDefinition): string[] => {
   return Object.entries(props).filter(([, s]) => s["x-secret"]).map(([k]) => k);
 };
 
-export interface ModuleDeps { registry: ModuleRegistry; secrets: SecretBox }
+/** `files` absent => ctx.files throws (e.g. a process without storage configured). */
+export interface ModuleDeps { registry: ModuleRegistry; secrets: SecretBox; files?: FileDeps | undefined }
 
 export async function listModules(tx: Tx, d: ModuleDeps) {
   const rows = await tx.select().from(tenantModules);
@@ -43,7 +45,7 @@ export async function loadEnabledModule(tx: Tx, d: ModuleDeps, tenantId: string,
   const [r] = await tx.select().from(tenantModules).where(and(eq(tenantModules.moduleKey, key), eq(tenantModules.enabled, true)));
   if (!r) return null;
   const secrets = r.secrets ? JSON.parse(d.secrets.open(r.secrets, tenantId)) as Record<string, string> : {};
-  return { def, state: { settings: r.settings, secrets } };
+  return { def, state: { settings: r.settings, secrets, files: d.files } };
 }
 
 export async function enabledModuleKeys(tx: Tx): Promise<Set<string>> {
@@ -73,12 +75,15 @@ export async function enableModule(tx: Tx, ctx: RequestContext, d: ModuleDeps, k
     set: { enabled: true, version: def.manifest.version, settings: candidate, enabledAt: new Date(), enabledBy: ctx.actor.userId ?? null },
   });
 
-  // Admin role gets the module's permissions (owner already has "*").
-  const perms = def.manifest.permissions.declares.map((p) => p.key);
-  const [admin] = await tx.select().from(roles).where(and(eq(roles.key, "admin"), eq(roles.system, true)));
-  if (admin && perms.length) {
-    await tx.insert(rolePermissions).values(perms.map((permission) => ({ tenantId: ctx.tenantId, roleId: admin.id, permission })))
-      .onConflictDoNothing();
+  // Grant declared permissions to their default system roles (admin always; owner already has "*").
+  // Only on first enable: later admin edits to roles are respected.
+  if (!existing?.enabledAt) {
+    const sysRoles = await tx.select().from(roles).where(eq(roles.system, true));
+    const grants = def.manifest.permissions.declares.flatMap((p) => {
+      const want = new Set(["admin", ...(p.defaultRoles ?? [])]);
+      return sysRoles.filter((r) => want.has(r.key)).map((r) => ({ tenantId: ctx.tenantId, roleId: r.id, permission: p.key }));
+    });
+    if (grants.length) await tx.insert(rolePermissions).values(grants).onConflictDoNothing();
   }
 
   const loaded = (await loadEnabledModule(tx, d, ctx.tenantId, key))!;

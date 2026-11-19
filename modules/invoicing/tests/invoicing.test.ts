@@ -29,7 +29,7 @@ const draft = (over: Record<string, unknown> = {}) => C().post("/m/invoicing/inv
 
 beforeAll(async () => {
   h = await setup([invoicing]);
-  exec = { db: h.db, registry: h.registry, secrets: h.secrets, http: { allowPrivate: true, requireHttps: false } };
+  exec = { db: h.db, registry: h.registry, secrets: h.secrets, files: h.files, http: { allowPrivate: true, requireHttps: false } };
   [alice, carol] = await Promise.all([h.token("alice"), h.token("carol")]);
   tA = (await h.client(alice).post("/tenants", { slug: "acme", name: "Acme" })).body.id;
   await h.client(carol).get("/me");

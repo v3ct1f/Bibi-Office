@@ -1,7 +1,7 @@
 import { useMemo, type ComponentType } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { ModuleApi, SlotProps } from "@office/sdk/ui";
-import { api, errorMessage, getBlob } from "../lib/api.ts";
+import { api, errorMessage, getBlob, uploadFile } from "../lib/api.ts";
 import { useSession } from "../lib/session.tsx";
 import { SlotBoundary } from "./slot.tsx";
 
@@ -14,6 +14,7 @@ const moduleApi = (key: string): ModuleApi => {
     patch: (p, body) => api(`${base}${p}`, { method: "PATCH", body }),
     del: (p) => api(`${base}${p}`, { method: "DELETE" }),
     blob: (p) => getBlob(`${base}${p}`),
+    upload: (p, file, name) => uploadFile(`${base}${p}`, file, name),
     core: (p) => api(p),
   };
 };

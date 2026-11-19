@@ -22,7 +22,11 @@ export const ManifestSchema = z.object({
   description: z.string().max(500).default(""),
   dependsOn: z.array(key).default([]),
   permissions: z.object({
-    declares: z.array(z.object({ key: permission, label: z.string().min(1).max(120) })).default([]),
+    // defaultRoles: system roles granted this permission on first enable (admin always is).
+    declares: z.array(z.object({
+      key: permission, label: z.string().min(1).max(120),
+      defaultRoles: z.array(z.enum(["admin", "member", "viewer"])).optional(),
+    })).default([]),
     requires: z.array(permission).default([]),
   }).default({ declares: [], requires: [] }),
   entities: z.array(z.string().regex(/^[a-z][a-z0-9_]*$/)).default([]),

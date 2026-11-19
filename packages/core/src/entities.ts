@@ -21,6 +21,8 @@ export interface EntityDef<C extends z.ZodType, U extends z.ZodType> {
   searchable?: boolean;    // has generated tsvector "search" column
   /** Hidden from API output. */
   hidden?: string[];
+  /** Extra row filter applied to every read/write (e.g. hide module-private documents). */
+  scope?: () => SQL;
 }
 
 const custom = z.record(z.string().max(64), z.unknown()).refine((v) => JSON.stringify(v).length <= 16_384, "custom too large");
@@ -72,7 +74,7 @@ export const ENTITIES = {
     update: partialOf(companyBase),
   },
   documents: {
-    name: "document", plural: "documents", table: documents as EntityTable,
+    name: "document", plural: "documents", table: documents as EntityTable, scope: () => isNull(documents.module),
     create: z.object(documentBase).partial().required({ title: true }).strict(),
     update: partialOf(documentBase),
   },
@@ -86,7 +88,7 @@ export const ENTITIES = {
 export type EntityKey = keyof typeof ENTITIES;
 
 const strip = (row: Record<string, unknown>) => {
-  const { tenantId: _t, deletedAt: _d, search: _s, ...rest } = row;
+  const { tenantId: _t, deletedAt: _d, search: _s, storageKey: _k, module: _m, ...rest } = row;
   return rest;
 };
 
@@ -96,14 +98,15 @@ export interface ListQuery { limit: number; cursor?: string | undefined; q?: str
 export function entityService(key: EntityKey) {
   const def = ENTITIES[key] as EntityDef<z.ZodType, z.ZodType>;
   const t = def.table;
-  const live = (id: string): SQL => and(eq(t.id, id), isNull(t.deletedAt))!;
+  const scope = def.scope?.();
+  const live = (id: string): SQL => and(eq(t.id, id), isNull(t.deletedAt), scope)!;
   const perm = (a: "read" | "write") => `core:${def.plural}.${a}`;
 
   return {
     def,
     async list(tx: Tx, ctx: RequestContext, q: ListQuery) {
       requirePermission(ctx, perm("read"));
-      const where: SQL[] = [isNull(t.deletedAt)];
+      const where: SQL[] = [isNull(t.deletedAt), ...(scope ? [scope] : [])];
       if (q.cursor) where.push(lt(t.id, q.cursor));
       if (q.q && def.searchable) where.push(sql`search @@ websearch_to_tsquery('simple', ${q.q})`);
       const rows = await tx.select().from(t).where(and(...where)).orderBy(desc(t.id)).limit(q.limit + 1);

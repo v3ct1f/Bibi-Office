@@ -4,7 +4,7 @@ import pino from "pino";
 import { createDb } from "@office/db";
 import { createRegistry } from "@office/modules";
 import {
-  dispatchEvent, deliverDue, runDueJobs, InlineRunner, SecretBox, runRefFor, TemporalRunner, temporalActivities, TASK_QUEUE,
+  dispatchEvent, deliverDue, runDueJobs, InlineRunner, SecretBox, fileDepsFromEnv, runRefFor, TemporalRunner, temporalActivities, TASK_QUEUE,
   type ExecDeps, type WorkflowRunner,
 } from "@office/platform";
 import type { EventEnvelope } from "@office/sdk";
@@ -21,7 +21,8 @@ const app = createDb(env("DATABASE_URL_APP"), { max: 10 });
 const secrets = new SecretBox(env("SECRETS_KEY"));
 const registry = createRegistry();
 const http = { allowPrivate, requireHttps: PROD };
-const exec: ExecDeps = { db: app.db, registry, secrets, http };
+const files = fileDepsFromEnv();
+const exec: ExecDeps = { db: app.db, registry, secrets, files, http };
 
 // ── Workflow runner: Temporal when configured, else in-process.
 let runner: WorkflowRunner = new InlineRunner(exec);
@@ -74,7 +75,7 @@ async function consumeEvents() {
     if (!running) break;
     try {
       const e = m.json<EventEnvelope>();
-      const r = await dispatchEvent({ db: app.db, registry, secrets, runner }, e);
+      const r = await dispatchEvent({ db: app.db, registry, secrets, files, runner }, e);
       log.debug({ type: e.type, id: e.id, ...r, runs: r.runs.length }, "dispatched");
       m.ack();
     } catch (err) {
@@ -98,7 +99,7 @@ await Promise.all([
     }
     return 0;
   }, 60_000),
-  loop("module-jobs", () => runDueJobs(relaySql, { db: app.db, registry, secrets }), 30_000),
+  loop("module-jobs", () => runDueJobs(relaySql, { db: app.db, registry, secrets, files }), 30_000),
   consumeEvents(),
   temporalWorker?.run(),
 ]);

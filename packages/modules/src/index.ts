@@ -4,6 +4,7 @@ import type { ModuleDefinition } from "@office/sdk";
 import { ModuleRegistry } from "@office/platform";
 import invoicing from "@office/module-invoicing";
 import crm from "@office/module-crm";
+import expenses from "@office/module-expenses";
 
-export const MODULES: ModuleDefinition[] = [invoicing, crm];
+export const MODULES: ModuleDefinition[] = [invoicing, crm, expenses];
 export const createRegistry = () => new ModuleRegistry(MODULES);

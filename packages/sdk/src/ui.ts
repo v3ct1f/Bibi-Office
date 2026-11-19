@@ -10,6 +10,8 @@ export interface ModuleApi {
   del(path: string): Promise<void>;
   /** Fetch a file response (e.g. PDF) and return it as a Blob. */
   blob(path: string): Promise<Blob>;
+  /** POST a file as the raw body to an `upload: true` route; adds `?filename=`. */
+  upload<T>(path: string, file: Blob, filename: string): Promise<T>;
   /** Core API (`/api/v1`), read-only use for lookups such as contacts. */
   core<T>(path: string): Promise<T>;
 }

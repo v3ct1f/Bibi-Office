@@ -42,4 +42,48 @@ test("capture", async ({ page }) => {
   await page.getByRole("tab", { name: "Activity" }).click();
   await page.waitForLoadState("networkidle");
   await page.screenshot({ path: `${dir}/company-activity-light.png`, fullPage: true });
+
+  // Expenses: a realistic receipt (rendered here), detail, queue, dialog
+  const r = await page.context().newPage();
+  await r.setViewportSize({ width: 360, height: 480 });
+  await r.setContent(`<body style="margin:0;font:14px/1.5 ui-monospace,monospace;background:#fff;color:#222;padding:24px">
+    <div style="text-align:center;font-weight:700;font-size:18px">HARBOR HOTEL</div><div style="text-align:center">12 Quay Street · Portside</div>
+    <hr style="border:0;border-top:1px dashed #999;margin:12px 0"><div>Date: 2026-11-12 &nbsp; Room 214</div><div>Guest: Alice</div>
+    <hr style="border:0;border-top:1px dashed #999;margin:12px 0">
+    <div style="display:flex;justify-content:space-between"><span>1 night, double</span><span>118.00</span></div>
+    <div style="display:flex;justify-content:space-between"><span>Breakfast</span><span>14.00</span></div>
+    <div style="display:flex;justify-content:space-between"><span>City tax</span><span>3.00</span></div>
+    <hr style="border:0;border-top:1px dashed #999;margin:12px 0">
+    <div style="display:flex;justify-content:space-between;font-weight:700"><span>TOTAL EUR</span><span>135.00</span></div>
+    <div style="display:flex;justify-content:space-between"><span>incl. VAT 7%</span><span>8.83</span></div>
+    <p style="text-align:center;margin-top:24px">Paid by card ****4421<br>Thank you for staying with us</p></body>`);
+  const receipt = await r.screenshot();
+  await r.close();
+  await page.goto("/m/expenses/expenses");
+  await page.getByRole("button", { name: "New expense" }).click();
+  const dlg = page.getByRole("dialog", { name: "New expense" });
+  await dlg.getByLabel("Date").fill("2026-11-12");
+  await dlg.getByLabel("Merchant").fill("Harbor Hotel (client visit)");
+  await dlg.getByLabel("Category").selectOption({ label: "Lodging" });
+  await dlg.getByLabel("Amount").fill("135.00");
+  await dlg.getByLabel("Of which tax").fill("8.83");
+  await dlg.getByLabel("Description (optional)").fill("Overnight for the Globex catering tasting.");
+  await dlg.getByLabel("Receipt").setInputFiles({ name: "harbor-hotel.png", mimeType: "image/png", buffer: receipt });
+  await page.screenshot({ path: `${dir}/expense-new-light.png` });
+  await dlg.getByRole("button", { name: "Save and submit" }).click();
+  await page.getByRole("img", { name: /^Receipt from/ }).waitFor();
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: `${dir}/expense-detail-light.png`, fullPage: true });
+  await page.goto("/m/expenses/expenses");
+  await page.getByRole("tab", { name: "All" }).click();
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: `${dir}/expenses-all-light.png` });
+  await page.addInitScript(() => localStorage.setItem("office.theme", "dark"));
+  await signIn(page, "bob");
+  await page.goto("/m/expenses/expenses");
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: `${dir}/expenses-mine-dark.png` });
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: `${dir}/dashboard-member-dark.png`, fullPage: true });
 });
