@@ -1,6 +1,7 @@
 import type postgres from "postgres";
 import { withTenant, type Db } from "@office/db";
 import { createModuleContext, systemContext } from "./context.ts";
+import { inModuleRole } from "./module-role.ts";
 import { loadEnabledModule, type ModuleDeps } from "./tenant-modules.ts";
 
 export interface JobDeps extends ModuleDeps { db: Db }
@@ -14,7 +15,7 @@ export async function runModuleJob(d: JobDeps, tenantId: string, moduleKey: stri
     if (!loaded) return 0;
     const base = systemContext(tenantId, `job:${moduleKey}/${job}:${Date.now()}`, `module:${moduleKey}`);
     base.actor = { type: "module", id: moduleKey, permissions: new Set(["*"]) };
-    return (await spec.run(createModuleContext(tx, base, loaded.def, loaded.state))) ?? 0;
+    return (await inModuleRole(tx, moduleKey, () => spec.run(createModuleContext(tx, base, loaded.def, loaded.state)))) ?? 0;
   });
 }
 

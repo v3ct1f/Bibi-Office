@@ -8,7 +8,7 @@ import { isFileResponse, type FileResponse, type PublicRouteSpec, type RouteSpec
 import {
   actionCatalog, createModuleContext, disableModule, enableModule, listModules, loadEnabledModule,
   updateModuleSettings, webhookService, WebhookInput, workflowService, WorkflowInput, CORE_EVENTS,
-  storeFile, readFileById, metricCatalog, computeMetrics, MetricQuery, inlineSafe, publicContext, systemContext, normalizeInbound, resolveInboundRoute, recordInbound, htmlToText, secretMatches,
+  storeFile, readFileById, inModuleRole, metricCatalog, computeMetrics, MetricQuery, inlineSafe, publicContext, systemContext, normalizeInbound, resolveInboundRoute, recordInbound, htmlToText, secretMatches,
   type FileDeps, type MailEnv, type ModuleRegistry, type SecretBox,
 } from "@office/platform";
 
@@ -165,9 +165,9 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
               filename: String((req.query as { filename?: unknown } | undefined)?.filename ?? "file"),
               bytes: bodyBytes(req.body), contentType: req.headers["content-type"],
             } : undefined;
-            return r.handler(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log), {
+            return inModuleRole(tx, key, () => r.handler(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log), {
               body: r.upload ? undefined : req.body, query: req.query, params: req.params, file,
-            });
+            }));
           });
           if (isFileResponse(out)) return sendFile(reply, out);
           return reply.status(r.status ?? (out === undefined ? 204 : 200)).send(out);
@@ -204,9 +204,9 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
       handler: async (req, reply) => {
         const { tenant, ...rest } = req.params as { tenant: string } & Record<string, unknown>;
         const out = await inPublic(req, tenant, key, (tx, ctx, l) =>
-          r.handler(createModuleContext(tx, ctx, l.def, l.state, req.log, { anonymous: true }), {
+          inModuleRole(tx, key, () => r.handler(createModuleContext(tx, ctx, l.def, l.state, req.log, { anonymous: true }), {
             body: req.body, query: req.query, params: rest, ip: req.ip, userAgent: String(req.headers["user-agent"] ?? "").slice(0, 300),
-          }));
+          })));
         if (isFileResponse(out)) return sendFile(reply, out);
         reply.header("cache-control", "no-store");
         return reply.status(r.status ?? (out === undefined ? 204 : 200)).send(out);
@@ -231,10 +231,10 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
       if (!loaded?.def.inboundMail) return { accepted: false, reason: "module_disabled" };
       if (!(await recordInbound(tx, route.tenantId, route.module, msg))) return { accepted: true, duplicate: true };
       const ctx = systemContext(route.tenantId, req.id, `mail:${route.module}`);
-      await loaded.def.inboundMail(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log), {
+      await inModuleRole(tx, route.module, () => loaded.def.inboundMail!(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log), {
         messageId: msg.messageId, inReplyTo: msg.inReplyTo, references: msg.references, from: msg.from, to: msg.to,
         subject: msg.subject, text: msg.text || (msg.html ? htmlToText(msg.html) : ""),
-      });
+      }));
       return { accepted: true };
     });
     return result;

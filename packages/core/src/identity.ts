@@ -5,7 +5,7 @@ import {
   type Db, type Tx,
 } from "@office/db";
 import { conflict, notFound, unauthorized, forbidden, badRequest } from "./errors.ts";
-import { SYSTEM_ROLES, hasPermission } from "./permissions.ts";
+import { SYSTEM_ROLES, hasPermission, requirePermission } from "./permissions.ts";
 import { audit } from "./audit.ts";
 import { emitEvent } from "./events.ts";
 import type { RequestContext } from "./context.ts";
@@ -29,7 +29,7 @@ export async function upsertUser(db: Db, c: IdpClaims) {
 }
 
 export async function listUserTenants(db: Db, userId: string) {
-  return db.select({ id: tenants.id, slug: tenants.slug, name: tenants.name, status: memberships.status })
+  return db.select({ id: tenants.id, slug: tenants.slug, name: tenants.name, status: memberships.status, timeZone: sql<string>`coalesce(${tenants.settings}->>'timeZone', 'UTC')` })
     .from(memberships).innerJoin(tenants, eq(tenants.id, memberships.tenantId))
     .where(and(eq(memberships.userId, userId), eq(tenants.status, "active")));
 }
@@ -72,7 +72,25 @@ export async function createTenant(
 
 export async function getTenant(db: Db, tenantId: string) {
   const [t] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
-  return t ?? null;
+  return t ? { ...t, timeZone: typeof t.settings.timeZone === "string" ? t.settings.timeZone : "UTC" } : null;
+}
+
+/** Owner-only: rename the organization or set its time zone (IANA name, also known to Postgres). */
+export async function updateTenant(tx: Tx, ctx: RequestContext, p: { name?: string | undefined; timeZone?: string | undefined }) {
+  requirePermission(ctx, "core:tenant.manage");
+  if (p.timeZone !== undefined) {
+    let ok = true;
+    try { new Intl.DateTimeFormat("en", { timeZone: p.timeZone }); } catch { ok = false; }
+    const [known] = ok ? await tx.execute(sql`select 1 as ok from pg_timezone_names where name = ${p.timeZone}`) as unknown as { ok: number }[] : [];
+    if (!known) throw badRequest(`Unknown time zone ${p.timeZone}`);
+  }
+  const [cur] = await tx.select().from(tenants).where(eq(tenants.id, ctx.tenantId));
+  if (!cur) throw notFound("Tenant");
+  const settings = { ...cur.settings, ...(p.timeZone !== undefined ? { timeZone: p.timeZone } : {}) };
+  const [t] = await tx.update(tenants).set({ ...(p.name !== undefined ? { name: p.name } : {}), settings, updatedAt: new Date() })
+    .where(eq(tenants.id, ctx.tenantId)).returning();
+  await audit(tx, ctx, "tenant.updated", { type: "tenant", id: ctx.tenantId }, { name: p.name, timeZone: p.timeZone });
+  return { ...t!, timeZone: typeof settings.timeZone === "string" ? settings.timeZone : "UTC" };
 }
 
 // ───────── Authorization data ─────────

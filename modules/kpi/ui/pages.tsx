@@ -65,8 +65,8 @@ function Board(props: SlotProps & { d: Dashboard; canManage: boolean; count: num
   const { api, tenantId, errorMessage, d, canManage, navigate } = props;
   const qc = useQueryClient();
   const [preset, setPreset] = useState<Preset | "custom">("this_month");
-  const [custom, setCustom] = useState(() => presetRange("last_30"));
-  const range = preset === "custom" ? custom : presetRange(preset);
+  const [custom, setCustom] = useState(() => presetRange("last_30", props.timeZone));
+  const range = preset === "custom" ? custom : presetRange(preset, props.timeZone);
   const [draft, setDraft] = useState<Tile[] | null>(null), [name, setName] = useState(d.name), [adding, setAdding] = useState(false);
   const tiles = draft ?? d.tiles;
   const values = useMetricValues(props, tiles.map((t) => t.metric), range);
@@ -85,7 +85,7 @@ function Board(props: SlotProps & { d: Dashboard; canManage: boolean; count: num
     <div className="grid gap-4">
       <div className="flex flex-wrap items-end gap-2">
         <RangePicker preset={preset} setPreset={setPreset} custom={custom} setCustom={setCustom} />
-        {v && <p className="text-xs text-muted">{fmtDay(v.range.from)} – {fmtDay(v.range.to)}, compared with {fmtDay(v.previous.from)} – {fmtDay(v.previous.to)}</p>}
+        {v && <p className="text-xs text-muted">{fmtDay(v.range.from)} – {fmtDay(v.range.to)}, compared with {fmtDay(v.previous.from)} – {fmtDay(v.previous.to)} · {props.timeZone}</p>}
         <span className="flex-1" />
         {canManage && !editing && <Button variant="outline" onClick={() => { setDraft(d.tiles); setName(d.name); }}>Edit dashboard</Button>}
         {editing && <>

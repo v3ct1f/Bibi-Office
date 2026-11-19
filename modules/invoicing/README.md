@@ -45,7 +45,7 @@ Consumes `crm.deal.won` v1 `{dealId, title, amount (minor), currency?, contactId
 Page `/m/invoicing/invoices` (list with status filters + search, `/new`, `/:id`, `/:id/edit`), `OutstandingWidget` (dashboard), `InvoicesTab` (contact and company pages).
 
 ## Not yet
-Email delivery (events carry the recipient; needs core email action), credit notes/refunds, quotes, recurring invoices, multi-currency FX, Stripe payment links, Unicode fonts in PDF (non-Latin-1 chars print as `?`), tenant time zone for due dates (UTC now).
+Email delivery (events carry the recipient; needs core email action), credit notes/refunds, quotes, recurring invoices, multi-currency FX, Stripe payment links, Unicode fonts in PDF (non-Latin-1 chars print as `?`). Due/overdue dates follow the organization time zone (Session 15).
 
 ## Tests
 `TEST_DATABASE_URL=... pnpm --filter @office/module-invoicing test` (money math + API integration: numbering, immutability, payments, isolation, job, PDF, CRM hook, workflows). E2E: `apps/web/e2e/invoicing.spec.ts`.

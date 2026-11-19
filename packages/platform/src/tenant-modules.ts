@@ -8,6 +8,7 @@ import type { ModuleDefinition } from "@office/sdk";
 import type { ModuleRegistry } from "./registry.ts";
 import type { SecretBox } from "./crypto.ts";
 import { createModuleContext, type ModuleState } from "./context.ts";
+import { inModuleRole } from "./module-role.ts";
 import type { FileDeps } from "./files.ts";
 import type { MailEnv } from "./mail.ts";
 
@@ -88,7 +89,7 @@ export async function enableModule(tx: Tx, ctx: RequestContext, d: ModuleDeps, k
   }
 
   const loaded = (await loadEnabledModule(tx, d, ctx.tenantId, key))!;
-  await def.lifecycle?.enable?.(createModuleContext(tx, ctx, def, loaded.state));
+  if (def.lifecycle?.enable) await inModuleRole(tx, key, () => def.lifecycle!.enable!(createModuleContext(tx, ctx, def, loaded.state)));
   await audit(tx, ctx, "module.enabled", { type: "module", id: ctx.tenantId }, { key, version: def.manifest.version });
   await emitEvent(tx, ctx, "core.module.enabled", { key, version: def.manifest.version });
   return { key, enabled: true };
@@ -102,7 +103,7 @@ export async function disableModule(tx: Tx, ctx: RequestContext, d: ModuleDeps, 
   const blocking = d.registry.dependents(key).filter((m) => enabled.has(m.manifest.key)).map((m) => m.manifest.key);
   if (blocking.length) throw conflict(`Disable dependent modules first: ${blocking.join(", ")}`);
   const loaded = (await loadEnabledModule(tx, d, ctx.tenantId, key))!;
-  await def.lifecycle?.disable?.(createModuleContext(tx, ctx, def, loaded.state));
+  if (def.lifecycle?.disable) await inModuleRole(tx, key, () => def.lifecycle!.disable!(createModuleContext(tx, ctx, def, loaded.state)));
   await tx.update(tenantModules).set({ enabled: false }).where(eq(tenantModules.moduleKey, key));
   // Data is retained; permissions stay assigned but are inert while disabled.
   await audit(tx, ctx, "module.disabled", { type: "module", id: ctx.tenantId }, { key });

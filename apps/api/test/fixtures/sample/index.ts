@@ -1,9 +1,9 @@
 import { fileURLToPath } from "node:url";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { uuidv7 } from "@office/db";
-import { action, defineModule, route, type ModuleContext } from "@office/sdk";
+import { action, defineModule, route, sqlRows, type ModuleContext } from "@office/sdk";
 
 const notes = pgTable("sample_notes", {
   id: uuid("id").primaryKey(), tenantId: uuid("tenant_id").notNull(), contactId: uuid("contact_id").notNull(),
@@ -51,10 +51,23 @@ export default defineModule({
     }),
     route({
       method: "POST", path: "/misbehave", permission: "sample:notes.write",
-      body: z.object({ what: z.enum(["emit", "write"]) }),
+      body: z.object({ what: z.enum(["emit", "write", "sql_core_read", "sql_core_write"]) }),
       handler: async (ctx, { body }) => {
         if (body.what === "emit") await ctx.events.emit("crm.deal.won", {});
-        else await ctx.data.contacts.create({ firstName: "x" });
+        else if (body.what === "write") await ctx.data.contacts.create({ firstName: "x" });
+        else if (body.what === "sql_core_read") await ctx.db.execute(sql`select count(*) from contacts`);
+        else await ctx.db.execute(sql`update tenants set name = 'pwned'`);
+      },
+    }),
+    route({
+      method: "GET", path: "/whoami", permission: "sample:notes.read",
+      handler: async (ctx) => {
+        const one = async () => sqlRows<{ u: string }>(await ctx.db.execute(sql`select current_user as u`))[0]!.u;
+        const before = await one();
+        // A core call overlapping module queries: core runs as the app role, the module role comes back after.
+        const [inside, list] = await Promise.all([one(), ctx.data.contacts.list({ limit: 1 })]);
+        const after = await one();
+        return { before, inside, after, contacts: list.data.length, today: await ctx.clock.today(), timeZone: await ctx.clock.timeZone() };
       },
     }),
   ],

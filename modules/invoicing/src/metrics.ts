@@ -36,7 +36,7 @@ export const metrics: Record<string, MetricSpec> = {
     label: "Overdue", description: "Unpaid balance of open invoices past their due date.", permission: READ, unit: "money", kind: "stock", lowerIsBetter: true,
     compute: async (ctx) => {
       const cur = settingsOf(ctx).currency;
-      return { value: await scalar(ctx, sql`select coalesce(sum(total - amount_paid), 0) as v from invoicing_invoices where status = 'open' and currency = ${cur} and due_date < (now() at time zone 'UTC')::date`), currency: cur };
+      return { value: await scalar(ctx, sql`select coalesce(sum(total - amount_paid), 0) as v from invoicing_invoices where status = 'open' and currency = ${cur} and due_date < current_date`), currency: cur };
     },
   }),
 };

@@ -52,6 +52,7 @@ beforeAll(async () => {
     await deal("C", 999_00, "won", "2026-10-21T00:00:00Z", "USD");   // other currency: left out
     await deal("D", 50_00, "lost", "2026-10-25T09:00:00Z");
     await deal("E", 80_00, "won", "2026-09-15T12:00:00Z");           // previous period
+    await deal("H", 7_00, "won", "2026-11-01T03:00:00Z");           // Oct 31, 20:00 in Los Angeles
     await deal("F", 400_00, "open", null);
     await deal("G", 600_00, "open", null);
     const ticket = (n: number, status: string, created: string, first: string | null) =>
@@ -105,9 +106,19 @@ describe("core metrics API", () => {
     expect(m["crm.pipeline"]).toMatchObject({ value: 1000_00, previous: null, series: null, kind: "stock" });
   });
 
+  it("uses the organization's calendar for periods and buckets", async () => {
+    expect((await c(alice).patch("/tenant", { timeZone: "America/Los_Angeles" })).status).toBe(200);
+    const m = byKey((await vals(alice, "crm.won_value")).body)["crm.won_value"]!;
+    expect(m.value).toBe(357_00);   // deal H closed on Oct 31 local time
+    const s = m.series as { t: string; v: number }[];
+    expect(s.find((p) => p.t === "2026-10-31")!.v).toBe(7_00);
+    expect(s.find((p) => p.t === "2026-10-20")!.v).toBe(250_00);   // 16:30 local, same day
+    await c(alice).patch("/tenant", { timeZone: "UTC" });
+  });
+
   it("buckets by month and fills empty buckets", async () => {
     const s = byKey((await vals(alice, "crm.won_value", "from=2026-08-01&to=2026-10-31&bucket=month")).body)["crm.won_value"]!.series;
-    expect(s).toEqual([{ t: "2026-08-01", v: 0 }, { t: "2026-09-01", v: 80_00 }, { t: "2026-10-01", v: 350_00 }]);
+    expect(s).toEqual([{ t: "2026-08-01", v: 0 }, { t: "2026-09-01", v: 80_00 }, { t: "2026-10-01", v: 350_00 }]);   // H is November in UTC
   });
 
   it("computes support metrics", async () => {

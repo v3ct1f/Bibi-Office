@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { and, desc, eq, lt } from "drizzle-orm";
 import {
-  ENTITIES, entityService, createTenant, listUserTenants, getTenant, listMembers, addMember, setMemberRoles,
+  ENTITIES, entityService, createTenant, listUserTenants, getTenant, updateTenant, listMembers, addMember, setMemberRoles,
   removeMember, listRoles, upsertRole, deleteRole, createApiKey, listApiKeys, revokeApiKey, verifyAuditChain,
   forbidden, CORE_PERMISSIONS, type EntityKey, type RequestContext,
 } from "@office/core";
@@ -55,6 +55,10 @@ export const registerRoutes: FastifyPluginAsync<{ db: Db; inTenant: InTenant; pe
 
   app.get("/tenant", { config: AUTH, schema: { tags: ["tenants"], headers: tenantHeader } },
     (req) => inTenant(req, null, async (_tx, ctx) => getTenant(db, ctx.tenantId)));
+  app.patch("/tenant", {
+    config: AUTH,
+    schema: { tags: ["tenants"], headers: tenantHeader, body: z.object({ name: z.string().trim().min(1).max(200).optional(), timeZone: z.string().min(1).max(64).optional() }).strict() },
+  }, (req) => inTenant(req, null, (tx, ctx) => updateTenant(tx, ctx, req.body)));
 
   // ───── Members ─────
   app.get("/members", { config: AUTH, schema: { tags: ["members"], headers: tenantHeader } },

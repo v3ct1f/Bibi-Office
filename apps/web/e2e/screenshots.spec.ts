@@ -7,6 +7,7 @@ test.skip(!dir, "set SCREENSHOTS_DIR to capture screenshots");
 test.use({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
 
 test("capture", async ({ page }) => {
+  test.setTimeout(120_000); // ~40 screens, each module UI now loads on demand
   await signIn(page);
   for (const [path, name, theme] of [
     ["/contacts", "contacts-light", "light"], ["/admin/workflows", "workflows-list-light", "light"],

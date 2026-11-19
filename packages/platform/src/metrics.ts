@@ -6,6 +6,7 @@ import { tenantModules, type Tx } from "@office/db";
 import { ModuleError, type Logger, type MetricBucket, type MetricRange, type MetricSpec, type MetricValue } from "@office/sdk";
 import { createModuleContext } from "./context.ts";
 import { loadEnabledModule, type ModuleDeps } from "./tenant-modules.ts";
+import { inModuleRole } from "./module-role.ts";
 
 const DAY = 86_400_000;
 const MAX_DAYS = 1100;   // ~3 years
@@ -97,8 +98,10 @@ export async function computeMetrics(tx: Tx, ctx: RequestContext, d: ModuleDeps,
         const loaded = await loadEnabledModule(sp, d, ctx.tenantId, modKey);
         if (!loaded) return null;
         const mctx = createModuleContext(sp, ctx, loaded.def, loaded.state, log);
-        const now = await spec.compute(mctx, range);
-        const before = spec.kind === "flow" && q.compare ? await spec.compute(mctx, prev) : null;
+        const [now, before] = await inModuleRole(sp, modKey, async () => [
+          await spec.compute(mctx, range),
+          spec.kind === "flow" && q.compare ? await spec.compute(mctx, prev) : null,
+        ] as const);
         return { now, before, moduleName: loaded.def.manifest.name };
       });
       if (!r) { unavailable("The module is turned off"); continue; }

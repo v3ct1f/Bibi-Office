@@ -68,7 +68,7 @@ export async function createSummary(ctx: ModuleContext, i: { kind: Kind; title?:
   const s = settingsOf(ctx);
   const u = await usageNow(ctx);
   if (u.used >= u.limit) throw E.conflict(`This month's AI limit is used up (${u.used.toLocaleString("en")} of ${u.limit.toLocaleString("en")} tokens). An admin can raise it`);
-  const out = await summarize({ apiKey, model: s.model, kind: i.kind, title: i.title, text: i.text, language: s.language || undefined, today: new Date().toISOString().slice(0, 10) });
+  const out = await summarize({ apiKey, model: s.model, kind: i.kind, title: i.title, text: i.text, language: s.language || undefined, today: await ctx.clock.today() });
   await addUsage(ctx, out.inputTokens, out.outputTokens);
   const title = (i.title || out.result?.title || "Untitled").slice(0, 200);
   const [row] = await ctx.db.insert(summaries).values({

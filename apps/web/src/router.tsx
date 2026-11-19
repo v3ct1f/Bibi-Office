@@ -1,18 +1,10 @@
-import { createRootRoute, createRoute, createRouter, Outlet } from "@tanstack/react-router";
+import { createRootRoute, createRoute, createRouter, lazyRouteComponent, Outlet } from "@tanstack/react-router";
 import { Alert, Button, Spinner } from "@office/ui";
 import { ApiError, errorMessage } from "./lib/api.ts";
 import { auth } from "./lib/auth.ts";
 import { SessionProvider, useSession } from "./lib/session.tsx";
 import { Shell } from "./components/shell.tsx";
 import { AuthCallbackPage, CreateTenantPage, HomePage } from "./pages/home.tsx";
-import { ContactDetailPage, ContactsPage } from "./pages/contacts.tsx";
-import { CompaniesPage, CompanyDetailPage } from "./pages/companies.tsx";
-import { ModulesPage } from "./pages/modules.tsx";
-import { MembersPage, RolesPage } from "./pages/members.tsx";
-import { ApiKeysPage } from "./pages/api-keys.tsx";
-import { WorkflowEditorPage, WorkflowsPage } from "./pages/workflows.tsx";
-import { WebhooksPage } from "./pages/webhooks.tsx";
-import { AuditPage } from "./pages/audit.tsx";
 import { ModulePage, PublicModulePage } from "./pages/module-page.tsx";
 
 const Loading = () => <div className="grid min-h-dvh place-items-center"><Spinner /></div>;
@@ -51,21 +43,22 @@ const app = createRoute({ getParentRoute: () => root, id: "app", component: App 
 // Signed-out module pages (e.g. booking). Outside "app": no sign-in, no shell.
 const publicPage = createRoute({ getParentRoute: () => root, path: "/p/$tenant/$key/$", component: PublicModulePage });
 const home = createRoute({ getParentRoute: () => app, path: "/", component: HomePage });
-const contacts = createRoute({ getParentRoute: () => app, path: "/contacts", component: ContactsPage });
-const contact = createRoute({ getParentRoute: () => app, path: "/contacts/$id", component: ContactDetailPage });
-const companies = createRoute({ getParentRoute: () => app, path: "/companies", component: CompaniesPage });
-const company = createRoute({ getParentRoute: () => app, path: "/companies/$id", component: CompanyDetailPage });
-const modules = createRoute({ getParentRoute: () => app, path: "/admin/modules", component: ModulesPage });
-const members = createRoute({ getParentRoute: () => app, path: "/admin/members", component: MembersPage });
-const roles = createRoute({ getParentRoute: () => app, path: "/admin/roles", component: RolesPage });
-const apiKeys = createRoute({ getParentRoute: () => app, path: "/admin/api-keys", component: ApiKeysPage });
-const workflows = createRoute({ getParentRoute: () => app, path: "/admin/workflows", component: WorkflowsPage });
-const workflow = createRoute({ getParentRoute: () => app, path: "/admin/workflows/$id", component: WorkflowEditorPage });
-const webhooks = createRoute({ getParentRoute: () => app, path: "/admin/webhooks", component: WebhooksPage });
-const audit = createRoute({ getParentRoute: () => app, path: "/admin/audit", component: AuditPage });
+const contacts = createRoute({ getParentRoute: () => app, path: "/contacts", component: lazyRouteComponent(() => import("./pages/contacts.tsx"), "ContactsPage") });
+const contact = createRoute({ getParentRoute: () => app, path: "/contacts/$id", component: lazyRouteComponent(() => import("./pages/contacts.tsx"), "ContactDetailPage") });
+const companies = createRoute({ getParentRoute: () => app, path: "/companies", component: lazyRouteComponent(() => import("./pages/companies.tsx"), "CompaniesPage") });
+const company = createRoute({ getParentRoute: () => app, path: "/companies/$id", component: lazyRouteComponent(() => import("./pages/companies.tsx"), "CompanyDetailPage") });
+const modules = createRoute({ getParentRoute: () => app, path: "/admin/modules", component: lazyRouteComponent(() => import("./pages/modules.tsx"), "ModulesPage") });
+const members = createRoute({ getParentRoute: () => app, path: "/admin/members", component: lazyRouteComponent(() => import("./pages/members.tsx"), "MembersPage") });
+const roles = createRoute({ getParentRoute: () => app, path: "/admin/roles", component: lazyRouteComponent(() => import("./pages/members.tsx"), "RolesPage") });
+const apiKeys = createRoute({ getParentRoute: () => app, path: "/admin/api-keys", component: lazyRouteComponent(() => import("./pages/api-keys.tsx"), "ApiKeysPage") });
+const workflows = createRoute({ getParentRoute: () => app, path: "/admin/workflows", component: lazyRouteComponent(() => import("./pages/workflows.tsx"), "WorkflowsPage") });
+const workflow = createRoute({ getParentRoute: () => app, path: "/admin/workflows/$id", component: lazyRouteComponent(() => import("./pages/workflows.tsx"), "WorkflowEditorPage") });
+const webhooks = createRoute({ getParentRoute: () => app, path: "/admin/webhooks", component: lazyRouteComponent(() => import("./pages/webhooks.tsx"), "WebhooksPage") });
+const organization = createRoute({ getParentRoute: () => app, path: "/admin/organization", component: lazyRouteComponent(() => import("./pages/organization.tsx"), "OrganizationPage") });
+const audit = createRoute({ getParentRoute: () => app, path: "/admin/audit", component: lazyRouteComponent(() => import("./pages/audit.tsx"), "AuditPage") });
 const modulePage = createRoute({ getParentRoute: () => app, path: "/m/$key/$", component: ModulePage });
 
-const routeTree = root.addChildren([callback, newOrg, publicPage, app.addChildren([home, contacts, contact, companies, company, modules, members, roles, apiKeys, workflows, workflow, webhooks, audit, modulePage])]);
+const routeTree = root.addChildren([callback, newOrg, publicPage, app.addChildren([home, contacts, contact, companies, company, modules, members, roles, apiKeys, workflows, workflow, webhooks, organization, audit, modulePage])]);
 
 export const router = createRouter({ routeTree, defaultPreload: "intent" });
 declare module "@tanstack/react-router" { interface Register { router: typeof router } }

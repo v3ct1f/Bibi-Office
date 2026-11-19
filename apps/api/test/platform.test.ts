@@ -95,6 +95,34 @@ describe("module lifecycle", () => {
     expect(r.body.title).toMatch(/did not declare core:contacts.write/);
   });
 
+  it("module code runs under its own DB role: no direct access to core tables", async () => {
+    for (const what of ["sql_core_read", "sql_core_write"]) {
+      const r = await C().post("/m/sample/misbehave", { what });
+      expect(r.status).toBe(403);
+    }
+    const tenant = await h.asOwner(tA, (tx) => tx`select name from tenants where id = ${tA}`);
+    expect(tenant[0]!.name).not.toBe("pwned");
+    const w = (await C().get("/m/sample/whoami")).body;
+    expect(w).toMatchObject({ before: "office_mod_sample", after: "office_mod_sample", contacts: expect.any(Number) });
+    expect(["office_mod_sample", "office_app"]).toContain(w.inside);
+    const grants = await h.asOwner(tA, (tx) => tx`select table_name from information_schema.role_table_grants where grantee = 'office_mod_sample' group by 1`);
+    expect(grants.map((g) => g.table_name)).toEqual(["sample_notes"]);
+  });
+
+  it("follows the organization's time zone", async () => {
+    expect((await C().get("/m/sample/whoami")).body.timeZone).toBe("UTC");
+    expect((await h.client(carol, tA).patch("/tenant", { timeZone: "Pacific/Kiritimati" })).status).toBe(403);
+    expect((await C().patch("/tenant", { timeZone: "Mars/Olympus" })).status).toBe(400);
+    const t = await C().patch("/tenant", { timeZone: "Pacific/Kiritimati" });   // UTC+14: usually already tomorrow
+    expect(t.status).toBe(200);
+    expect(t.body.timeZone).toBe("Pacific/Kiritimati");
+    const w = (await C().get("/m/sample/whoami")).body;
+    expect(w.timeZone).toBe("Pacific/Kiritimati");
+    expect(w.today).toBe(new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Kiritimati" }).format(new Date()));
+    expect((await C().get("/me")).body.tenants.find((x: { id: string }) => x.id === tA).timeZone).toBe("Pacific/Kiritimati");
+    await C().patch("/tenant", { timeZone: "UTC" });
+  });
+
   it("module tables are tenant-isolated", async () => {
     const bob = await h.token("bob");
     const tB = (await h.client(bob).post("/tenants", { slug: "globex", name: "Globex" })).body.id;

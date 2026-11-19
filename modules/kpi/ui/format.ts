@@ -2,7 +2,13 @@ import type { Unit } from "./types.ts";
 
 const lang = () => (typeof navigator !== "undefined" && navigator.language) || "en";
 const iso = (d: Date) => d.toISOString().slice(0, 10);
-const utcToday = () => { const n = new Date(); return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate())); };
+/** Today in the company's time zone, as a UTC-midnight Date (for calendar arithmetic). */
+const todayIn = (timeZone: string) => {
+  let ymd: string;
+  try { ymd = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
+  catch { ymd = new Date().toISOString().slice(0, 10); }
+  return new Date(`${ymd}T00:00:00Z`);
+};
 const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000);
 
 export type Preset = "this_month" | "last_month" | "last_30" | "last_90" | "this_quarter" | "this_year" | "last_12m";
@@ -10,9 +16,9 @@ export const PRESETS: [Preset, string][] = [
   ["this_month", "This month"], ["last_month", "Last month"], ["last_30", "Last 30 days"], ["last_90", "Last 90 days"],
   ["this_quarter", "This quarter"], ["this_year", "This year"], ["last_12m", "Last 12 months"],
 ];
-/** Inclusive UTC date range for a preset ("this …" ranges end today). */
-export function presetRange(p: Preset): { from: string; to: string } {
-  const t = utcToday(), y = t.getUTCFullYear(), m = t.getUTCMonth();
+/** Inclusive date range for a preset in the company's calendar ("this …" ranges end today). */
+export function presetRange(p: Preset, timeZone = "UTC"): { from: string; to: string } {
+  const t = todayIn(timeZone), y = t.getUTCFullYear(), m = t.getUTCMonth();
   switch (p) {
     case "this_month": return { from: iso(new Date(Date.UTC(y, m, 1))), to: iso(t) };
     case "last_month": return { from: iso(new Date(Date.UTC(y, m - 1, 1))), to: iso(new Date(Date.UTC(y, m, 0))) };

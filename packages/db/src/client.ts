@@ -18,11 +18,14 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /**
  * Run fn in a transaction bound to one tenant. RLS policies read app.tenant_id,
  * which is transaction-local (SET LOCAL semantics), so pooled connections never leak scope.
+ * The session TimeZone is set to the tenant's time zone (settings.timeZone, default UTC) in the same
+ * statement, so current_date, date_trunc and date <-> timestamptz casts follow the company's calendar.
  */
 export async function withTenant<T>(db: Db, tenantId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
   if (!UUID_RE.test(tenantId)) throw new Error("invalid tenant id");
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+    await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true),
+      set_config('TimeZone', coalesce((select settings->>'timeZone' from tenants where id = ${tenantId}::uuid), 'UTC'), true)`);
     return fn(tx);
   });
 }

@@ -39,6 +39,11 @@ export interface ModuleContext {
   readonly authz: { can(permission: string): boolean; require(permission: string): void };
   readonly audit: { log(action: string, entity?: { type: string; id: string }, diff?: unknown): Promise<void> };
   readonly settings: { get<T = Record<string, unknown>>(): T };
+  /**
+   * The company's calendar. The DB session already runs in the tenant's time zone (current_date, date_trunc,
+   * date <-> timestamptz casts); use these for "today" in TypeScript instead of new Date() in UTC.
+   */
+  readonly clock: { timeZone(): Promise<string>; today(): Promise<string> };
   readonly secrets: { get(key: string): string | undefined };
   /**
    * Module-private files (stored as documents owned by this module, hidden from core document routes).
@@ -148,10 +153,13 @@ export interface ActionSpec<I extends z.ZodType = z.ZodType> {
 // ───────────────────────── metrics (KPI dashboard) ─────────────────────────
 export type MetricUnit = "count" | "money" | "percent" | "hours";
 export type MetricBucket = "day" | "week" | "month";
-/** Calendar range in UTC. `from` inclusive, `to` exclusive (midnight after the last day). */
+/**
+ * Calendar range in the company's time zone. Use `fromDate`/`toDate` (YYYY-MM-DD, both inclusive) in SQL:
+ * the session TimeZone is the tenant's, so `col >= fromDate::date` compares at local midnight (see `inRange`).
+ * `from`/`to` are the same days at UTC midnight (to = day after toDate), for length arithmetic only.
+ */
 export interface MetricRange {
   from: Date; to: Date;
-  /** Same range as YYYY-MM-DD, `toDate` inclusive (for date columns). */
   fromDate: string; toDate: string;
   bucket: MetricBucket;
 }

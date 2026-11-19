@@ -6,14 +6,14 @@ export const metrics: Record<string, MetricSpec> = {
     label: "Headcount", description: "People currently employed (started and not left).", permission: "hr:directory.read", unit: "count", kind: "stock",
     compute: async (ctx) => ({
       value: await scalar(ctx, sql`select count(*) as v from hr_employees where true
-        and start_date <= (now() at time zone 'UTC')::date and (end_date is null or end_date >= (now() at time zone 'UTC')::date)`),
+        and start_date <= current_date and (end_date is null or end_date >= current_date)`),
     }),
   }),
   "hr.off_today": metric({
     label: "Off today", description: "People on approved leave today.", permission: "hr:directory.read", unit: "count", kind: "stock",
     compute: async (ctx) => ({
       value: await scalar(ctx, sql`select count(distinct employee_id) as v from hr_leave_requests where status = 'approved'
-        and (now() at time zone 'UTC')::date between start_date and end_date`),
+        and current_date between start_date and end_date`),
     }),
   }),
 };

@@ -1,6 +1,7 @@
 import { eventConsumptions, withTenant, type Db, type Tx } from "@office/db";
 import type { EventEnvelope } from "@office/sdk";
 import { createModuleContext, systemContext } from "./context.ts";
+import { inModuleRole } from "./module-role.ts";
 import { enabledModuleKeys, loadEnabledModule, type ModuleDeps } from "./tenant-modules.ts";
 import { matchWorkflows, type RunRef } from "./workflows/engine.ts";
 import type { WorkflowRunner } from "./workflows/runners.ts";
@@ -36,7 +37,7 @@ export async function dispatchEvent(d: DispatchDeps, e: EventEnvelope): Promise<
         if (!loaded) return;
         const ctx = systemContext(e.tenantId, `event:${e.id}`, `module:${key}`, causation);
         ctx.actor = { type: "module", id: key, permissions: new Set(["*"]) };
-        await m.handlers![e.type]!(createModuleContext(tx, ctx, loaded.def, loaded.state), e);
+        await inModuleRole(tx, key, () => m.handlers![e.type]!(createModuleContext(tx, ctx, loaded.def, loaded.state), e));
         handlers.push(key);
       });
     } catch (err) { errors.push(err); }

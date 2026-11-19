@@ -1,10 +1,10 @@
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { EmptyState } from "@office/ui";
+import { EmptyState, Spinner } from "@office/ui";
 import { errorMessage, publicApi } from "../lib/api.ts";
 import { SlotBoundary } from "../modules/slot.tsx";
 import { useSession } from "../lib/session.tsx";
-import { MODULE_UI } from "../modules/registry.ts";
+import { useModuleUi } from "../modules/registry.ts";
 import { Hosted } from "../modules/host.tsx";
 
 /** Longest registered page route that is the path itself or a parent of it. */
@@ -16,10 +16,13 @@ export function matchPage(pages: Record<string, unknown>, path: string): { route
 
 /** /m/<key>/<route>[/<sub>]: renders the module's registered page for that route. */
 export function ModulePage() {
+  return <SlotBoundary module="page"><Suspense fallback={<Spinner />}><ModulePageInner /></Suspense></SlotBoundary>;
+}
+function ModulePageInner() {
   const { key, _splat } = useParams({ strict: false }) as { key: string; _splat?: string };
   const s = useSession();
   const mod = s.modules.find((m) => m.key === key && m.enabled);
-  const pages = MODULE_UI[key]?.pages ?? {};
+  const pages = useModuleUi(key)?.pages ?? {};
   const m = matchPage(pages, `/${(_splat ?? "").replace(/\/+$/, "")}`);
   const Page = m ? pages[m.route] : undefined;
   if (!mod || !Page || !m) return <EmptyState title="Page not found">This module is off or has no page here.</EmptyState>;
@@ -28,9 +31,12 @@ export function ModulePage() {
 
 /** /p/<tenantSlug>/<key>/<route>[/<sub>]: a module's signed-out page (no shell, no session). */
 export function PublicModulePage() {
+  return <Suspense fallback={<main className="mx-auto max-w-xl p-6"><Spinner /></main>}><PublicModulePageInner /></Suspense>;
+}
+function PublicModulePageInner() {
   const { tenant, key, _splat } = useParams({ strict: false }) as { tenant: string; key: string; _splat?: string };
   const nav = useNavigate();
-  const pages = MODULE_UI[key]?.publicPages ?? {};
+  const pages = useModuleUi(key)?.publicPages ?? {};
   const m = matchPage(pages, `/${(_splat ?? "").replace(/\/+$/, "")}`);
   const api = useMemo(() => publicApi(tenant, key), [tenant, key]);
   const Page = m ? pages[m.route] : undefined;
