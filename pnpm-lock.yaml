@@ -58,7 +58,7 @@ importers:
         version: link:../../packages/sdk
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(postgres@3.4.7)
+        version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@3.4.7)
       fastify:
         specifier: 5.12.8
         version: 5.12.8
@@ -87,6 +87,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@office/module-ai':
+        specifier: workspace:*
+        version: link:../../modules/ai
       '@office/module-crm':
         specifier: workspace:*
         version: link:../../modules/crm
@@ -225,6 +228,52 @@ importers:
         specifier: 8.5.0
         version: 8.5.0(@swc/core@1.16.22)(jiti@2.7.0)(postcss@8.5.33)(tsx@4.20.6)(typescript@5.9.3)(yaml@2.9.1)
 
+  modules/ai:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: 1.4.0
+        version: 1.4.0(zod@4.1.12)
+      '@office/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@office/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@3.4.7)
+      zod:
+        specifier: 4.1.12
+        version: 4.1.12
+    devDependencies:
+      '@office/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@office/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
+      '@office/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
+      '@office/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@tanstack/react-query':
+        specifier: 5.90.2
+        version: 5.90.2(react@19.1.10)
+      '@types/react':
+        specifier: 19.1.17
+        version: 19.1.17
+      jose:
+        specifier: 6.1.0
+        version: 6.1.0
+      postgres:
+        specifier: 3.4.7
+        version: 3.4.7
+      react:
+        specifier: 19.1.10
+        version: 19.1.10
+
   modules/crm:
     dependencies:
       '@office/db':
@@ -235,7 +284,7 @@ importers:
         version: link:../../packages/sdk
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(postgres@3.4.7)
+        version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@3.4.7)
       zod:
         specifier: 4.1.12
         version: 4.1.12
@@ -278,7 +327,7 @@ importers:
         version: link:../../packages/sdk
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(postgres@3.4.7)
+        version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@3.4.7)
       pdf-lib:
         specifier: 1.17.1
         version: 1.17.1
@@ -324,7 +373,7 @@ importers:
         version: link:../../packages/sdk
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(postgres@3.4.7)
+        version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@3.4.7)
       zod:
         specifier: 4.1.12
         version: 4.1.12
@@ -367,7 +416,7 @@ importers:
         version: link:../../packages/sdk
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(postgres@3.4.7)
+        version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@3.4.7)
       zod:
         specifier: 4.1.12
         version: 4.1.12
@@ -410,7 +459,7 @@ importers:
         version: link:../../packages/sdk
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(postgres@3.4.7)
+        version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@3.4.7)
       zod:
         specifier: 4.1.12
         version: 4.1.12
@@ -453,7 +502,7 @@ importers:
         version: link:../../packages/sdk
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(postgres@3.4.7)
+        version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@3.4.7)
       pdf-lib:
         specifier: 1.17.1
         version: 1.17.1
@@ -499,7 +548,7 @@ importers:
         version: link:../../packages/sdk
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(postgres@3.4.7)
+        version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@3.4.7)
       zod:
         specifier: 4.1.12
         version: 4.1.12
@@ -542,7 +591,7 @@ importers:
         version: link:../../packages/sdk
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(postgres@3.4.7)
+        version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@3.4.7)
       zod:
         specifier: 4.1.12
         version: 4.1.12
@@ -584,7 +633,7 @@ importers:
         version: link:../db
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(postgres@3.4.7)
+        version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@3.4.7)
       zod:
         specifier: 4.1.12
         version: 4.1.12
@@ -597,7 +646,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(postgres@3.4.7)
+        version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@3.4.7)
       postgres:
         specifier: 3.4.7
         version: 3.4.7
@@ -608,6 +657,9 @@ importers:
 
   packages/modules:
     dependencies:
+      '@office/module-ai':
+        specifier: workspace:*
+        version: link:../../modules/ai
       '@office/module-crm':
         specifier: workspace:*
         version: link:../../modules/crm
@@ -668,7 +720,7 @@ importers:
         version: 8.17.1
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(postgres@3.4.7)
+        version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@3.4.7)
       ipaddr.js:
         specifier: 2.2.0
         version: 2.2.0
@@ -765,6 +817,15 @@ packages:
 
   '@adobe/css-tools@4.5.0':
     resolution: {integrity: sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q==}
+
+  '@anthropic-ai/sdk@1.4.0':
+    resolution: {integrity: sha512-tyuibnhQL57kLOx5oomY4Ld7jOVOPNC5v3IiyRtR3l+Friv66tI4VbuZYF2NMel/T0WMuQMBFOMKDBUbUh8gPA==}
+    hasBin: true
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
 
   '@asamuzakjp/css-color@3.2.0':
     resolution: {integrity: sha512-K1A6z8tS3XsmCMM86xoWdn7Fkdn9m6RSVtocUrJYIwZnFVkng/PvkEoWtOWmP+Scc6saYWHWZYbndEEXxl24jw==}
@@ -1475,6 +1536,10 @@ packages:
     resolution: {integrity: sha512-9I2Zn6+NJLfaGoz9jN3lpwDgAYvfGeNYdbAIjJOqzs4Tpc+VU3Jqq4IofSUBKajiDS8k9fZIg18/z13mpk1bsA==}
     engines: {node: '>=8'}
 
+  '@opentelemetry/api@1.10.0':
+    resolution: {integrity: sha512-lMkyes8iHrG+mk6WH7X70MdCLI2RS0FwNBY1PyQ8UemaijE2m5mv5A0Niy3HtbYTFrgkUEQjFMXmSAk2hQDuPQ==}
+    engines: {node: '>=8.0.0'}
+
   '@pdf-lib/standard-fonts@1.0.0':
     resolution: {integrity: sha512-hU30BK9IUN/su0Mn9VdlVKsWBS6GyhVfqjwl1FjZN4TxP6cCw0jP2w7V3Hf5uX7M0AZJ16vey9yE0ny7Sa59ZA==}
 
@@ -1874,6 +1939,9 @@ packages:
   '@smithy/types@4.20.0':
     resolution: {integrity: sha512-lCA6QG22dPk9ecHbv91jDQZsmtPUjdS1aE2Il6NNPqe7DrYc0dZQi6DhcESk2KYXH2sp5xbAcGdYMZDFnuzA2A==}
     engines: {node: '>=18.0.0'}
+
+  '@stablelib/base64@1.0.1':
+    resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
 
   '@swc/core-darwin-arm64@1.16.22':
     resolution: {integrity: sha512-PddkOjOK3MK01AVOvqG309iAJ0hn5vK37ug9g5Zt5e2aWF3IhVLdDLjMePXts1zi8yc4ild2h9FYCkVYb5+Qcw==}
@@ -2670,6 +2738,9 @@ packages:
   fast-querystring@1.1.2:
     resolution: {integrity: sha512-g6KuKWmFXc0fID8WWH0jit4g0AGBoJhCkJMb1RmbsSEUNvQ+ZC8D6CUZ+GtF8nMzSPXnhiePyyqqipzNNEnHjg==}
 
+  fast-sha256@1.3.0:
+    resolution: {integrity: sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ==}
+
   fast-uri@3.1.9:
     resolution: {integrity: sha512-hS/0Wt3Ya043oKXs0sIxrMpKQITXhMLIrVAKKXi4gozGC9v7YRWVnXIZzjNPTO02M9BdxLCWqK1yRXgNziVyJQ==}
 
@@ -2854,6 +2925,10 @@ packages:
   json-schema-resolver@3.0.0:
     resolution: {integrity: sha512-HqMnbz0tz2DaEJ3ntsqtx3ezzZyDE7G56A/pPY/NGmrPu76UzsWquOpHFRAf5beTNXoH2LU5cQePVvRli1nchA==}
     engines: {node: '>=20'}
+
+  json-schema-to-ts@3.1.1:
+    resolution: {integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==}
+    engines: {node: '>=16'}
 
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
@@ -3428,6 +3503,9 @@ packages:
   stackback@0.0.2:
     resolution: {integrity: sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw==}
 
+  standardwebhooks@1.3.0:
+    resolution: {integrity: sha512-5W9skHjqAm2dlA9wWvglTP+oX47JX4lFXVk1aJV7+TG1snvTR4QXaVgPscEzvOw9GRreeavMwbqEeL+MGhZHCg==}
+
   statuses@2.0.2:
     resolution: {integrity: sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw==}
     engines: {node: '>= 0.8'}
@@ -3570,6 +3648,9 @@ packages:
   tree-kill@1.2.2:
     resolution: {integrity: sha512-L0Orpi8qGpRG//Nd+H90vFB+3iHnue1zSSGmNOOCh1GLJ7rUKVwV2HvijphGQS2UmhUZewS9VgvxYIdgr+fG1A==}
     hasBin: true
+
+  ts-algebra@2.0.0:
+    resolution: {integrity: sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==}
 
   ts-interface-checker@0.1.13:
     resolution: {integrity: sha512-Y/arvbn+rrz3JCKl9C4kVNfTfSm2/mEp5FSz5EsZSANGPSlQrpRI5M4PKF+mJnE52jOO90PnPSc3Ur3bTQw0gA==}
@@ -3915,6 +3996,14 @@ packages:
 snapshots:
 
   '@adobe/css-tools@4.5.0': {}
+
+  '@anthropic-ai/sdk@1.4.0(zod@4.1.12)':
+    dependencies:
+      '@opentelemetry/api': 1.10.0
+      json-schema-to-ts: 3.1.1
+      standardwebhooks: 1.3.0
+    optionalDependencies:
+      zod: 4.1.12
 
   '@asamuzakjp/css-color@3.2.0':
     dependencies:
@@ -4632,6 +4721,8 @@ snapshots:
 
   '@lukeed/ms@2.0.2': {}
 
+  '@opentelemetry/api@1.10.0': {}
+
   '@pdf-lib/standard-fonts@1.0.0':
     dependencies:
       pako: 1.0.11
@@ -4949,6 +5040,8 @@ snapshots:
   '@smithy/types@4.20.0':
     dependencies:
       tslib: 2.9.1
+
+  '@stablelib/base64@1.0.1': {}
 
   '@swc/core-darwin-arm64@1.16.22':
     optional: true
@@ -5622,8 +5715,9 @@ snapshots:
 
   dom-accessibility-api@0.6.3: {}
 
-  drizzle-orm@0.45.4(postgres@3.4.7):
+  drizzle-orm@0.45.4(@opentelemetry/api@1.10.0)(postgres@3.4.7):
     optionalDependencies:
+      '@opentelemetry/api': 1.10.0
       postgres: 3.4.7
 
   electron-to-chromium@1.5.491: {}
@@ -5729,6 +5823,8 @@ snapshots:
   fast-querystring@1.1.2:
     dependencies:
       fast-decode-uri-component: 1.0.1
+
+  fast-sha256@1.3.0: {}
 
   fast-uri@3.1.9: {}
 
@@ -5921,6 +6017,11 @@ snapshots:
       rfdc: 1.4.1
     transitivePeerDependencies:
       - supports-color
+
+  json-schema-to-ts@3.1.1:
+    dependencies:
+      '@babel/runtime': 7.29.14
+      ts-algebra: 2.0.0
 
   json-schema-traverse@1.0.0: {}
 
@@ -6402,6 +6503,11 @@ snapshots:
 
   stackback@0.0.2: {}
 
+  standardwebhooks@1.3.0:
+    dependencies:
+      '@stablelib/base64': 1.0.1
+      fast-sha256: 1.3.0
+
   statuses@2.0.2: {}
 
   std-env@3.10.0: {}
@@ -6533,6 +6639,8 @@ snapshots:
       tslib: 2.9.1
 
   tree-kill@1.2.2: {}
+
+  ts-algebra@2.0.0: {}
 
   ts-interface-checker@0.1.13: {}
 
