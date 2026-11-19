@@ -31,6 +31,7 @@ export async function listModules(tx: Tx, d: ModuleDeps) {
       key: m.manifest.key, name: m.manifest.name, version: m.manifest.version, description: m.manifest.description,
       dependsOn: m.manifest.dependsOn, enabled: r?.enabled ?? false, settings: r?.settings ?? {},
       secretsSet: r?.secrets ? secretKeys(m) : [], permissions: m.manifest.permissions.declares, ui: m.manifest.ui,
+      settingsSchema: m.manifest.settings,
     };
   });
 }

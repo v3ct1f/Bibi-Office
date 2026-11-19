@@ -49,6 +49,10 @@ export const registerRoutes: FastifyPluginAsync<{ db: Db; inTenant: InTenant; pe
     return reply.status(201).send(t);
   });
 
+  /** Effective permissions of the caller in the selected tenant (UI uses it to hide what you can't do). */
+  app.get("/me/permissions", { config: AUTH, schema: { tags: ["me"], headers: tenantHeader } },
+    (req) => inTenant(req, null, async (_tx, ctx) => ({ tenantId: ctx.tenantId, permissions: [...ctx.actor.permissions].sort() })));
+
   app.get("/tenant", { config: AUTH, schema: { tags: ["tenants"], headers: tenantHeader } },
     (req) => inTenant(req, null, async (_tx, ctx) => getTenant(db, ctx.tenantId)));
 

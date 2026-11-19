@@ -1,0 +1,24 @@
+import { test } from "@playwright/test";
+import { signIn } from "./helpers.ts";
+
+// Docs only: SCREENSHOTS_DIR=/path pnpm e2e  (runs after the admin flow has created data)
+const dir = process.env.SCREENSHOTS_DIR;
+test.skip(!dir, "set SCREENSHOTS_DIR to capture screenshots");
+test.use({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
+
+test("capture", async ({ page }) => {
+  await signIn(page);
+  for (const [path, name, theme] of [
+    ["/contacts", "contacts-light", "light"], ["/admin/workflows", "workflows-list-light", "light"],
+    ["/admin/audit", "audit-dark", "dark"], ["/admin/roles", "roles-dark", "dark"],
+  ] as const) {
+    await page.addInitScript((t) => localStorage.setItem("office.theme", t), theme);
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+    await page.screenshot({ path: `${dir}/${name}.png` });
+  }
+  await page.goto("/admin/workflows");
+  await page.getByRole("link", { name: "Follow up new contacts" }).click();
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: `${dir}/workflow-editor-dark.png`, fullPage: true });
+});

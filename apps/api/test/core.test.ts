@@ -132,6 +132,11 @@ describe("RLS (database level)", () => {
 });
 
 describe("RBAC", () => {
+  it("returns effective permissions for the UI", async () => {
+    const r = await h.client(alice, tA).get("/me/permissions");
+    expect(r.body).toEqual({ tenantId: tA, permissions: ["*"] });
+  });
+
   it("viewer can read but not write; owner must remain", async () => {
     const c = h.client(alice, tA);
     const m = await c.post("/members", { email: "carol@example.com", roles: ["viewer"] });
