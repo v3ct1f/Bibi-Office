@@ -157,18 +157,22 @@ Package `@office/sdk`. A module = workspace package at `modules/<name>` exportin
 | `api.basePath` | Routes mount under `/api/v1/m/<key>` |
 | `lifecycle` | Hooks: `install`, `enable`, `disable`, `upgrade`, `uninstall` |
 
-### 4.2 Runtime contract
+### 4.2 Runtime contract (as built, `@office/sdk`)
 
 ```ts
 export default defineModule({
-  manifest,
-  routes(r: Router) {},            // Fastify plugin, auto tenant + permission guard
-  handlers: { "crm.deal.won": async (evt, ctx) => {} },
-  actions:  { "invoicing.create_invoice": async (input, ctx) => ({ id }) },
-  triggers: { /* declared in manifest, emitted via ctx.events */ },
+  manifest,                                         // validated (Zod) + cross-checked against code below
+  migrationsDir: fileURLToPath(new URL("./migrations", import.meta.url)),
+  routes: [route({ method: "POST", path: "/invoices", permission: "invoicing:invoice.write",
+                   body: z.object({...}), status: 201, handler: async (ctx, { body }) => ({...}) })],
+  handlers: { "crm.deal.won": async (ctx, event) => {} },        // must equal events.subscribes
+  actions:  { "invoicing.create_invoice": action({ label, input: z.object({...}), run: async (ctx, input) => ({ id }) }) },
   lifecycle: { enable: async (ctx) => {}, disable: async (ctx) => {} },
 });
 ```
+- `defineModule` throws if handlers ≠ `subscribes`, actions ≠ `workflow.actions`, or a route uses an undeclared permission.
+- Manifest rules: declared permissions start `<key>:`, emitted events start `<key>.`, triggers ⊆ emits.
+- Register built-ins in `packages/modules/src/index.ts` (`MODULES`); api, worker and installer share it.
 
 `ctx` (only door to the platform; scoped to tenant + granted permissions):
 - `ctx.tenant`, `ctx.actor`, `ctx.requestId`
@@ -250,12 +254,25 @@ export default defineModule({
 }
 ```
 
-## 5. Workflow engine
+## 5. Workflow engine (as built)
 
-- Workflow = `trigger` (event type + filter) -> `conditions` (JSONLogic over event + entity lookups) -> `actions[]` (ordered; core + module actions, with `{{template}}` inputs).
-- Event consumer matches enabled workflows per tenant, starts Temporal workflow `runOfficeWorkflow(def, event)`; each action = Temporal activity (retries, timeouts, idempotency key = `run_id:step`).
-- Core actions: `send_email`, `create_task`, `update_record`, `http_request`, `wait`, `branch`, `notify`, `ai_summarize`.
-- Loop guard: max depth via event `causation_id` chain.
+- Workflow = `trigger.event` -> `conditions` (JSONLogic over `{event, payload}`) -> `actions[]` (≤50; core + module actions; inputs use `{{payload.x}}`, `{{event.type}}`, `{{steps.N.field}}`; path lookup only, no code).
+- Validated on save: trigger must be a known event (core list + module emits), action keys must exist, JSONLogic must parse.
+- Dispatcher matches enabled workflows per event and inserts `workflow_runs` (unique per workflow+event) with a `plan` snapshot, then starts a runner after commit.
+- Runners: `TemporalRunner` (workflow id `office-run-<runId>`, activity per step, retries 8x exp. backoff, durable `core.wait`) when `TEMPORAL_ADDRESS` set; `InlineRunner` otherwise (3 tries/step, no `core.wait`).
+- Steps are idempotent: each runs in its own tenant tx and is skipped if already recorded as succeeded.
+- Actions run as actor `system` id `workflow:<id>`; module actions only if the module is enabled; module data access still limited by manifest `requires`.
+- Core actions: `core.create_task`, `core.update_record`, `core.notify` (emits `core.notification.requested`), `core.http_request` (SSRF-guarded), `core.wait`. Planned: `send_email`, `branch`, `ai_summarize`.
+- Loop guard: event `depth` +1 per hop, max 8; deeper emits fail the run.
+- Recovery: worker restarts runs still `pending` after 5 min.
+
+## 5b. Webhooks (as built)
+
+- Endpoints: URL (https in prod; no credentials; private/metadata IPs rejected), event patterns (`type`, `mod.entity.*`, `mod.*`, `*`). Signing secret `whsec_…` shown once, sealed (AES-256-GCM, tenant-bound AAD).
+- Dispatcher queues one `webhook_deliveries` row per matching endpoint (unique per endpoint+event).
+- Delivery worker: lease-claims due rows (SKIP LOCKED), POSTs envelope with `Office-Event-Id`, `Office-Event-Type`, `Office-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, "t.body")>`. Connect-time IP check defeats DNS rebinding; no redirects; 5s connect / 10s response timeouts.
+- Retries: 12 attempts, backoff 30s doubling to 6h; then `failed`. Endpoint auto-disabled after 50 consecutive failures. Manual redeliver endpoint.
+- Inbound webhooks: not built (later, per module).
 
 ## 6. Security defaults
 
@@ -333,4 +350,19 @@ office/
 - NATS: stream `OFFICE_EVENTS`, subjects `office.<tenantId>.<type>`, 7-day retention, 10-min dedupe window on msgId = event id.
 - API: `/api/v1/{me,tenants,tenant,members,roles,permissions,api-keys,audit,audit/verify,contacts,companies,documents,tasks}`; OpenAPI at `/docs`. Lists: `?limit&cursor&q` (cursor = last uuidv7 id; `q` = Postgres FTS on contacts/companies).
 - Errors: RFC 9457; PG 23505→409, 23503→400 `invalid_reference`, 23514→400.
-- Not yet built: webhooks + workflow tables (Session 3), document file upload/presign (S3), Redis-backed rate limit (in-memory now), email invites, GDPR export/delete.
+- Not yet built: document file upload/presign (S3), Redis-backed rate limit (in-memory now), email invites, GDPR export/delete.
+
+## 11. Implementation notes (Session 3, as built)
+
+- Packages: `@office/sdk` (manifest schema, `defineModule`, `route`, `action`, ctx types), `@office/platform` (registry, installer, module ctx, tenant module mgmt, dispatcher, workflows, webhooks, SSRF guard, SecretBox), `@office/modules` (built-in list + `pnpm modules:install`).
+- Install (owner role, deploy time): module migrations namespaced `module:<key>/<file>` in `_migrations`; installer refuses any `<prefix>_*` table lacking `tenant_id` + forced RLS + policy; upserts `modules` registry.
+- Enable: deps must be enabled; settings must validate (ajv, JSON Schema 2020-12, defaults applied); admin role gets the module's declared permissions; `lifecycle.enable` runs; audit + `core.module.enabled`. Disable blocked while enabled dependents exist; data kept.
+- Settings: `PATCH /modules/:key/settings` merges; `x-secret` fields sealed into `tenant_modules.secrets`, never returned (`secretsSet` lists names); `null` clears.
+- Module routes: `/api/v1/m/<key><path>`; 404 unless enabled for the tenant; route permission enforced before handler.
+- Module ctx: `ctx.data.*` needs permission in manifest `requires` AND caller grants; `ctx.events.emit` only declared types; audit actions prefixed `<key>.`.
+- Dispatcher (worker, NATS durable consumer `dispatcher`): per consumer (`module:<key>`, `workflows`, `webhooks`) one tenant tx + `event_consumptions` row => effectively-once; a failing consumer naks the message, finished consumers skip on redelivery.
+- Worker loops: outbox relay, NATS dispatcher, webhook delivery, stale-run sweep, optional Temporal worker.
+- `office_relay` role is now the cross-tenant worker role: outbox, webhook delivery columns, stale-run sweep columns only.
+- New permissions: `core:workflows.read|manage`, `core:webhooks.manage` (admin by default).
+- API: `/modules`, `/modules/:key/{enable,disable,settings}`, `/workflow-catalog`, `/workflows[/:id[/runs]]`, `/webhooks[/:id[/deliveries[/:did/redeliver]]]`, `/m/<key>/*`.
+- Not yet: per-module DB roles (modules share `office_app` within tenant RLS; v2 hardening), Temporal path not integration-tested (needs Temporal server), inbound webhooks, email action.

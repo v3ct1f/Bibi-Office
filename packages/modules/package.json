@@ -1,0 +1,20 @@
+{
+  "name": "@office/modules",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "install-modules": "tsx src/install-cli.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@office/platform": "workspace:*",
+    "@office/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@office/config": "workspace:*"
+  }
+}

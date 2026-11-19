@@ -13,7 +13,8 @@
     "dev:api": "pnpm --filter @office/api dev",
     "dev:worker": "pnpm --filter @office/worker dev",
     "infra:up": "docker compose -f infra/docker-compose.yml up -d",
-    "infra:down": "docker compose -f infra/docker-compose.yml down"
+    "infra:down": "docker compose -f infra/docker-compose.yml down",
+    "modules:install": "pnpm --filter @office/modules install-modules"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

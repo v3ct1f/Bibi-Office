@@ -12,6 +12,8 @@ export const CORE_PERMISSIONS = [
   "core:companies.read", "core:companies.write",
   "core:documents.read", "core:documents.write",
   "core:tasks.read", "core:tasks.write",
+  "core:workflows.read", "core:workflows.manage",
+  "core:webhooks.manage",
 ] as const;
 export type CorePermission = (typeof CORE_PERMISSIONS)[number];
 

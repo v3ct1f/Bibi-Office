@@ -1,10 +1,14 @@
 import { createDb } from "@office/db";
+import { SecretBox } from "@office/platform";
+import { createRegistry } from "@office/modules";
 import { buildApp } from "./app.ts";
 import { loadConfig } from "./config.ts";
 
 const config = loadConfig();
 const { db, close } = createDb(config.DATABASE_URL_APP, { max: 20 });
-const app = await buildApp({ db, config });
+const app = await buildApp({
+  db, config, platform: { registry: createRegistry(), secrets: new SecretBox(config.SECRETS_KEY) },
+});
 
 const shutdown = async (sig: string) => {
   app.log.info({ sig }, "shutting down");

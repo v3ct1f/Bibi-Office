@@ -14,12 +14,15 @@ import { createAuthenticator } from "./plugins/auth.ts";
 import { registerErrorHandler } from "./plugins/errors.ts";
 import { makeTenantRunner } from "./tenant.ts";
 import { registerRoutes } from "./routes/index.ts";
+import { registerPlatformRoutes } from "./routes/platform.ts";
+import type { ModuleRegistry, SecretBox } from "@office/platform";
 import type { Config } from "./config.ts";
 
 export interface AppDeps {
   db: Db;
   config: Pick<Config, "OIDC_ISSUER" | "OIDC_AUDIENCE" | "API_KEY_PEPPER" | "CORS_ORIGINS" | "RATE_LIMIT_PER_MIN" | "TRUST_PROXY" | "NODE_ENV">;
   jwks?: JWTVerifyGetKey;      // injectable for tests
+  platform: { registry: ModuleRegistry; secrets: SecretBox };
   logger?: boolean | object;
 }
 
@@ -74,6 +77,11 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
     return { ok: true };
   });
 
-  await app.register(registerRoutes, { prefix: "/api/v1", db: d.db, inTenant: makeTenantRunner(d.db), pepper: d.config.API_KEY_PEPPER });
+  const inTenant = makeTenantRunner(d.db);
+  await app.register(registerRoutes, { prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER });
+  await app.register(registerPlatformRoutes, {
+    prefix: "/api/v1", inTenant, registry: d.platform.registry, secrets: d.platform.secrets,
+    requireHttps: d.config.NODE_ENV === "production",
+  });
   return app;
 }

@@ -23,9 +23,9 @@
 | # | Scope | Status |
 |---|---|---|
 | 1 | Architecture, stack, data model, SDK spec | ✅ done |
-| 2 | Core backend: auth, tenants, RBAC, shared data, events/outbox, audit, API | ✅ done (20+2 tests green) |
-| 3 | Workflow engine + module loader (+ webhooks, `@office/sdk`) | ⏳ next |
-| 4 | Admin UI + design system | ☐ |
+| 2 | Core backend: auth, tenants, RBAC, shared data, events/outbox, audit, API | ✅ done |
+| 3 | Workflow engine + module loader (+ webhooks, `@office/sdk`) | ✅ done (37 tests green) |
+| 4 | Admin UI + design system | ⏳ next |
 | 5 | Module: Invoicing | ☐ |
 | 6 | Module: CRM | ☐ |
 | 7 | Module: Expenses | ☐ |
@@ -40,12 +40,13 @@
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
 |---|---|
-| Repo | None yet; code lives in project files `office/`. Push to GitHub once a repo exists. |
+| Repo | "Bibi Office" on GitHub (not reachable yet: needs GitHub connected + Claude app installed). Code in project files `office/` with local git history until then. |
 | Hosting / region | Cloud-agnostic containers (Docker → Helm/K8s), self-host possible. Tenant `region` field, default `eu`; `us` allowed. |
 | Temporal + Keycloak | Keep both (recommended). Revisit only if ops cost hurts. |
 | Billing | Not in core v1. Later as a module (Stripe) using `tenants.plan`. |
 | 3rd-party marketplace | Not in v1. First-party modules only; sandboxed iframe UI in v2. |
 | Currency / locale | Per-tenant settings; defaults EUR, `en`, UTC. |
+| Email invites, document uploads | Later core pass (not Session 3). |
 
 ## Session rules
 - Update PLAN.md + ARCHITECTURE.md at end of every session.
@@ -53,7 +54,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 2)
+## Handoff (Session 3)
+1. Done: `@office/sdk`, `@office/platform` (module install/enable/settings+secrets, ctx, dispatcher, workflows w/ inline + Temporal runners, webhooks w/ signing, retries, SSRF guard), `@office/modules`, API routes, worker loops, sample module fixture (`apps/api/test/fixtures/sample`).
+2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test` (35 api + 2 worker); `pnpm typecheck && pnpm build`.
+3. Next (Session 4): `apps/web` admin UI (React+Vite+TanStack, shadcn design system in `packages/ui`), OIDC PKCE login, tenant switcher, modules toggle/settings, members/roles, workflows builder, webhooks, audit viewer, UI slot host.
+4. Open: push to GitHub once access exists; Temporal + NATS + Keycloak end-to-end smoke test needs a Docker host.
+5. Open: per-module DB roles (stronger isolation) before third-party modules; email action + inbound webhooks timing.
+
+## Handoff (Session 2, archived)
 1. Done: monorepo (pnpm/turbo), infra compose, `packages/db` (SQL+RLS+audit chain), `packages/core`, `apps/api` (OIDC/API keys, RBAC, tenants, members, roles, entities, audit), `apps/worker` (outbox→NATS), tests, CI, Dockerfile.
 2. Verify: `scripts/local-pg.sh start` then `TEST_DATABASE_URL=... pnpm test` (22 tests); `pnpm build`.
 3. Next (Session 3): `packages/sdk` (manifest Zod schema, `defineModule`, ctx), module loader (registry, enable/disable, migrations, permissions), workflow tables + Temporal worker, webhooks (tables, signing, delivery).

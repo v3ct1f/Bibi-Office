@@ -1,0 +1,31 @@
+{
+  "name": "@office/platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./temporal-workflow": "./src/workflows/temporal-workflow.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@office/core": "workspace:*",
+    "@office/db": "workspace:*",
+    "@office/sdk": "workspace:*",
+    "@temporalio/client": "1.13.2",
+    "@temporalio/workflow": "1.13.2",
+    "ajv": "8.17.1",
+    "drizzle-orm": "0.44.7",
+    "ipaddr.js": "2.2.0",
+    "json-logic-js": "2.0.5",
+    "postgres": "3.4.7",
+    "undici": "7.16.0",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@office/config": "workspace:*",
+    "@types/json-logic-js": "2.0.8"
+  }
+}

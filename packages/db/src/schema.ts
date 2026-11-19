@@ -98,6 +98,7 @@ export const tenantModules = pgTable("tenant_modules", {
   settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
   enabledAt: ts("enabled_at"),
   enabledBy: uuid("enabled_by"),
+  secrets: bytea("secrets"),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.moduleKey] })]);
 
 export const companies = pgTable("companies", {
@@ -193,4 +194,77 @@ export const auditLog = pgTable("audit_log", {
   at: ts("at").notNull().defaultNow(),
   prevHash: bytea("prev_hash"),
   hash: bytea("hash").notNull(),
+});
+
+// ───────── Session 3: platform ─────────
+export const eventConsumptions = pgTable("event_consumptions", {
+  tenantId: uuid("tenant_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  consumer: text("consumer").notNull(),
+  consumedAt: ts("consumed_at").notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.eventId, t.consumer] })]);
+
+export interface WorkflowTrigger { event: string }
+export interface WorkflowAction { key: string; input?: Record<string, unknown> }
+
+export const workflows = pgTable("workflows", {
+  id: uuid("id").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  name: text("name").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  trigger: jsonb("trigger").$type<WorkflowTrigger>().notNull(),
+  conditions: jsonb("conditions").$type<unknown>(),
+  actions: jsonb("actions").$type<WorkflowAction[]>().notNull(),
+  version: integer("version").notNull().default(1),
+  createdBy: uuid("created_by"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  deletedAt: ts("deleted_at"),
+});
+
+export interface StepResult { key: string; status: "succeeded" | "failed" | "skipped"; output?: unknown; error?: string; at: string }
+
+export const workflowRuns = pgTable("workflow_runs", {
+  id: uuid("id").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  workflowId: uuid("workflow_id").notNull(),
+  workflowVersion: integer("workflow_version").notNull(),
+  eventId: uuid("event_id").notNull(),
+  status: text("status").$type<"pending" | "running" | "succeeded" | "failed" | "skipped" | "cancelled">().notNull().default("pending"),
+  plan: jsonb("plan").$type<{ event: Record<string, unknown> & { id: string; type: string; payload: unknown; depth: number; correlationId: string }; actions: WorkflowAction[] }>().notNull(),
+  steps: jsonb("steps").$type<StepResult[]>().notNull().default([]),
+  error: text("error"),
+  engineRunId: text("engine_run_id"),
+  startedAt: ts("started_at").notNull().defaultNow(),
+  endedAt: ts("ended_at"),
+});
+
+export const webhookEndpoints = pgTable("webhook_endpoints", {
+  id: uuid("id").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  url: text("url").notNull(),
+  description: text("description"),
+  secretEnc: bytea("secret_enc").notNull(),
+  events: text("events").array().notNull(),
+  active: boolean("active").notNull().default(true),
+  failureStreak: integer("failure_streak").notNull().default(0),
+  createdBy: uuid("created_by"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
+export const webhookDeliveries = pgTable("webhook_deliveries", {
+  id: uuid("id").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  endpointId: uuid("endpoint_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  eventType: text("event_type").notNull(),
+  body: jsonb("body").notNull(),
+  status: text("status").$type<"pending" | "delivered" | "failed">().notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  statusCode: integer("status_code"),
+  lastError: text("last_error"),
+  nextAttemptAt: ts("next_attempt_at").notNull().defaultNow(),
+  deliveredAt: ts("delivered_at"),
+  createdAt: ts("created_at").notNull().defaultNow(),
 });

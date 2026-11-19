@@ -8,6 +8,7 @@ const Env = z.object({
   OIDC_ISSUER: z.string().url(),
   OIDC_AUDIENCE: z.string().min(1),
   API_KEY_PEPPER: z.string().min(32, "API_KEY_PEPPER must be >= 32 chars"),
+  SECRETS_KEY: z.string().refine((s) => Buffer.from(s, "base64").length === 32, "SECRETS_KEY must be 32 bytes base64"),
   CORS_ORIGINS: z.string().default("").transform((s) => s.split(",").map((x) => x.trim()).filter(Boolean)),
   RATE_LIMIT_PER_MIN: z.coerce.number().int().default(600),
   TRUST_PROXY: z.stringbool().default(false),
