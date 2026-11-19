@@ -20,9 +20,9 @@ test.beforeAll(async ({ browser }) => {
 });
 
 test("enable Invoicing from Settings → Modules", async () => {
-  await page.goto(`/t/${slug}/settings/modules`);
-  await page.getByRole("switch", { name: "Enable Invoicing" }).click();
-  await expect(page.getByRole("switch", { name: "Disable Invoicing" })).toBeChecked();
+  await page.goto(`/t/${slug}/features`);
+  await page.getByRole("button", { name: "Add Invoicing" }).click();
+  await expect(page.getByRole("button", { name: "Remove Invoicing" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Invoices" })).toBeVisible();
 });
 

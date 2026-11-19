@@ -55,10 +55,12 @@ describe("SDK + installer", () => {
 });
 
 describe("module lifecycle", () => {
-  it("routes are 404 until enabled; settings validated; secrets sealed", async () => {
+  it("routes are 403 until enabled; settings validated; secrets sealed", async () => {
     const c = C();
     const contact = (await c.post("/contacts", { firstName: "Ann", email: "ann@x.com" })).body;
-    expect((await c.get(`/m/sample/notes?contactId=${contact.id}`)).status).toBe(404);
+    const off = await c.get(`/m/sample/notes?contactId=${contact.id}`);
+    expect(off.status).toBe(403);
+    expect(off.body.code).toBe("module_disabled");
 
     expect((await h.client(carol, tA).post("/modules/sample/enable", {})).status).toBe(403);
     expect((await c.patch("/modules/sample/settings", { greeting: 42 })).status).toBe(400);

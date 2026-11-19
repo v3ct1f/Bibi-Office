@@ -25,6 +25,9 @@ export default defineModule({
       ],
       requires: ["core:contacts.read", "core:companies.read"],
     },
+    icon: "receipt",
+    category: "finance",
+    roles: { manager: [READ, WRITE, SEND] },
     entities: ["invoice", "invoice_line", "payment"],
     events: {
       emits: [

@@ -1,4 +1,4 @@
-import { Outlet, createRootRouteWithContext, createRoute, createRouter, useParams } from "@tanstack/react-router";
+import { Navigate, Outlet, createRootRouteWithContext, createRoute, createRouter, useParams } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { SearchX } from "lucide-react";
@@ -11,7 +11,7 @@ import { companiesConfig, contactsConfig, tasksConfig, type EntityConfig } from 
 import { GeneralSettings, SettingsLayout } from "./pages/settings/SettingsLayout.tsx";
 import { MembersPage } from "./pages/settings/Members.tsx";
 import { RolesPage } from "./pages/settings/Roles.tsx";
-import { ModulesPage } from "./pages/settings/Modules.tsx";
+import { FeaturesPage } from "./pages/Features.tsx";
 import { ApiKeysPage } from "./pages/settings/ApiKeys.tsx";
 import { WebhooksPage } from "./pages/settings/Webhooks.tsx";
 import { AuditPage } from "./pages/settings/Audit.tsx";
@@ -54,6 +54,12 @@ const settings = createRoute({ getParentRoute: () => tenant, path: "/settings", 
 const s = (path: string, perm: string | null, C: () => React.ReactNode) =>
   createRoute({ getParentRoute: () => settings, path, component: () => (perm ? <Gate perm={perm}><C /></Gate> : <C />) });
 
+/** The old "Apps & modules" settings page moved to "Add features". */
+function OldModulesRedirect() {
+  const { tenant } = useTenant();
+  return <Navigate to={`/t/${tenant.slug}/features`} replace />;
+}
+
 function ModuleRoute() {
   const p = useParams({ strict: false }) as { module: string; _splat?: string };
   return <ModulePage module={p.module} path={p._splat ?? ""} />;
@@ -71,12 +77,13 @@ const tree = root.addChildren([
     t("/workflows", () => <Gate perm="core:workflows.read"><WorkflowsPage /></Gate>),
     t("/workflows/new", () => <Gate perm="core:workflows.manage"><WorkflowEditor key="new" /></Gate>, recipeSearch),
     t("/workflows/$id", () => <Gate perm="core:workflows.read"><WorkflowEditor /></Gate>),
+    t("/features", () => <Gate perm="core:modules.read"><FeaturesPage /></Gate>),
     t("/m/$module/$", ModuleRoute),
     settings.addChildren([
       s("/", null, GeneralSettings),
       s("/members", "core:members.read", MembersPage),
       s("/roles", "core:roles.read", RolesPage),
-      s("/modules", "core:modules.read", ModulesPage),
+      s("/modules", null, OldModulesRedirect),
       s("/api-keys", "core:apikeys.manage", ApiKeysPage),
       s("/webhooks", "core:webhooks.manage", WebhooksPage),
       s("/audit", "core:audit.read", AuditPage),

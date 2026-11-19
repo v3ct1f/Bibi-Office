@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { getTenant, hasPermission, notFound, requirePermission, type RequestContext } from "@office/core";
+import { AppError, getTenant, hasPermission, requirePermission, type RequestContext } from "@office/core";
 import type { Db, Tx } from "@office/db";
 import {
   actionCatalog, createModuleContext, disableModule, enableModule, enabledModuleKeys, listModules, loadEnabledModule,
@@ -113,7 +113,7 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
         handler: async (req, reply) => {
           const out = await inTenant(req, null, async (tx, ctx) => {
             const loaded = await loadEnabledModule(tx, md, ctx.tenantId, key);
-            if (!loaded) throw notFound("Route");
+            if (!loaded) throw new AppError(403, "module_disabled", `${m.manifest.name} is turned off for this company. An owner or admin can add it under Add features.`);
             requirePermission(ctx, r.permission);
             return r.handler(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log), {
               body: req.body, query: req.query, params: req.params,

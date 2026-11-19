@@ -20,11 +20,11 @@ test.beforeAll(async ({ browser }) => {
 });
 
 test("enable CRM and Invoicing", async () => {
-  await page.goto(`/t/${slug}/settings/modules`);
-  await page.getByRole("switch", { name: "Enable CRM" }).click();
-  await expect(page.getByRole("switch", { name: "Disable CRM" })).toBeChecked();
-  await page.getByRole("switch", { name: "Enable Invoicing" }).click();
-  await expect(page.getByRole("switch", { name: "Disable Invoicing" })).toBeChecked();
+  await nav().getByRole("link", { name: "Add features" }).click();
+  await page.getByRole("button", { name: "Add CRM" }).click();
+  await expect(page.getByRole("button", { name: "Remove CRM" })).toBeVisible();
+  await page.getByRole("button", { name: "Add Invoicing" }).click();
+  await expect(page.getByRole("button", { name: "Remove Invoicing" })).toBeVisible();
   await expect(nav().getByRole("link", { name: "Deals" })).toBeVisible();
 });
 

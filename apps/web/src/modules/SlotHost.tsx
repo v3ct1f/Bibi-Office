@@ -1,7 +1,7 @@
 import { Component, createContext, useContext, useMemo, type ComponentType, type ErrorInfo, type ReactNode } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, PackageX } from "lucide-react";
-import { EmptyState } from "@office/ui";
+import { Button, EmptyState } from "@office/ui";
 import { ModuleHostProvider, findPage, type ModuleHost, type ModuleUi, type SlotProps } from "@office/ui/module-ui";
 import { httpClient } from "../api/client.ts";
 import { useTenant } from "../lib/tenant.tsx";
@@ -69,14 +69,18 @@ export function SlotOutlet({ slot, props, wrap }: { slot: string; props?: SlotPr
 
 /** Full page owned by a module: /t/<slug>/m/<module>/<path>. */
 export function ModulePage({ module, path }: { module: string; path: string }) {
-  const { access } = useTenant();
+  const { access, can, tenant } = useTenant();
   const reg = useContext(ModuleUiRegistry);
   const enabled = access.modules.find((m) => m.key === module);
   const ui = reg.find((m) => m.key === module);
   const page = ui ? findPage(ui, `/${path}`) : null;
-  if (!enabled || !page) {
-    return <EmptyState icon={<PackageX />} title="Page not found" description={!enabled ? "This module is not enabled for this workspace." : "This module has no page at this address."} />;
+  if (!enabled) {
+    return <EmptyState icon={<PackageX />} title="This feature is turned off" description={can("core:modules.manage")
+      ? "Add it again under Add features. Everything you saved before is still there."
+      : "Ask an owner or admin to add it under Add features."}
+      action={can("core:modules.manage") ? <Button asChild variant="outline"><Link to={`/t/${tenant.slug}/features`}>Add features</Link></Button> : undefined} />;
   }
+  if (!page) return <EmptyState icon={<PackageX />} title="Page not found" description="This feature has no page at this address." />;
   const { Component: P, params } = page;
   return <Hosted module={module}><P params={params} path={`/${path}`} /></Hosted>;
 }

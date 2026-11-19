@@ -21,6 +21,9 @@ export interface Role { id: string; key: string; name: string; system: boolean; 
 
 export interface ModuleInfo {
   key: string; name: string; version: string; description: string; dependsOn: string[]; enabled: boolean;
+  icon: string | null; category: string; roles: string[];
+  enabledAt: string | null; enabledBy: { id: string; name: string } | null;
+  disabledAt: string | null; disabledBy: { id: string; name: string } | null;
   settings: Record<string, unknown>; secretsSet: string[]; permissions: { key: string; label: string }[];
   requires: string[]; settingsSchema: import("@office/ui").JsonSchema; ui: { slots: UiSlot[] };
 }

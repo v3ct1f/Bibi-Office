@@ -14,12 +14,25 @@ const slot = z.union([
   z.string().regex(/^entity\.(tab|action|sidebar):[a-z][a-z0-9_]*$/),
 ]);
 
+/** Groups on the "Add features" page. */
+export const MODULE_CATEGORIES = ["finance", "sales", "team", "operations", "other"] as const;
+/** System roles (besides owner/admin, who always get everything) a module can grant permissions to on enable. */
+export const GRANTABLE_ROLES = ["manager", "member", "viewer"] as const;
+
 export const ManifestSchema = z.object({
   key,
   name: z.string().min(1).max(80),
   version: semver,
   office: z.string().min(1).max(40),            // compatible core range, e.g. "^1.0"
   description: z.string().max(500).default(""),
+  /** Icon name for the feature card and nav (see web shell/icons.tsx). */
+  icon: z.string().regex(/^[a-z][a-z0-9-]{0,30}$/).optional(),
+  category: z.enum(MODULE_CATEGORIES).default("other"),
+  /**
+   * Who can use the module: permissions granted to each system role when the module is enabled.
+   * Owner ("*") and Admin (every declared permission) are implicit. Roles left out get nothing.
+   */
+  roles: z.partialRecord(z.enum(GRANTABLE_ROLES), z.array(permission)).default({}),
   dependsOn: z.array(key).default([]),
   permissions: z.object({
     declares: z.array(z.object({ key: permission, label: z.string().min(1).max(120) })).default([]),
@@ -47,6 +60,12 @@ export const ManifestSchema = z.object({
 }).strict().superRefine((m, ctx) => {
   for (const p of m.permissions.declares) {
     if (!p.key.startsWith(`${m.key}:`)) ctx.addIssue({ code: "custom", message: `declared permission ${p.key} must start with "${m.key}:"` });
+  }
+  const declared = new Set(m.permissions.declares.map((p) => p.key));
+  for (const [role, perms] of Object.entries(m.roles)) {
+    for (const p of perms ?? []) {
+      if (!declared.has(p)) ctx.addIssue({ code: "custom", message: `roles.${role} grants ${p}, which is not in permissions.declares` });
+    }
   }
   for (const e of m.events.emits) {
     if (!e.type.startsWith(`${m.key}.`)) ctx.addIssue({ code: "custom", message: `emitted event ${e.type} must start with "${m.key}."` });

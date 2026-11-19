@@ -45,7 +45,7 @@ afterAll(async () => { await relay.end(); await h.teardown(); });
 
 describe("invoicing module", () => {
   it("is off until enabled and validates its settings", async () => {
-    expect((await A().get(`${M}/invoices`)).status).toBe(404);
+    expect((await A().get(`${M}/invoices`)).status).toBe(403);
     expect((await A().patch("/modules/invoicing/settings", { numberFormat: "INV-{YYYY}" })).status).toBe(400);
     expect((await A().patch("/modules/invoicing/settings", { currency: "euro" })).status).toBe(400);
     expect((await A().patch("/modules/invoicing/settings", { sellerName: "Acme Ltd", defaultTaxRate: 21 })).status).toBe(200);

@@ -11,7 +11,7 @@ import { useTenant } from "../../lib/tenant.tsx";
 interface PermGroup { key: string; label: string; perms: { key: string; label: string }[] }
 
 const CORE_LABELS: Record<string, string> = {
-  tenant: "Workspace", members: "Members", roles: "Roles", modules: "Apps & modules", apikeys: "API keys", audit: "Audit log",
+  tenant: "Workspace", members: "Members", roles: "Roles", modules: "Features", apikeys: "API keys", audit: "Audit log",
   contacts: "Contacts", companies: "Companies", documents: "Documents", tasks: "Tasks", workflows: "Workflows", webhooks: "Webhooks",
 };
 const VERB: Record<string, string> = { read: "View", write: "Create & edit", manage: "Manage" };

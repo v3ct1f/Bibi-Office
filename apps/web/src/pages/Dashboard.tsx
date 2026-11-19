@@ -39,7 +39,7 @@ export function Dashboard() {
   const first = ((user?.profile.name as string | undefined) ?? "").split(" ")[0];
 
   const setup = [
-    { done: access.modules.length > 0, label: "Enable your first app", to: `${base}/settings/modules`, icon: Blocks, perm: "core:modules.manage" },
+    { done: access.modules.length > 0, label: "Add your first feature", to: `${base}/features`, icon: Blocks, perm: "core:modules.manage" },
     { done: (members.data?.length ?? 0) > 1, label: "Add a teammate", to: `${base}/settings/members`, icon: Users, perm: "core:members.manage" },
     { done: (contacts.data?.data.length ?? 0) > 0, label: "Add a contact", to: `${base}/contacts`, icon: Contact, perm: "core:contacts.write" },
     { done: (workflows.data?.length ?? 0) > 0, label: "Automate something", to: `${base}/workflows/new`, icon: Workflow, perm: "core:workflows.manage" },
@@ -77,7 +77,7 @@ export function Dashboard() {
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Building2 className="size-4 text-muted-foreground" />Workspace</CardTitle></CardHeader>
           <CardContent className="grid gap-2 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Apps enabled</span><span>{access.modules.length}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Features added</span><span>{access.modules.length}</span></div>
             {members.data && <div className="flex justify-between"><span className="text-muted-foreground">Members</span><span>{members.data.length}</span></div>}
             {workflows.data && <div className="flex justify-between"><span className="text-muted-foreground">Workflows</span><span>{workflows.data.length}</span></div>}
             <div className="flex justify-between"><span className="text-muted-foreground">Created</span><span>{fmtDate(tenant.createdAt)}</span></div>

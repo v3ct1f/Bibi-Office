@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Building2, Check, ChevronsUpDown, Contact, LayoutDashboard, ListTodo, LogOut, Menu, Monitor, Moon, Plus, Settings, Sun, Workflow, X,
+  Building2, Check, ChevronsUpDown, Contact, LayoutDashboard, ListTodo, LogOut, Menu, Monitor, Moon, PackagePlus, Plus, Settings, Sun, Workflow, X,
 } from "lucide-react";
 import {
   Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, cn,
@@ -147,9 +147,10 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <NavItem to={base} icon={LayoutDashboard} exact {...p}>Dashboard</NavItem>
         </div>
         {data.length > 0 && <Group label="Data">{data.map((d) => <NavItem key={d.to} to={d.to} icon={d.icon} {...p}>{d.label}</NavItem>)}</Group>}
-        {moduleNav.length > 0 && (
-          <Group label="Apps">
+        {(moduleNav.length > 0 || can("core:modules.manage")) && (
+          <Group label="Features">
             {moduleNav.map((m) => <NavItem key={`${m.module}${m.slot.route}`} to={`${base}/m/${m.module}${m.slot.route}`} icon={moduleIcon(m.slot.icon)} {...p}>{m.slot.label ?? m.moduleName}</NavItem>)}
+            {can("core:modules.manage") && <NavItem to={`${base}/features`} icon={PackagePlus} {...p}>Add features</NavItem>}
           </Group>
         )}
         {(can("core:workflows.read") || SETTINGS_PERMS.some(can)) && (

@@ -46,6 +46,24 @@ async function seedSystemRoles(tx: Tx, tenantId: string) {
   return ids;
 }
 
+/**
+ * Adds system roles introduced after the tenant was created (e.g. "manager"), with their default permissions.
+ * Existing roles are left untouched so an owner's edits are kept. Returns role ids by key.
+ */
+export async function ensureSystemRoles(tx: Tx, tenantId: string): Promise<Record<string, string>> {
+  const existing = await tx.select({ id: roles.id, key: roles.key }).from(roles).where(eq(roles.system, true));
+  const ids: Record<string, string> = Object.fromEntries(existing.map((r) => [r.key, r.id]));
+  for (const [key, r] of Object.entries(SYSTEM_ROLES)) {
+    if (ids[key]) continue;
+    const id = uuidv7();
+    await tx.insert(roles).values({ id, tenantId, key, name: r.name, system: true }).onConflictDoNothing();
+    const [row] = await tx.select({ id: roles.id }).from(roles).where(eq(roles.key, key));
+    ids[key] = row!.id;
+    if (row!.id === id) await tx.insert(rolePermissions).values(r.permissions.map((permission) => ({ tenantId, roleId: id, permission })));
+  }
+  return ids;
+}
+
 export async function createTenant(
   db: Db, input: { slug: string; name: string; region?: string | undefined }, owner: { userId: string },
   meta: { requestId: string; ip?: string | undefined; userAgent?: string | undefined },

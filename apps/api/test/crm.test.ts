@@ -41,7 +41,7 @@ describe("crm module", () => {
   const stage = (name: string) => pipeline.stages.find((s) => s.name === name)!.id;
 
   it("is off until enabled, then seeds a default Sales pipeline", async () => {
-    expect((await A().get(`${M}/pipelines`)).status).toBe(404);
+    expect((await A().get(`${M}/pipelines`)).status).toBe(403);
     expect((await A().post("/modules/crm/enable", {})).status).toBe(200);
     const ps = (await A().get(`${M}/pipelines`)).body;
     expect(ps).toHaveLength(1);
@@ -82,7 +82,7 @@ describe("crm module", () => {
     expect(r.body.closedAt).toBeTruthy();
     await pump(tA);
     const invs = (await A().get("/m/invoicing/invoices")).status;
-    expect(invs).toBe(404); // invoicing not enabled yet: nothing happens
+    expect(invs).toBe(403); // invoicing not enabled yet: nothing happens
 
     await A().post("/modules/invoicing/enable", {});
     // Reopen and win again: now Invoicing drafts exactly one invoice.
@@ -173,7 +173,8 @@ describe("crm module", () => {
 
   it("enforces permissions and tenant isolation", async () => {
     const C = () => h.client(carol, tA);
-    expect((await C().get(`${M}/board`)).status).toBe(403); // viewer role has no CRM permission
+    expect((await C().get(`${M}/board`)).status).toBe(200); // viewers may look at deals...
+    expect((await C().post(`${M}/deals`, { title: "nope" })).status).toBe(403); // ...but not change them
     const B = () => h.client(bob, tB);
     await B().post("/modules/crm/enable", {});
     expect((await B().get(`${M}/deals/${dealId}`)).status).toBe(404);

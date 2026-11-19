@@ -98,6 +98,8 @@ export const tenantModules = pgTable("tenant_modules", {
   settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
   enabledAt: ts("enabled_at"),
   enabledBy: uuid("enabled_by"),
+  disabledAt: ts("disabled_at"),
+  disabledBy: uuid("disabled_by"),
   secrets: bytea("secrets"),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.moduleKey] })]);
 

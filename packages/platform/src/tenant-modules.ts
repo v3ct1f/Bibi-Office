@@ -1,9 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import {
-  audit, badRequest, conflict, emitEvent, notFound, type RequestContext,
+  audit, badRequest, conflict, emitEvent, ensureSystemRoles, notFound, type RequestContext,
 } from "@office/core";
-import { rolePermissions, roles, tenantModules, type Tx } from "@office/db";
+import { memberships, rolePermissions, tenantModules, users, type Tx } from "@office/db";
 import type { ModuleDefinition } from "@office/sdk";
 import type { ModuleRegistry } from "./registry.ts";
 import type { SecretBox } from "./crypto.ts";
@@ -25,15 +25,35 @@ export interface ModuleDeps { registry: ModuleRegistry; secrets: SecretBox }
 
 export async function listModules(tx: Tx, d: ModuleDeps) {
   const rows = await tx.select().from(tenantModules);
+  // Names for "Added by" / "Removed by" (only people who are members of this tenant).
+  const userIds = [...new Set(rows.flatMap((r) => [r.enabledBy, r.disabledBy]).filter((x): x is string => !!x))];
+  const people = userIds.length
+    ? await tx.select({ id: users.id, name: users.name, email: users.email }).from(users)
+      .innerJoin(memberships, eq(memberships.userId, users.id)).where(inArray(users.id, userIds))
+    : [];
+  const who = (id: string | null) => {
+    const p = id ? people.find((x) => x.id === id) : undefined;
+    return p ? { id: p.id, name: p.name || p.email } : null;
+  };
   return d.registry.all().map((m) => {
     const r = rows.find((x) => x.moduleKey === m.manifest.key);
+    const enabled = r?.enabled ?? false;
     return {
       key: m.manifest.key, name: m.manifest.name, version: m.manifest.version, description: m.manifest.description,
-      dependsOn: m.manifest.dependsOn, enabled: r?.enabled ?? false, settings: r?.settings ?? {},
+      icon: m.manifest.icon ?? null, category: m.manifest.category, roles: roleAccess(m),
+      dependsOn: m.manifest.dependsOn, enabled, settings: r?.settings ?? {},
+      enabledAt: r?.enabledAt ?? null, enabledBy: who(r?.enabledBy ?? null),
+      disabledAt: enabled ? null : r?.disabledAt ?? null, disabledBy: enabled ? null : who(r?.disabledBy ?? null),
       secretsSet: r?.secrets ? secretKeys(m) : [], permissions: m.manifest.permissions.declares,
       requires: m.manifest.permissions.requires, settingsSchema: m.manifest.settings, ui: m.manifest.ui,
     };
   });
+}
+
+/** System roles that get access on enable: owner and admin always, plus those the manifest lists. */
+export function roleAccess(m: ModuleDefinition): string[] {
+  const extra = (["manager", "member", "viewer"] as const).filter((r) => (m.manifest.roles[r]?.length ?? 0) > 0);
+  return ["owner", "admin", ...extra];
 }
 
 /** Returns module state if enabled for the tenant in tx, else null. */
@@ -73,11 +93,13 @@ export async function enableModule(tx: Tx, ctx: RequestContext, d: ModuleDeps, k
     set: { enabled: true, version: def.manifest.version, settings: candidate, enabledAt: new Date(), enabledBy: ctx.actor.userId ?? null },
   });
 
-  // Admin role gets the module's permissions (owner already has "*").
-  const perms = def.manifest.permissions.declares.map((p) => p.key);
-  const [admin] = await tx.select().from(roles).where(and(eq(roles.key, "admin"), eq(roles.system, true)));
-  if (admin && perms.length) {
-    await tx.insert(rolePermissions).values(perms.map((permission) => ({ tenantId: ctx.tenantId, roleId: admin.id, permission })))
+  // Admin gets every declared permission (owner already has "*"); manager/member/viewer get what the manifest lists.
+  const roleIds = await ensureSystemRoles(tx, ctx.tenantId);
+  const grants: Record<string, string[]> = { admin: def.manifest.permissions.declares.map((p) => p.key), ...def.manifest.roles };
+  for (const [role, perms] of Object.entries(grants)) {
+    const roleId = roleIds[role];
+    if (!roleId || !perms?.length) continue;
+    await tx.insert(rolePermissions).values(perms.map((permission) => ({ tenantId: ctx.tenantId, roleId, permission })))
       .onConflictDoNothing();
   }
 
@@ -97,7 +119,8 @@ export async function disableModule(tx: Tx, ctx: RequestContext, d: ModuleDeps, 
   if (blocking.length) throw conflict(`Disable dependent modules first: ${blocking.join(", ")}`);
   const loaded = (await loadEnabledModule(tx, d, ctx.tenantId, key))!;
   await def.lifecycle?.disable?.(createModuleContext(tx, ctx, def, loaded.state));
-  await tx.update(tenantModules).set({ enabled: false }).where(eq(tenantModules.moduleKey, key));
+  await tx.update(tenantModules).set({ enabled: false, disabledAt: new Date(), disabledBy: ctx.actor.userId ?? null })
+    .where(eq(tenantModules.moduleKey, key));
   // Data is retained; permissions stay assigned but are inert while disabled.
   await audit(tx, ctx, "module.disabled", { type: "module", id: ctx.tenantId }, { key });
   await emitEvent(tx, ctx, "core.module.disabled", { key });

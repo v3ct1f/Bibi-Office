@@ -30,6 +30,9 @@ export default defineModule({
       ],
       requires: ["core:contacts.read", "core:companies.read"],
     },
+    icon: "handshake",
+    category: "sales",
+    roles: { manager: [READ, WRITE, MANAGE], member: [READ, WRITE], viewer: [READ] },
     entities: ["deal", "pipeline", "stage", "activity"],
     events: { emits: EVENTS.map((type) => ({ type })), subscribes: [] },
     workflow: {

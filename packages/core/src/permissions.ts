@@ -27,6 +27,8 @@ export const SYSTEM_ROLES: Record<string, { name: string; permissions: string[] 
     name: "Admin",
     permissions: CORE_PERMISSIONS.filter((p) => p !== "core:tenant.manage"),
   },
+  /** Runs the day-to-day (approves expenses, builds schedules, orders stock); modules grant the specifics on enable. */
+  manager: { name: "Manager", permissions: [...DATA_READ, ...DATA_WRITE, "core:members.read", "core:modules.read", "core:workflows.read"] },
   member: { name: "Member", permissions: [...DATA_READ, ...DATA_WRITE, "core:members.read", "core:modules.read"] },
   viewer: { name: "Viewer", permissions: [...DATA_READ] },
 };
