@@ -5,6 +5,7 @@ import {
   createDoc, createTemplate, DeclineIn, declineAsSigner, DocIn, DocPatch, docPdf, DocQuery, expireDue, getDoc, listDocs, listTemplates, openAsSigner, P,
   remind, seedTemplates, sendDoc, SendIn, SETTINGS_SCHEMA, signAsSigner, SignIn, signerPdf, TemplateIn, TemplatePatch, TokenIn, updateDoc, updateTemplate, voidDoc, VoidIn,
 } from "./service.ts";
+import { metrics } from "./metrics.ts";
 
 const Id = z.object({ id: z.uuid() });
 const EVENTS = ["docs.document.sent", "docs.document.viewed", "docs.document.signed", "docs.document.completed", "docs.document.declined", "docs.document.voided", "docs.document.expired"];
@@ -41,6 +42,7 @@ export default defineModule({
     api: { basePath: "/docs" },
     lifecycle: ["enable"],
   },
+  metrics,
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
   lifecycle: { enable: (ctx) => seedTemplates(ctx) },
   jobs: { expire: { everySeconds: 3600, run: (ctx) => expireDue(ctx) } },

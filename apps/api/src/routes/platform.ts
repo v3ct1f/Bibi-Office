@@ -8,7 +8,7 @@ import { isFileResponse, type FileResponse, type PublicRouteSpec, type RouteSpec
 import {
   actionCatalog, createModuleContext, disableModule, enableModule, listModules, loadEnabledModule,
   updateModuleSettings, webhookService, WebhookInput, workflowService, WorkflowInput, CORE_EVENTS,
-  storeFile, readFileById, inlineSafe, publicContext, systemContext, normalizeInbound, resolveInboundRoute, recordInbound, htmlToText, secretMatches,
+  storeFile, readFileById, metricCatalog, computeMetrics, MetricQuery, inlineSafe, publicContext, systemContext, normalizeInbound, resolveInboundRoute, recordInbound, htmlToText, secretMatches,
   type FileDeps, type MailEnv, type ModuleRegistry, type SecretBox,
 } from "@office/platform";
 
@@ -89,6 +89,16 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
   app.patch("/modules/:key/settings", {
     config: AUTH, schema: { tags: ["modules"], headers: tenantHeader, params: ModKey, body: z.record(z.string(), z.unknown()) },
   }, (req) => inTenant(req, "core:modules.manage", (tx, ctx) => updateModuleSettings(tx, ctx, md, req.params.key, req.body)));
+
+  // ───── Metrics (KPIs published by enabled modules; each metric checks its own permission) ─────
+  app.get("/metrics", { config: AUTH, schema: { tags: ["metrics"], headers: tenantHeader } },
+    (req) => inTenant(req, null, async (tx, ctx) => ({ data: await metricCatalog(tx, ctx, md) })));
+  app.get("/metrics/values", { config: AUTH, schema: { tags: ["metrics"], headers: tenantHeader, querystring: MetricQuery } },
+    (req) => inTenant(req, null, async (tx, ctx) => {
+      const r = await computeMetrics(tx, ctx, md, req.query, req.log);
+      const d = (x: typeof r.range) => ({ from: x.fromDate, to: x.toDate });
+      return { range: { ...d(r.range), bucket: r.range.bucket }, previous: d(r.previous), data: r.results };
+    }));
 
   // ───── Workflows ─────
   app.get("/workflow-catalog", { config: AUTH, schema: { tags: ["workflows"], headers: tenantHeader } },

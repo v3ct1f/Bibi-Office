@@ -35,7 +35,7 @@
 | 11 | Module: Inventory | ✅ done (15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 31 E2E) |
 | 12 | Module: Docs & e-sign | ✅ done (14 docs + 15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 34 E2E) |
 | 13 | Module: AI email/meeting summaries | ✅ done (14 ai + 14 docs + 15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 37 E2E) |
-| 14 | Module: KPI dashboard | ⏳ next |
+| 14 | Module: KPI dashboard (+ SDK metrics, core metrics API) | ✅ done (14 kpi + 14 ai + 14 docs + 15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 42 E2E) |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
@@ -56,7 +56,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 13)
+## Handoff (Session 14)
+1. Done: SDK `metrics` contract (+ `flowSum`/`scalar`/`inRange` helpers); core `GET /metrics` and `/metrics/values` (live, permission- and module-aware, savepoint per metric, previous period, filled buckets); 20 metrics across all 9 modules; `modules/kpi` ("KPIs"): saved dashboards, period picker, stat tiles with comparison, sparkline/line/bar charts, targets, edit mode, Home widget.
+2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test` (`modules/kpi/tests/all-metrics.test.ts` runs every module's metrics); `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
+3. Next: the planned module sessions are complete. Suggested Session 15: hardening pass (tenant time zones for dates/periods, per-module DB roles, route code-splitting, Keycloak + Temporal smoke test on a Docker host, OpenAPI-generated web types).
+4. Open (KPI): tenant time zone (UTC now); currency conversion; scheduled KPI email digest and target alerts (workflow trigger); per-user dashboards; caching if metrics get slow.
+5. Open (carried): AI email forwarding and core Tasks page, e-sign PDF upload/ID checks, inventory–invoice link, purchase orders, HR accruals, mail attachments, bounce handling/DKIM, CAPTCHA, calendar sync, blob sweep, antivirus hook.
+
+## Handoff (Session 13, archived)
 1. Done: `modules/ai` ("Summaries"): meeting notes, transcripts (.vtt/.srt/.txt upload) and email threads summarized by Claude (official SDK, structured output, refusal fallback) into overview, key points, decisions, action items, open questions; chosen action items → core tasks; tenant's own API key as a module secret; monthly token limit checked before each call; `keepSource` toggle; workflow action `ai.summarize`. Core web: "Open tasks" card on Home. E2E: fake Claude API in global setup; test-only rate limit 5000/min.
 2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e` (no real API calls anywhere).
 3. Next (Session 14): `modules/kpi` dashboard: tiles and charts from module data (revenue, overdue, pipeline, expenses, tickets, stock, signatures), each module exposing metrics through an SDK hook; date ranges; permission-aware.

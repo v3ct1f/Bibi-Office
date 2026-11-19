@@ -11,6 +11,7 @@ import hr from "@office/module-hr";
 import inventory from "@office/module-inventory";
 import docs from "@office/module-docs";
 import ai from "@office/module-ai";
+import kpi from "@office/module-kpi";
 
-export const MODULES: ModuleDefinition[] = [invoicing, crm, expenses, scheduling, support, hr, inventory, docs, ai];
+export const MODULES: ModuleDefinition[] = [invoicing, crm, expenses, scheduling, support, hr, inventory, docs, ai, kpi];
 export const createRegistry = () => new ModuleRegistry(MODULES);

@@ -8,6 +8,7 @@ import {
   DealPatch, DealQuery, deleteActivity, deleteDeal, deleteStage, getDeal, listActivities, listDeals, listStages, moveDeal, reopenDeal,
   reorderStages, seedStages, SETTINGS_SCHEMA, settingsOf, StageIn, StagePatch, summary, updateActivity, updateDeal, updateStage,
 } from "./service.ts";
+import { metrics } from "./metrics.ts";
 
 const P = {
   read: "crm:deal.read", write: "crm:deal.write", activity: "crm:activity.write", pipeline: "crm:pipeline.manage",
@@ -63,6 +64,7 @@ export default defineModule({
     api: { basePath: "/crm" },
     lifecycle: ["enable"],
   },
+  metrics,
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
   lifecycle: { enable: (ctx) => seedStages(ctx) },
   routes: [

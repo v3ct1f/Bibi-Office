@@ -6,6 +6,7 @@ import {
   LocationIn, LocationPatch, move, MoveIn, MovementQuery, P, recordCount, reorderList, seedLocation, SETTINGS_SCHEMA, stockCsv, summary,
   updateItem, updateLocation,
 } from "./service.ts";
+import { metrics } from "./metrics.ts";
 
 const Id = z.object({ id: z.uuid() });
 const EVENTS = [
@@ -44,6 +45,7 @@ export default defineModule({
     api: { basePath: "/inventory" },
     lifecycle: ["enable"],
   },
+  metrics,
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
   lifecycle: { enable: (ctx) => seedLocation(ctx) },
   routes: [

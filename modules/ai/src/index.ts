@@ -4,6 +4,7 @@ import { action, defineModule, moduleErrors, route } from "@office/sdk";
 import {
   createSummary, createTasks, deleteSummary, getSummary, ListQuery, listSummaries, P, SETTINGS_SCHEMA, status, SummarizeIn, TasksIn, textFromUpload, UploadQuery,
 } from "./service.ts";
+import { metrics } from "./metrics.ts";
 
 const Id = z.object({ id: z.uuid() });
 
@@ -34,6 +35,7 @@ export default defineModule({
     api: { basePath: "/ai" },
     lifecycle: [],
   },
+  metrics,
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
   routes: [
     route({ method: "GET", path: "/status", permission: P.read, handler: (ctx) => status(ctx) }),

@@ -458,3 +458,12 @@ office/
 - Core web: Home "Open tasks" card (shared tasks entity), so task-producing modules have a visible destination.
 - E2E: order … → `zero-paper` → `zest`; global setup starts the fake Claude API and raises the API rate limit for the single test user.
 
+## 22. Metrics and KPI dashboard (Session 14, as built)
+
+- SDK: `ModuleDefinition.metrics: Record<"<module>.<name>", MetricSpec>`; `defineModule` checks the name prefix and that the permission is declared/required. Helpers `flowSum`, `scalar`, `inRange`, `sqlRows` (identifiers are module constants; values are bound).
+- Platform (`packages/platform/src/metrics.ts`): `metricRange` (UTC, inclusive dates, ≤3 years, auto bucket), `previousRange` (same length, just before), `bucketStarts` (Postgres `date_trunc` semantics), `metricCatalog`, `computeMetrics`.
+- Core API: `GET /metrics`, `GET /metrics/values` (≤30 keys). Per key: permission check → module enabled → savepoint → module ctx → compute now (+ previous for flow) → fill buckets. Errors are per key (`unavailable` / `failed`), never a 500 for the page.
+- Live computation, no materialized copies: always consistent with module data and RLS; cost is a few indexed queries per tile per view. Add caching or rollups only if needed.
+- `modules/kpi` stores layouts only and reads values through the core API (`api.core`). Charts are inline SVG (single series in the theme accent, hover + keyboard readout, screen-reader table, no chart library).
+- E2E order: … → `zest` → `zz-kpi`.
+

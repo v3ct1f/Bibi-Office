@@ -7,6 +7,7 @@ import {
   readDoc, removeDoc, removeHoliday, requestLeave, seedTypes, SelfPatch, SETTINGS_SCHEMA, summary, today, updateEmployee, updateSelf, updateType,
   uploadDoc, whosOff,
 } from "./service.ts";
+import { metrics } from "./metrics.ts";
 
 const Id = z.object({ id: z.uuid() });
 const DocId = z.object({ id: z.uuid(), docId: z.uuid() });
@@ -44,6 +45,7 @@ export default defineModule({
     api: { basePath: "/hr" },
     lifecycle: ["enable"],
   },
+  metrics,
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
   lifecycle: { enable: (ctx) => seedTypes(ctx) },
   routes: [

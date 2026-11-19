@@ -8,6 +8,7 @@ import {
   getService, HoursIn, linkContact, listBookings, listServices, listTimeOff, localDate, P, PublicBookIn, removeTimeOff, reschedule,
   ServiceIn, ServicePatch, setHoursFor, setOutcome, SETTINGS_SCHEMA, settingsOf, SlotQuery, summary, TimeOffIn, tokenMatches, updateService,
 } from "./service.ts";
+import { metrics } from "./metrics.ts";
 
 const Id = z.object({ id: z.uuid() });
 const Slug = z.object({ slug: z.string().regex(/^[a-z0-9-]{1,60}$/) });
@@ -70,6 +71,7 @@ export default defineModule({
     api: { basePath: "/scheduling" },
     lifecycle: [],
   },
+  metrics,
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
   routes: [
     // services
