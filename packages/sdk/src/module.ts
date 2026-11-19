@@ -58,6 +58,18 @@ export interface ActionSpec<I extends z.ZodType = z.ZodType> {
   run(ctx: ModuleContext, input: z.infer<I>): Promise<Record<string, unknown> | void>;
 }
 
+/**
+ * Scheduled job, run by the worker once per interval for every tenant that has the module enabled.
+ * Runs as actor `module:<key>` in one tenant tx. Must be idempotent: a crash means it simply runs again next time.
+ */
+export interface JobSpec {
+  label: string;
+  everyMinutes: number;
+  run(ctx: ModuleContext): Promise<void>;
+}
+
+export const JOB_KEY_RE = /^[a-z][a-z0-9_]{0,40}$/;
+
 export interface ModuleDefinition {
   manifest: Manifest;
   /** Absolute path to SQL migrations (tables must be "<prefix>_*" with tenant_id + RLS). */
@@ -66,6 +78,8 @@ export interface ModuleDefinition {
   handlers?: Record<string, (ctx: ModuleContext, event: EventEnvelope) => Promise<void>>;
   actions?: Record<string, ActionSpec>;
   lifecycle?: Partial<Record<"enable" | "disable", (ctx: ModuleContext) => Promise<void>>>;
+  /** Scheduled jobs keyed by job key (e.g. "mark_overdue"). */
+  jobs?: Record<string, JobSpec>;
 }
 
 export interface DefineModuleInput extends Omit<ModuleDefinition, "manifest"> { manifest: ManifestInput }
@@ -86,6 +100,12 @@ export function defineModule(def: DefineModuleInput): ModuleDefinition {
       errors.push(`route ${r.method} ${r.path} uses undeclared permission ${r.permission}`);
     }
   }
+  for (const [k, j] of Object.entries(def.jobs ?? {})) {
+    if (!JOB_KEY_RE.test(k)) errors.push(`job key ${k} must match ${JOB_KEY_RE}`);
+    if (!Number.isInteger(j.everyMinutes) || j.everyMinutes < 1 || j.everyMinutes > 7 * 24 * 60) {
+      errors.push(`job ${k} everyMinutes must be an integer between 1 and 10080`);
+    }
+  }
   if (errors.length) throw new Error(`Module ${manifest.key}: ${errors.join("; ")}`);
   return { ...def, manifest };
 }
@@ -93,3 +113,14 @@ export function defineModule(def: DefineModuleInput): ModuleDefinition {
 /** Helper to keep route typing when building the routes array. */
 export const route = <B extends z.ZodType, Q extends z.ZodType, P extends z.ZodType>(r: RouteSpec<B, Q, P>) => r as unknown as RouteSpec;
 export const action = <I extends z.ZodType>(a: ActionSpec<I>) => a as unknown as ActionSpec;
+export const job = (j: JobSpec) => j;
+
+/** Error a module throws to answer with a 4xx (modules may not import @office/core). */
+export class ModuleError extends Error {
+  constructor(public statusCode: number, public code: string, message: string) { super(message); }
+}
+export const moduleErrors = {
+  badRequest: (m: string) => new ModuleError(400, "bad_request", m),
+  notFound: (what = "Resource") => new ModuleError(404, "not_found", `${what} not found`),
+  conflict: (m: string) => new ModuleError(409, "conflict", m),
+};

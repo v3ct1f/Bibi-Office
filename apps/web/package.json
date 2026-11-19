@@ -18,11 +18,14 @@
     "lucide-react": "1.76.0",
     "oidc-client-ts": "3.5.0",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "@office/module-invoicing": "workspace:*"
   },
   "devDependencies": {
     "@office/config": "workspace:*",
     "@office/db": "workspace:*",
+    "@office/modules": "workspace:*",
+    "@office/platform": "workspace:*",
     "@playwright/test": "1.63.0",
     "@tailwindcss/vite": "4.3.5",
     "@testing-library/jest-dom": "6.10.0",

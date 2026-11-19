@@ -378,3 +378,11 @@ office/
 - Dev OIDC (`apps/api/scripts/dev-oidc.ts`, `pnpm dev:oidc`): Keycloak-shaped paths, any email signs in, refuses `NODE_ENV=production`. Used by local dev and E2E so no Docker is needed.
 - CORS: explicit methods/headers (`x-tenant-id`, `idempotency-key`), preflight cached 10 min.
 - Tests: web unit (`apps/web/test`, vitest+jsdom), UI unit (`packages/ui`), full-stack E2E (`apps/web/e2e`, Playwright: real API + Postgres + dev OIDC + Vite; 9 flows). CI runs E2E as its own job.
+
+## 13. Implementation notes (Session 5, as built)
+
+- **Scheduled module jobs (new SDK feature):** `jobs: { key: job({ label, everyMinutes, run(ctx) }) }`. Table `module_job_state` (migration 0003) holds `next_run_at` per tenant+module+job. Worker loop `module-jobs` (every 30 s, `runDueJobs`): as `office_relay` it seeds rows for tenants with the module enabled, claims due rows with SKIP LOCKED and pushes `next_run_at` forward before running; each job then runs in a normal tenant tx as actor `module:<key>`. Jobs must be idempotent. Disabled modules are skipped; errors land in `last_error`.
+- **Module errors:** `ModuleError` / `moduleErrors.{badRequest,notFound,conflict}` in `@office/sdk` (modules may not import `@office/core`); the API maps `statusCode` + `code` to problem+json.
+- **Core search:** `?q=` now matches whole words/phrases OR word prefixes (`init` finds `Initech`); prefix terms are built from letters/digits only.
+- **Invoicing module** (`modules/invoicing`, see its README): tables `invoicing_{invoices,invoice_lines,payments,sequences}` with RLS + composite FKs; company/contact FKs `ON DELETE SET NULL (col)` and a `bill_to` snapshot so issued invoices never change. Gapless numbers via a row-locked per-period counter at send time. Money in integer cents with BigInt per-line rounding shared by API and UI. Events, workflow actions, `crm.deal.won` handler, hourly `mark_overdue` job, UI pages + company/contact tab + dashboard widget.
+- **E2E DB prep** now also installs built-in modules (`installModules`).

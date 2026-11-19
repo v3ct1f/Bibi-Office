@@ -26,8 +26,8 @@
 | 2 | Core backend: auth, tenants, RBAC, shared data, events/outbox, audit, API | ✅ done |
 | 3 | Workflow engine + module loader (+ webhooks, `@office/sdk`) | ✅ done (37 tests green) |
 | 4 | Admin UI + design system | ✅ done (55 unit/integration + 9 E2E green) |
-| 5 | Module: Invoicing | ⏳ next |
-| 6 | Module: CRM | ☐ |
+| 5 | Module: Invoicing | ✅ done (72 unit/integration + 14 E2E green) |
+| 6 | Module: CRM | ⏳ next |
 | 7 | Module: Expenses | ☐ |
 | 8 | Module: Scheduling | ☐ |
 | 9 | Module: Support inbox | ☐ |
@@ -54,7 +54,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 4)
+## Handoff (Session 5)
+1. Done: `modules/invoicing` (drafts, gapless numbering, payments, void, reminders, overdue job, events, 2 workflow actions, `crm.deal.won` handler, UI pages/tab/widget/print view); SDK scheduled `jobs` + `module_job_state` + worker loop; `ModuleError`; core prefix search; E2E DB installs modules.
+2. Verify: Postgres on :55432; `TEST_DATABASE_URL=... pnpm test` (36+9 api incl. invoicing, 2 worker, 8 ui, 9 web, 8 invoicing money); `pnpm typecheck`; `pnpm e2e` (14 flows).
+3. Next (Session 6): `modules/crm` (pipelines, deals, stages, activities). Must emit `crm.deal.won` with payload `{ id, title, valueCents, currency, companyId?, contactId? }` so Invoicing drafts invoices (contract in modules/invoicing/README.md).
+4. Open: email delivery for invoices + reminders needs core `send_email`; invoice PDFs into Documents need uploads; due dates use UTC (tenant time zone later).
+5. Open: same as Session 4 (Windows Postgres script, Docker smoke test, email invites, per-module DB roles).
+
+## Handoff (Session 4, archived)
 1. Done: `apps/web` admin UI (OIDC PKCE login, onboarding, workspace switcher, dashboard, contacts/companies/tasks, workflow builder, settings: members/roles/modules/webhooks/API keys/audit), `@office/ui` design system + `SchemaForm` + module UI contract, slot host, `/me/access`, dev OIDC provider, CORS fix, CI E2E job.
 2. Verify: Postgres on :55432 with roles (`scripts/local-pg.sh start`; on Windows see note below); `TEST_DATABASE_URL=... pnpm test` (36 api + 2 worker + 8 ui + 9 web); `pnpm typecheck && pnpm build`; `pnpm e2e` (9 Playwright flows, starts API + dev OIDC + Vite itself).
 3. Next (Session 5): `modules/invoicing` (manifest per ARCHITECTURE §4, migrations w/ RLS, routes, events, actions) + its UI package via `defineModuleUi` (nav page, company tab, dashboard widget, global create).

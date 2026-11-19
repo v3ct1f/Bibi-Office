@@ -68,6 +68,9 @@ describe("shared data", () => {
     expect(p2.body.nextCursor).toBeNull();
 
     expect((await c.get("/contacts?q=ben")).body.data.map((x: { firstName: string }) => x.firstName)).toEqual(["Ben"]);
+    expect((await c.get("/contacts?q=be")).body.data.map((x: { firstName: string }) => x.firstName)).toEqual(["Ben"]); // prefix
+    expect((await c.get(`/contacts?q=${encodeURIComponent("be:* | !x & (")}`)).status).toBe(200); // tsquery syntax is inert
+    expect((await c.get("/companies?q=init")).body.data.map((x: { name: string }) => x.name)).toEqual(["Initech"]);
 
     const up = await c.patch(`/contacts/${ids[0]}`, { lastName: "Smith" });
     expect(up.body.lastName).toBe("Smith");

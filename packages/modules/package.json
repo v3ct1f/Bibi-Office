@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@office/platform": "workspace:*",
-    "@office/sdk": "workspace:*"
+    "@office/sdk": "workspace:*",
+    "@office/module-invoicing": "workspace:*"
   },
   "devDependencies": {
     "@office/config": "workspace:*"

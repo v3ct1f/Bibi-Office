@@ -105,7 +105,15 @@ export function entityService(key: EntityKey) {
       requirePermission(ctx, perm("read"));
       const where: SQL[] = [isNull(t.deletedAt)];
       if (q.cursor) where.push(lt(t.id, q.cursor));
-      if (q.q && def.searchable) where.push(sql`search @@ websearch_to_tsquery('simple', ${q.q})`);
+      if (q.q && def.searchable) {
+        // Whole-word/phrase match OR prefix match on every word ("init" finds "Initech").
+        // Prefix terms are letters/digits only, so user input can never inject tsquery syntax.
+        const terms = q.q.toLowerCase().match(/[\p{L}\p{N}]+/gu)?.slice(0, 8) ?? [];
+        const prefix = terms.map((w) => `${w}:*`).join(" & ");
+        where.push(prefix
+          ? sql`(search @@ websearch_to_tsquery('simple', ${q.q}) OR search @@ to_tsquery('simple', ${prefix}))`
+          : sql`search @@ websearch_to_tsquery('simple', ${q.q})`);
+      }
       const rows = await tx.select().from(t).where(and(...where)).orderBy(desc(t.id)).limit(q.limit + 1);
       const page = rows.slice(0, q.limit) as Record<string, unknown>[];
       return { data: page.map(strip), nextCursor: rows.length > q.limit ? (page.at(-1)!.id as string) : null };

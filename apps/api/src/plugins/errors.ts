@@ -24,7 +24,8 @@ export function registerErrorHandler(app: FastifyInstance) {
     } else if (pg) {
       [status, code, title] = pg;
     } else if (anyErr.statusCode && anyErr.statusCode < 500) {
-      status = anyErr.statusCode; code = "request_error"; title = err.message;
+      status = anyErr.statusCode; title = err.message;
+      code = typeof anyErr.code === "string" && /^[a-z_]{2,40}$/.test(anyErr.code) ? anyErr.code : "request_error";
     }
     if (status >= 500) req.log.error({ err }, "unhandled error");
     reply.status(status).type("application/problem+json").send({
