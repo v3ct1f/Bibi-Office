@@ -390,3 +390,10 @@ office/
 - Web: module pages match the longest registered route; the rest is `subPath` (module-internal routing). `Hosted` wraps every slot/page with host props + error boundary. Tailwind scans `modules/` for module UI classes.
 - Module tests import the API harness by relative path (`apps/api/test/harness.ts`) to avoid a workspace dependency cycle.
 - Invoicing: see `modules/invoicing/README.md`. Money in integer minor units; gapless per-tenant numbering via sequence row lock in the issuing tx; issued invoices immutable via DB triggers; PDF via pdf-lib (standard fonts, Latin-1 only); `crm.deal.won` v1 payload contract defined here for the CRM session.
+
+## 14. CRM + shell companies (Session 6, as built)
+
+- Shell: `/companies` and `/companies/:id` pages (core data); `EntityTabs` hosts `entity.tab:<type>` for contacts and companies. Module settings buttons are labelled "<Module> settings".
+- CRM: see `modules/crm/README.md`. One pipeline per tenant, stages seeded in `lifecycle.enable` (idempotent). Deal owner is a composite FK to `memberships (tenant_id, user_id)` with `ON DELETE SET NULL (owner_id)`.
+- Module-to-module contract (no imports): `crm.deal.won` v1 → invoicing drafts an invoice with `source = crm.deal:<id>`; `invoicing.invoice.paid` (now carries `source`) → CRM logs a note on the deal. CRM's integration test loads both modules to pin this contract.
+- E2E specs run alphabetically in one worker and share data: `admin` → `invoicing` → `sales`.

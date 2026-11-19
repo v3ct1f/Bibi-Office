@@ -26,9 +26,9 @@
 | 2 | Core backend: auth, tenants, RBAC, shared data, events/outbox, audit, API | ✅ done |
 | 3 | Workflow engine + module loader (+ webhooks, `@office/sdk`) | ✅ done |
 | 4 | Admin UI + design system | ✅ done |
-| 5 | Module: Invoicing (+ SDK jobs/files/UI contract) | ✅ done (23 module + 36 api + 2 worker + 5 web unit + 11 E2E) |
-| 6 | Module: CRM | ⏳ next |
-| 7 | Module: Expenses | ☐ |
+| 5 | Module: Invoicing (+ SDK jobs/files/UI contract) | ✅ done |
+| 6 | Module: CRM (+ companies pages in shell) | ✅ done (12 crm + 23 invoicing + 36 api + 2 worker + 5 web unit + 13 E2E) |
+| 7 | Module: Expenses | ⏳ next |
 | 8 | Module: Scheduling | ☐ |
 | 9 | Module: Support inbox | ☐ |
 | 10 | Module: HR | ☐ |
@@ -54,7 +54,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 5)
+## Handoff (Session 6)
+1. Done: `modules/crm` (stages, deals, won/lost/reopen, activities + tasks, board/summary, 7 events, 2 workflow actions, consumes `invoicing.invoice.paid`); UI board (drag and drop) + list + deal page + contact/company tabs + dashboard card. Shell: companies list/detail with module tabs. Invoicing 1.1.0: company tab, `source` in event payloads.
+2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
+3. Next (Session 7): `modules/expenses` (expense claims + receipts, categories, approval flow, reimbursement status). Receipts need the deferred core document upload (S3 presign): build that core piece first in the same session, or store receipts later?
+4. Open: core contacts list has no `companyId` filter (company page filters client-side, max 100); owner picker in CRM UI; core notifications/email for task reminders and invoice sending.
+5. Open: bundle is now ~480 KB; add route-level code splitting for module UI.
+
+## Handoff (Session 5, archived)
 1. Done: `modules/invoicing` (drafts, lines/tax, gapless numbering, issue/immutability in DB, payments, void, reminders, overdue job, PDF, summary, 8 events, 2 workflow actions, `crm.deal.won` → draft; UI list/editor/detail/widget/contact tab). SDK: `jobs`, `file()`, `ModuleError`, `@office/sdk/ui`; core migration 0003 `module_jobs` + worker loop.
 2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
 3. Next (Session 6): `modules/crm` (deals, pipeline stages, activities; emit `crm.deal.won` with the v1 payload in `modules/invoicing/README.md`), `entity.tab:company` needs a companies page in the shell.

@@ -89,6 +89,7 @@ const eventPayload = (r: InvoiceRow) => ({
   total: r.total, amountPaid: r.amountPaid, balance: r.total - r.amountPaid,
   issueDate: r.issueDate, dueDate: r.dueDate, contactId: r.contactId, companyId: r.companyId,
   customer: r.customer ? { name: r.customer.name, email: r.customer.email ?? null } : null,
+  source: r.source,   // e.g. "crm.deal:<id>" when drafted from a won deal (added in 1.1.0, additive)
 });
 
 // ───────────────────────── reads ─────────────────────────

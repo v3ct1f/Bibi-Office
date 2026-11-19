@@ -87,6 +87,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@office/module-crm':
+        specifier: workspace:*
+        version: link:../../modules/crm
       '@office/module-invoicing':
         specifier: workspace:*
         version: link:../../modules/invoicing
@@ -201,6 +204,49 @@ importers:
         specifier: 8.5.0
         version: 8.5.0(@swc/core@1.16.22)(jiti@2.7.0)(postcss@8.5.33)(tsx@4.20.6)(typescript@5.9.3)(yaml@2.9.1)
 
+  modules/crm:
+    dependencies:
+      '@office/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@office/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(postgres@3.4.7)
+      zod:
+        specifier: 4.1.12
+        version: 4.1.12
+    devDependencies:
+      '@office/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@office/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
+      '@office/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
+      '@office/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@tanstack/react-query':
+        specifier: 5.90.2
+        version: 5.90.2(react@19.1.10)
+      '@types/react':
+        specifier: 19.1.17
+        version: 19.1.17
+      jose:
+        specifier: 6.1.0
+        version: 6.1.0
+      postgres:
+        specifier: 3.4.7
+        version: 3.4.7
+      react:
+        specifier: 19.1.10
+        version: 19.1.10
+
   modules/invoicing:
     dependencies:
       '@office/db':
@@ -280,6 +326,9 @@ importers:
 
   packages/modules:
     dependencies:
+      '@office/module-crm':
+        specifier: workspace:*
+        version: link:../../modules/crm
       '@office/module-invoicing':
         specifier: workspace:*
         version: link:../../modules/invoicing

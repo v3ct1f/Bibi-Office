@@ -2,6 +2,7 @@
 export interface Me { kind: "user"; userId: string; email: string; tenants: { id: string; slug: string; name: string; status: string }[] }
 export interface Page<T> { data: T[]; nextCursor: string | null }
 export interface Contact { id: string; firstName: string | null; lastName: string | null; email: string | null; phone: string | null; companyId: string | null; custom: Record<string, unknown>; createdAt: string; updatedAt: string }
+export interface Company { id: string; name: string; domain: string | null; taxId: string | null; address: Record<string, unknown> | null; custom: Record<string, unknown>; createdAt: string; updatedAt: string }
 export interface Member { id: string; userId: string; email: string; name: string | null; status: string; roles: string[]; createdAt: string }
 export interface Role { id: string; key: string; name: string; system: boolean; permissions: string[] }
 export interface ApiKey { id: string; name: string; scopes: string[]; expiresAt: string | null; lastUsedAt: string | null; revokedAt: string | null; createdAt: string }
