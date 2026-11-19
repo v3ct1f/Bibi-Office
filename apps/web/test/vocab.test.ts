@@ -62,3 +62,11 @@ describe("Scheduling vocabulary", () => {
     expect(eventFields("scheduling.clock.out").map((f) => f.path)).toContain("payload.minutes");
   });
 });
+
+describe("Inventory vocabulary", () => {
+  it("names inventory events and their details", () => {
+    expect(eventLabel("inventory.stock.low")).toBe("An item drops to its minimum stock");
+    expect(eventGroup("inventory.order.sent")).toBe("Inventory");
+    expect(eventFields("inventory.stock.low").map((f) => f.path)).toEqual(expect.arrayContaining(["payload.name", "payload.minStock"]));
+  });
+});

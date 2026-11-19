@@ -43,9 +43,14 @@ const EVENT_LABELS: Record<string, string> = {
   "scheduling.swap.approved": "A shift swap is approved",
   "scheduling.clock.in": "Someone clocks in",
   "scheduling.clock.out": "Someone clocks out",
+  "inventory.stock.changed": "Stock of an item changes",
+  "inventory.stock.low": "An item drops to its minimum stock",
+  "inventory.order.created": "A purchase order is created",
+  "inventory.order.sent": "A purchase order is sent",
+  "inventory.order.received": "A purchase order is received",
 };
 
-const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing", expenses: "Expenses", scheduling: "Schedule & time clock" };
+const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing", expenses: "Expenses", scheduling: "Schedule & time clock", inventory: "Inventory" };
 
 const ENTITY_WORDS: Record<string, [string, string]> = {
   contact: ["A contact", "Contacts"], company: ["A company", "Companies"], document: ["A document", "Documents"], task: ["A task", "Tasks"],
@@ -122,6 +127,11 @@ const OTHER_FIELDS: Record<string, EventField[]> = {
   "scheduling.time_off.rejected": [{ path: "id", label: "Request ID" }, ...[{ path: "employeeId", label: "Employee ID" }, { path: "kind", label: "Kind of time off" }, { path: "startDate", label: "First day" }, { path: "endDate", label: "Last day" }], { path: "comment", label: "Manager's comment" }],
   "scheduling.swap.requested": [{ path: "id", label: "Swap ID" }, { path: "fromEmployeeId", label: "Asked by (employee ID)" }, { path: "toEmployeeId", label: "Asked to (employee ID)" }, { path: "day", label: "Shift day" }],
   "scheduling.swap.approved": [{ path: "id", label: "Swap ID" }, { path: "fromEmployeeId", label: "Gave away (employee ID)" }, { path: "toEmployeeId", label: "Took over (employee ID)" }],
+  "inventory.stock.changed": [{ path: "name", label: "Item" }, { path: "reason", label: "Reason" }, { path: "delta", label: "Change" }, { path: "stock", label: "Stock after" }, { path: "unit", label: "Unit" }, { path: "itemId", label: "Item ID" }],
+  "inventory.stock.low": [{ path: "name", label: "Item" }, { path: "stock", label: "Stock" }, { path: "minStock", label: "Minimum stock" }, { path: "unit", label: "Unit" }, { path: "supplierId", label: "Supplier (company ID)" }, { path: "itemId", label: "Item ID" }],
+  "inventory.order.created": [{ path: "number", label: "Order number" }, { path: "supplierId", label: "Supplier (company ID)" }, { path: "id", label: "Order ID" }],
+  "inventory.order.sent": [{ path: "number", label: "Order number" }, { path: "supplierId", label: "Supplier (company ID)" }, { path: "id", label: "Order ID" }],
+  "inventory.order.received": [{ path: "number", label: "Order number" }, { path: "supplierId", label: "Supplier (company ID)" }, { path: "itemsReceived", label: "Items received" }, { path: "id", label: "Order ID" }],
   "scheduling.clock.in": [{ path: "employeeId", label: "Employee ID" }, { path: "at", label: "Time" }],
   "scheduling.clock.out": [{ path: "employeeId", label: "Employee ID" }, { path: "at", label: "Time" }, { path: "minutes", label: "Minutes worked" }],
   "core.notification.requested": [{ path: "userId", label: "User ID" }, { path: "message", label: "Message" }],

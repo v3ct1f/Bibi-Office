@@ -31,9 +31,9 @@
 | 6b | Feature modules: Add features page, Manager role, per-role grants, 403 while off | ✅ done |
 | 7 | Module: Invoices & Expenses (receipt OCR, approvals, CSV) | ✅ done (105 unit/integration + 32 E2E green) |
 | 8 | Module: Staff Scheduling & Time Clock (shifts, publish/copy week, time off, swaps, clock, hours CSV) | ✅ done (120 unit/integration + 38 E2E green) |
-| 9 | Module: Support inbox | ☐ |
+| 9 | Module: Support inbox | ⏳ next |
 | 10 | Module: HR | ☐ |
-| 11 | Module: Inventory & Purchasing (pulled forward: Feature Modules request) | ⏳ next |
+| 11 | Module: Inventory & Purchasing (items, stock moves with reasons, low-stock alerts, POs per supplier, receiving) | ✅ done (129 unit/integration + 44 E2E green) |
 | 12 | Module: Docs & e-sign | ☐ |
 | 13 | Module: AI email/meeting summaries | ☐ |
 | 14 | Module: KPI dashboard | ☐ |
@@ -55,7 +55,18 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 8)
+## Handoff (Session 11, Feature Modules request complete)
+1. Done: `modules/inventory`.
+   - Items with stock, minimum, reorder amount, supplier (core Companies) and unit cost.
+   - Stock changes with a reason (delivery, usage, waste, count), each logged with person and stock after.
+   - Low-stock banner and dashboard widget.
+   - "Order low stock" creates one draft PO per supplier. POs can be edited, sent, received (partial amounts allowed; updates stock and unit cost), cancelled, or deleted while draft.
+   - Stock history page; workflow labels for 5 events.
+2. Verify: `pnpm typecheck`; `TEST_DATABASE_URL=... pnpm test` (api 85 incl. 8 inventory); `pnpm e2e` (44 flows incl. 6 inventory).
+3. All three Feature Modules modules are done (Expenses, Scheduling, Inventory). Next on the original list: Support inbox.
+4. Open: emailing POs to suppliers (core `send_email`), barcode scanning for counts, stock value report/CSV.
+
+## Handoff (Session 8, archived)
 1. Done: `modules/scheduling`.
    - Positions; week grid with draft and published shifts, overnight shifts and clash checks.
    - Copy last week; time off with approval; colleague-then-manager shift swaps.
