@@ -366,3 +366,15 @@ office/
 - New permissions: `core:workflows.read|manage`, `core:webhooks.manage` (admin by default).
 - API: `/modules`, `/modules/:key/{enable,disable,settings}`, `/workflow-catalog`, `/workflows[/:id[/runs]]`, `/webhooks[/:id[/deliveries[/:did/redeliver]]]`, `/m/<key>/*`.
 - Not yet: per-module DB roles (modules share `office_app` within tenant RLS; v2 hardening), Temporal path not integration-tested (needs Temporal server), inbound webhooks, email action.
+
+## 12. Implementation notes (Session 4, as built)
+
+- `apps/web`: React 19 + Vite + TanStack Router/Query + Tailwind 4. Routes: `/` (sign-in), `/onboarding`, `/t/<slug>` (dashboard), contacts/companies/tasks (list, detail, activity tab), workflows (list + builder), settings (members, roles, modules, webhooks, API keys, audit), `/t/<slug>/m/<module>/*` (module pages).
+- `@office/ui` design system (shadcn-style on Radix primitives): button, badge, card, input/controls, overlay (dialog, dropdown), feedback (toast, empty/error states), table, `SchemaForm` (renders JSON Schema forms, used for module settings + workflow action inputs). Light/dark theme tokens in `styles.css`.
+- Auth: OIDC authorization code + PKCE (S256) via `oidc-client-ts`; tokens in `sessionStorage`, refreshed before expiry. Tenant chosen by URL slug and sent as `x-tenant-id`. Workspace switcher in the shell.
+- `GET /api/v1/me/access` (new): tenant, actor, sorted permissions, enabled modules with the UI slots the caller may see. UI gating mirrors `hasPermission`; the API still enforces everything.
+- Slot host (`apps/web/src/modules`): build-time registry of module UI packages (`defineModuleUi` contract in `@office/ui/module-ui`) renders `nav.main`, `entity.tab:<type>`, `dashboard.widget`, `global.create` slots for enabled modules only.
+- Workflow builder: trigger picker from `/workflow-catalog`, condition rows <-> JSONLogic (falls back to raw "advanced" mode for anything rows cannot show, so no definition is lost), action steps with `{{payload.x}}` templating, runs tab.
+- Dev OIDC (`apps/api/scripts/dev-oidc.ts`, `pnpm dev:oidc`): Keycloak-shaped paths, any email signs in, refuses `NODE_ENV=production`. Used by local dev and E2E so no Docker is needed.
+- CORS: explicit methods/headers (`x-tenant-id`, `idempotency-key`), preflight cached 10 min.
+- Tests: web unit (`apps/web/test`, vitest+jsdom), UI unit (`packages/ui`), full-stack E2E (`apps/web/e2e`, Playwright: real API + Postgres + dev OIDC + Vite; 9 flows). CI runs E2E as its own job.

@@ -25,8 +25,8 @@
 | 1 | Architecture, stack, data model, SDK spec | ✅ done |
 | 2 | Core backend: auth, tenants, RBAC, shared data, events/outbox, audit, API | ✅ done |
 | 3 | Workflow engine + module loader (+ webhooks, `@office/sdk`) | ✅ done (37 tests green) |
-| 4 | Admin UI + design system | ⏳ next |
-| 5 | Module: Invoicing | ☐ |
+| 4 | Admin UI + design system | ✅ done (55 unit/integration + 9 E2E green) |
+| 5 | Module: Invoicing | ⏳ next |
 | 6 | Module: CRM | ☐ |
 | 7 | Module: Expenses | ☐ |
 | 8 | Module: Scheduling | ☐ |
@@ -54,7 +54,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 3)
+## Handoff (Session 4)
+1. Done: `apps/web` admin UI (OIDC PKCE login, onboarding, workspace switcher, dashboard, contacts/companies/tasks, workflow builder, settings: members/roles/modules/webhooks/API keys/audit), `@office/ui` design system + `SchemaForm` + module UI contract, slot host, `/me/access`, dev OIDC provider, CORS fix, CI E2E job.
+2. Verify: Postgres on :55432 with roles (`scripts/local-pg.sh start`; on Windows see note below); `TEST_DATABASE_URL=... pnpm test` (36 api + 2 worker + 8 ui + 9 web); `pnpm typecheck && pnpm build`; `pnpm e2e` (9 Playwright flows, starts API + dev OIDC + Vite itself).
+3. Next (Session 5): `modules/invoicing` (manifest per ARCHITECTURE §4, migrations w/ RLS, routes, events, actions) + its UI package via `defineModuleUi` (nav page, company tab, dashboard widget, global create).
+4. Open: Windows has no `local-pg.sh` equivalent (used `embedded-postgres` with `--encoding=UTF8 --locale=C`; a WIN1252 cluster breaks tests); clone needs `core.longpaths=true`. Real Keycloak/Temporal/NATS smoke test still needs a Docker host.
+5. Open: email invites (members must sign in once before being added), per-module DB roles, iframe sandbox for 3rd-party UI (v2).
+
+## Handoff (Session 3, archived)
 1. Done: `@office/sdk`, `@office/platform` (module install/enable/settings+secrets, ctx, dispatcher, workflows w/ inline + Temporal runners, webhooks w/ signing, retries, SSRF guard), `@office/modules`, API routes, worker loops, sample module fixture (`apps/api/test/fixtures/sample`).
 2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test` (35 api + 2 worker); `pnpm typecheck && pnpm build`.
 3. Next (Session 4): `apps/web` admin UI (React+Vite+TanStack, shadcn design system in `packages/ui`), OIDC PKCE login, tenant switcher, modules toggle/settings, members/roles, workflows builder, webhooks, audit viewer, UI slot host.
