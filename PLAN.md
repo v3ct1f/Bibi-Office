@@ -25,9 +25,9 @@
 | 1 | Architecture, stack, data model, SDK spec | ✅ done |
 | 2 | Core backend: auth, tenants, RBAC, shared data, events/outbox, audit, API | ✅ done |
 | 3 | Workflow engine + module loader (+ webhooks, `@office/sdk`) | ✅ done |
-| 4 | Admin UI + design system | ✅ done (36 api + 2 worker + 4 web unit + 8 E2E) |
-| 5 | Module: Invoicing | ⏳ next |
-| 6 | Module: CRM | ☐ |
+| 4 | Admin UI + design system | ✅ done |
+| 5 | Module: Invoicing (+ SDK jobs/files/UI contract) | ✅ done (23 module + 36 api + 2 worker + 5 web unit + 11 E2E) |
+| 6 | Module: CRM | ⏳ next |
 | 7 | Module: Expenses | ☐ |
 | 8 | Module: Scheduling | ☐ |
 | 9 | Module: Support inbox | ☐ |
@@ -54,7 +54,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 4)
+## Handoff (Session 5)
+1. Done: `modules/invoicing` (drafts, lines/tax, gapless numbering, issue/immutability in DB, payments, void, reminders, overdue job, PDF, summary, 8 events, 2 workflow actions, `crm.deal.won` → draft; UI list/editor/detail/widget/contact tab). SDK: `jobs`, `file()`, `ModuleError`, `@office/sdk/ui`; core migration 0003 `module_jobs` + worker loop.
+2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
+3. Next (Session 6): `modules/crm` (deals, pipeline stages, activities; emit `crm.deal.won` with the v1 payload in `modules/invoicing/README.md`), `entity.tab:company` needs a companies page in the shell.
+4. Open: email delivery (core email action) so `invoice.sent`/`reminder_requested` actually mail; Unicode PDF font; tenant time zone for due/overdue (UTC now).
+5. Open: credit notes/refunds, quotes, recurring invoices, Stripe payment links: which matter first?
+
+## Handoff (Session 4, archived)
 1. Done: `packages/ui` design system (tokens, light/dark, 12 components); `apps/web` admin app (OIDC PKCE, org switcher + onboarding, contacts, modules + settings form, members, roles, API keys, workflows editor + runs, webhooks + deliveries, audit log); module UI slot host; `/me/permissions` API.
 2. Verify: `scripts/local-pg.sh start`; `pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
 3. Next (Session 5): `modules/invoicing` (package `@office/module-invoicing`): migrations, manifest per §4.5, routes, actions, events, UI (`nav.main` page, `entity.tab:company`, dashboard widget), register in `packages/modules` + `apps/web/src/modules/registry.ts`.

@@ -4,7 +4,7 @@ import pino from "pino";
 import { createDb } from "@office/db";
 import { createRegistry } from "@office/modules";
 import {
-  dispatchEvent, deliverDue, InlineRunner, SecretBox, runRefFor, TemporalRunner, temporalActivities, TASK_QUEUE,
+  dispatchEvent, deliverDue, runDueJobs, InlineRunner, SecretBox, runRefFor, TemporalRunner, temporalActivities, TASK_QUEUE,
   type ExecDeps, type WorkflowRunner,
 } from "@office/platform";
 import type { EventEnvelope } from "@office/sdk";
@@ -98,6 +98,7 @@ await Promise.all([
     }
     return 0;
   }, 60_000),
+  loop("module-jobs", () => runDueJobs(relaySql, { db: app.db, registry, secrets }), 30_000),
   consumeEvents(),
   temporalWorker?.run(),
 ]);

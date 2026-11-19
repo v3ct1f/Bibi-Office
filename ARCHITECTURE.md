@@ -168,8 +168,10 @@ export default defineModule({
   handlers: { "crm.deal.won": async (ctx, event) => {} },        // must equal events.subscribes
   actions:  { "invoicing.create_invoice": action({ label, input: z.object({...}), run: async (ctx, input) => ({ id }) }) },
   lifecycle: { enable: async (ctx) => {}, disable: async (ctx) => {} },
+  jobs: { "mark-overdue": { everySeconds: 3600, run: async (ctx) => 0 } },   // per-tenant schedule (Session 5)
 });
 ```
+- Route handlers may return `file({ contentType, filename, body })` for downloads and throw `ModuleError` / `moduleErrors.*` for 4xx problems.
 - `defineModule` throws if handlers ≠ `subscribes`, actions ≠ `workflow.actions`, or a route uses an undeclared permission.
 - Manifest rules: declared permissions start `<key>:`, emitted events start `<key>.`, triggers ⊆ emits.
 - Register built-ins in `packages/modules/src/index.ts` (`MODULES`); api, worker and installer share it.
@@ -196,7 +198,7 @@ export default defineModule({
 ### 4.4 UI slots
 `nav.main`, `nav.settings`, `page` (route), `entity.tab:<type>` (e.g. tab on contact), `entity.action:<type>`, `entity.sidebar:<type>`, `dashboard.widget`, `global.create` (+ New menu), `command.palette`.
 
-### 4.5 Example manifest
+### 4.5 Example manifest (Session 1 sketch; as built: `modules/invoicing/src/index.ts`)
 
 ```json
 {
@@ -380,3 +382,11 @@ office/
 - Module settings form generated from manifest JSON Schema (string/number/integer/boolean/enum; `x-secret` write-only).
 - Workflow editor: event picker from `/workflow-catalog`, JSONLogic conditions, ordered steps with JSON input prefilled from each action's schema.
 - Tests: Vitest + Testing Library (slots, permissions, settings form); Playwright E2E against real API + Postgres + locally signed JWTs (JWKS served by the test harness), desktop + Pixel 7 projects; CI runs both.
+
+## 13. Module SDK additions + Invoicing (Session 5, as built)
+
+- SDK: `jobs` (per-tenant schedules), `file()` responses, `ModuleError`/`moduleErrors`, `@office/sdk/ui` (type-only UI contract: `SlotProps` with `api` (module + core client, `blob` for files), `can`, `navigate`, `subPath`, `errorMessage`).
+- Jobs: core table `module_jobs` (migration 0003). Worker loop `module-jobs` (office_relay) seeds rows for tenants with the module enabled, lease-claims due rows (SKIP LOCKED, 10 min lease), runs each as office_app in the tenant (`runModuleJob`), reschedules (`everySeconds`, retry ≤5 min on error). Jobs must be idempotent.
+- Web: module pages match the longest registered route; the rest is `subPath` (module-internal routing). `Hosted` wraps every slot/page with host props + error boundary. Tailwind scans `modules/` for module UI classes.
+- Module tests import the API harness by relative path (`apps/api/test/harness.ts`) to avoid a workspace dependency cycle.
+- Invoicing: see `modules/invoicing/README.md`. Money in integer minor units; gapless per-tenant numbering via sequence row lock in the issuing tx; issued invoices immutable via DB triggers; PDF via pdf-lib (standard fonts, Latin-1 only); `crm.deal.won` v1 payload contract defined here for the CRM session.
