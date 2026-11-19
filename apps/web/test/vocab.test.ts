@@ -64,6 +64,11 @@ describe("Scheduling vocabulary", () => {
 });
 
 describe("Inventory vocabulary", () => {
+  it("names support events and their details", () => {
+    expect(eventLabel("support.ticket.created")).toBe("A support ticket comes in");
+    expect(eventGroup("support.ticket.customer_replied")).toBe("Support");
+    expect(eventFields("support.ticket.created").map((f) => f.path)).toEqual(expect.arrayContaining(["payload.subject", "payload.requesterEmail"]));
+  });
   it("names inventory events and their details", () => {
     expect(eventLabel("inventory.stock.low")).toBe("An item drops to its minimum stock");
     expect(eventGroup("inventory.order.sent")).toBe("Inventory");

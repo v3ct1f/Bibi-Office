@@ -1,0 +1,41 @@
+{
+  "name": "@office/module-support",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ui": "./ui/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@office/db": "workspace:*",
+    "@office/sdk": "workspace:*",
+    "drizzle-orm": "0.44.7",
+    "imapflow": "2.10.0",
+    "mailparser": "3.14.1",
+    "nodemailer": "10.3.1",
+    "zod": "4.1.12"
+  },
+  "peerDependencies": {
+    "@office/ui": "workspace:*",
+    "lucide-react": "1.76.0",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@office/config": "workspace:*",
+    "@office/ui": "workspace:*",
+    "@types/mailparser": "3.9.0",
+    "@types/nodemailer": "8.0.2",
+    "@types/react": "19.3.0",
+    "@types/smtp-server": "3.5.13",
+    "hoodiecrow-imap": "3.3.1",
+    "lucide-react": "1.76.0",
+    "react": "19.3.1",
+    "smtp-server": "3.21.3",
+    "vitest": "3.2.4"
+  }
+}

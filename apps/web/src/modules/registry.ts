@@ -7,9 +7,10 @@ import type { ModuleUi } from "@office/ui/module-ui";
 import crm from "@office/module-crm/ui";
 import expenses from "@office/module-expenses/ui";
 import inventory from "@office/module-inventory/ui";
+import support from "@office/module-support/ui";
 import scheduling from "@office/module-scheduling/ui";
 import invoicing from "@office/module-invoicing/ui";
 
-export const MODULE_UIS: ModuleUi[] = [invoicing, crm, expenses, scheduling, inventory];
+export const MODULE_UIS: ModuleUi[] = [invoicing, crm, expenses, scheduling, inventory, support];
 
 export const moduleUi = (key: string, list: ModuleUi[] = MODULE_UIS) => list.find((m) => m.key === key);

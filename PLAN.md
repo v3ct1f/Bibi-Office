@@ -31,7 +31,7 @@
 | 6b | Feature modules: Add features page, Manager role, per-role grants, 403 while off | ✅ done |
 | 7 | Module: Invoices & Expenses (receipt OCR, approvals, CSV) | ✅ done (105 unit/integration + 32 E2E green) |
 | 8 | Module: Staff Scheduling & Time Clock (shifts, publish/copy week, time off, swaps, clock, hours CSV) | ✅ done (120 unit/integration + 38 E2E green) |
-| 9 | Module: Support inbox | ⏳ next |
+| 9 | Module: Support inbox (real IMAP/SMTP per company, threaded replies, notes, assignment, saved replies, Contact link + history, response-time targets) | ✅ done (149 unit/integration + 50 E2E green) |
 | 10 | Module: HR | ☐ |
 | 11 | Module: Inventory & Purchasing (items, stock moves with reasons, low-stock alerts, POs per supplier, receiving) | ✅ done (129 unit/integration + 44 E2E green) |
 | 12 | Module: Docs & e-sign | ☐ |
@@ -55,7 +55,28 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 11, Feature Modules request complete)
+## Handoff (Session 12, Support inbox)
+1. Done: `modules/support`.
+   - Each company connects its own mailbox (IMAP + SMTP; passwords sealed). A job fetches new mail every minute into tickets. Auto-replies, own mail and duplicates are skipped.
+   - Threading uses In-Reply-To/References, then `[#n]` plus the same sender. Quoted history is trimmed. Attachments up to 10 MB are kept.
+   - Replies are emailed threaded (`Re: subject [#n]`). Failed sends are kept with the reason, with Retry and a retry job.
+   - Internal notes, assignment, priority, open/pending/solved, and search (`#n`, text).
+   - Saved replies with `{{customer.firstName}}` and other tags.
+   - Each sender is matched to a core Contact or one is created; the customer's other tickets are shown.
+   - Response-time targets per priority, an Overdue view, and a dashboard widget. Workflow labels for 5 events.
+2. Verify:
+   - `pnpm typecheck`.
+   - `TEST_DATABASE_URL=... pnpm test`: api 96, including 11 support tests; module-support 8, run against in-memory IMAP/SMTP from `modules/support/tests/mail-servers.ts`.
+   - `pnpm e2e`: 50 flows, including 6 support.
+3. Next on the original list: HR (row 10), then Docs & e-sign, AI summaries, KPI dashboard.
+4. Open:
+   - OAuth sign-in for Gmail/Microsoft 365 (today: app passwords).
+   - Business-hours targets (today: clock time).
+   - Attachments on outgoing replies.
+   - Collision warning when two agents reply at once.
+   - Notifying the assignee on a customer reply (wire `support.ticket.customer_replied` to core `notify`).
+
+## Handoff (Session 11, archived)
 1. Done: `modules/inventory`.
    - Items with stock, minimum, reorder amount, supplier (core Companies) and unit cost.
    - Stock changes with a reason (delivery, usage, waste, count), each logged with person and stock after.

@@ -48,9 +48,14 @@ const EVENT_LABELS: Record<string, string> = {
   "inventory.order.created": "A purchase order is created",
   "inventory.order.sent": "A purchase order is sent",
   "inventory.order.received": "A purchase order is received",
+  "support.ticket.created": "A support ticket comes in",
+  "support.ticket.customer_replied": "A customer replies to a ticket",
+  "support.ticket.replied": "Your team replies to a ticket",
+  "support.ticket.assigned": "A ticket is assigned",
+  "support.ticket.status_changed": "A ticket's status changes",
 };
 
-const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing", expenses: "Expenses", scheduling: "Schedule & time clock", inventory: "Inventory" };
+const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing", expenses: "Expenses", scheduling: "Schedule & time clock", inventory: "Inventory", support: "Support" };
 
 const ENTITY_WORDS: Record<string, [string, string]> = {
   contact: ["A contact", "Contacts"], company: ["A company", "Companies"], document: ["A document", "Documents"], task: ["A task", "Tasks"],
@@ -131,6 +136,11 @@ const OTHER_FIELDS: Record<string, EventField[]> = {
   "inventory.stock.low": [{ path: "name", label: "Item" }, { path: "stock", label: "Stock" }, { path: "minStock", label: "Minimum stock" }, { path: "unit", label: "Unit" }, { path: "supplierId", label: "Supplier (company ID)" }, { path: "itemId", label: "Item ID" }],
   "inventory.order.created": [{ path: "number", label: "Order number" }, { path: "supplierId", label: "Supplier (company ID)" }, { path: "id", label: "Order ID" }],
   "inventory.order.sent": [{ path: "number", label: "Order number" }, { path: "supplierId", label: "Supplier (company ID)" }, { path: "id", label: "Order ID" }],
+  "support.ticket.created": [{ path: "number", label: "Ticket number" }, { path: "subject", label: "Subject" }, { path: "requesterEmail", label: "Customer email" }, { path: "priority", label: "Priority" }, { path: "channel", label: "Channel" }, { path: "id", label: "Ticket ID" }],
+  "support.ticket.customer_replied": [{ path: "number", label: "Ticket number" }, { path: "subject", label: "Subject" }, { path: "requesterEmail", label: "Customer email" }, { path: "reopened", label: "Reopened" }, { path: "assigneeId", label: "Assignee (user ID)" }, { path: "id", label: "Ticket ID" }],
+  "support.ticket.replied": [{ path: "number", label: "Ticket number" }, { path: "subject", label: "Subject" }, { path: "status", label: "New status" }, { path: "id", label: "Ticket ID" }],
+  "support.ticket.assigned": [{ path: "number", label: "Ticket number" }, { path: "subject", label: "Subject" }, { path: "assigneeId", label: "Assignee (user ID)" }, { path: "id", label: "Ticket ID" }],
+  "support.ticket.status_changed": [{ path: "number", label: "Ticket number" }, { path: "from", label: "Old status" }, { path: "to", label: "New status" }, { path: "id", label: "Ticket ID" }],
   "inventory.order.received": [{ path: "number", label: "Order number" }, { path: "supplierId", label: "Supplier (company ID)" }, { path: "itemsReceived", label: "Items received" }, { path: "id", label: "Order ID" }],
   "scheduling.clock.in": [{ path: "employeeId", label: "Employee ID" }, { path: "at", label: "Time" }],
   "scheduling.clock.out": [{ path: "employeeId", label: "Employee ID" }, { path: "at", label: "Time" }, { path: "minutes", label: "Minutes worked" }],

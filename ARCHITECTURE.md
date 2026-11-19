@@ -281,6 +281,7 @@ export default defineModule({
 - OIDC + MFA via Keycloak; API keys `ok_<id>_<secret>` (256-bit), stored as HMAC-SHA256(pepper), scoped, expiring, revocable; a key can't hold more than its creator.
 - Secrets encrypted with envelope encryption (KMS); never returned by API.
 - Webhooks: HMAC-SHA256 signature + timestamp, replay window 5 min; outbound SSRF guard (block private ranges).
+- Tenant mailboxes (Support module): IMAP/SMTP hosts are tenant input, so `modules/support/src/mail.ts` resolves each host and refuses private/loopback/link-local addresses and unencrypted connections in production (relaxed outside production or with `SUPPORT_ALLOW_PRIVATE_MAIL_HOSTS=true`). Mail passwords are `x-secret` module settings (sealed, never returned).
 - Input validation with Zod at every boundary; output DTOs (no raw rows).
 - Audit: every write + auth event; append-only, hash-chained.
 - Rate limits per tenant + per key (Redis). CSP, HSTS, secure cookies.
@@ -328,7 +329,7 @@ office/
 │  │  ├─ schemas/      # event + action JSON schemas
 │  │  ├─ ui/           # slot components
 │  │  └─ tests/
-│  ├─ expenses/ crm/ scheduling/ support-inbox/ hr/
+│  ├─ expenses/ crm/ scheduling/ support/ hr/
 │  └─ inventory/ docs-esign/ ai-summaries/ kpi-dashboard/
 ├─ infra/
 │  ├─ docker-compose.yml   # pg, redis, nats, temporal, keycloak, minio, grafana
