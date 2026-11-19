@@ -1,16 +1,16 @@
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { notFound, requirePermission, type RequestContext } from "@office/core";
-import type { Tx } from "@office/db";
+import { getTenant, hasPermission, notFound, requirePermission, type RequestContext } from "@office/core";
+import type { Db, Tx } from "@office/db";
 import {
-  actionCatalog, createModuleContext, disableModule, enableModule, listModules, loadEnabledModule,
+  actionCatalog, createModuleContext, disableModule, enableModule, enabledModuleKeys, listModules, loadEnabledModule,
   updateModuleSettings, webhookService, WebhookInput, workflowService, WorkflowInput, CORE_EVENTS,
   type ModuleRegistry, type SecretBox,
 } from "@office/platform";
 
 type InTenant = <T>(req: FastifyRequest, perm: string | null, fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T>;
-export interface PlatformOpts { inTenant: InTenant; registry: ModuleRegistry; secrets: SecretBox; requireHttps: boolean }
+export interface PlatformOpts { db: Db; inTenant: InTenant; registry: ModuleRegistry; secrets: SecretBox; requireHttps: boolean }
 
 const AUTH = { auth: "authenticated" } as const;
 const Id = z.object({ id: z.uuid() });
@@ -23,6 +23,23 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
   const md = { registry, secrets: o.secrets };
   const wf = workflowService(registry);
   const wh = webhookService({ secrets: o.secrets, requireHttps: o.requireHttps });
+
+  // ───── Access summary for UIs: who am I in this tenant, which module UI slots can I see ─────
+  app.get("/me/access", { config: AUTH, schema: { tags: ["me"], headers: tenantHeader } },
+    (req) => inTenant(req, null, async (tx, ctx) => {
+      const t = (await getTenant(o.db, ctx.tenantId))!;
+      const can = (p?: string) => !p || hasPermission(ctx.actor.permissions, p);
+      const enabled = await enabledModuleKeys(tx);
+      return {
+        tenant: { id: t.id, slug: t.slug, name: t.name, region: t.region, plan: t.plan, createdAt: t.createdAt },
+        actor: { type: ctx.actor.type, id: ctx.actor.id },
+        permissions: [...ctx.actor.permissions].sort(),
+        modules: registry.all().filter((m) => enabled.has(m.manifest.key)).map((m) => ({
+          key: m.manifest.key, name: m.manifest.name, version: m.manifest.version,
+          slots: m.manifest.ui.slots.filter((s) => can(s.permission)),
+        })),
+      };
+    }));
 
   // ───── Modules (admin) ─────
   app.get("/modules", { config: AUTH, schema: { tags: ["modules"], headers: tenantHeader } },

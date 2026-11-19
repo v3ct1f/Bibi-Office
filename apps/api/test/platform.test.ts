@@ -88,6 +88,18 @@ describe("module lifecycle", () => {
     expect((await h.client(carol, tA).get(`/m/sample/notes?contactId=00000000-0000-7000-8000-000000000000`)).status).toBe(403);
   });
 
+  it("/me/access lists permissions and permission-filtered slots of enabled modules", async () => {
+    const a = (await C().get("/me/access")).body;
+    expect(a.tenant).toMatchObject({ id: tA, slug: "acme" });
+    expect(a.permissions).toEqual(["*"]);
+    expect(a.modules[0].slots.map((s: { slot: string }) => s.slot)).toEqual(["entity.tab:contact", "nav.main"]);
+    const c = (await h.client(carol, tA).get("/me/access")).body;
+    expect(c.permissions).toContain("core:contacts.read");
+    expect(c.permissions).not.toContain("core:audit.read");
+    expect(c.modules[0].slots.map((s: { slot: string }) => s.slot)).toEqual(["entity.tab:contact"]);
+    expect((await h.client(await h.token("mallory"), tA).get("/me/access")).status).toBe(404);
+  });
+
   it("module ctx blocks undeclared events and undeclared core access", async () => {
     expect((await C().post("/m/sample/misbehave", { what: "emit" })).status).toBe(400);
     const r = await C().post("/m/sample/misbehave", { what: "write" });

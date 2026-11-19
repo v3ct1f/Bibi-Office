@@ -42,7 +42,12 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   registerErrorHandler(app);
 
   await app.register(helmet, { contentSecurityPolicy: d.config.NODE_ENV === "production" ? undefined : false });
-  await app.register(cors, { origin: d.config.CORS_ORIGINS, credentials: false, exposedHeaders: ["x-request-id"] });
+  await app.register(cors, {
+    origin: d.config.CORS_ORIGINS, credentials: false, maxAge: 600,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
+    allowedHeaders: ["authorization", "content-type", "x-tenant-id", "x-request-id", "idempotency-key"],
+    exposedHeaders: ["x-request-id"],
+  });
   await app.register(rateLimit, {
     max: d.config.RATE_LIMIT_PER_MIN, timeWindow: "1 minute",
     keyGenerator: (req) => req.headers.authorization?.slice(-24) ?? req.ip, // per credential, else per IP
@@ -80,7 +85,7 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   const inTenant = makeTenantRunner(d.db);
   await app.register(registerRoutes, { prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER });
   await app.register(registerPlatformRoutes, {
-    prefix: "/api/v1", inTenant, registry: d.platform.registry, secrets: d.platform.secrets,
+    prefix: "/api/v1", db: d.db, inTenant, registry: d.platform.registry, secrets: d.platform.secrets,
     requireHttps: d.config.NODE_ENV === "production",
   });
   return app;

@@ -1,1 +1,1 @@
-{ "name": "@office/config", "version": "0.1.0", "private": true, "files": ["tsconfig.base.json"] }
+{ "name": "@office/config", "version": "0.1.0", "private": true, "files": ["tsconfig.base.json", "tsconfig.web.json"] }

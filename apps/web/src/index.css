@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@import "@office/ui/styles.css";
+@source "../../../packages/ui/src";
+@source "../../../modules";

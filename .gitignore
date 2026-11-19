@@ -5,3 +5,5 @@ dist
 *.log
 .pgdata
 coverage
+test-results
+playwright-report

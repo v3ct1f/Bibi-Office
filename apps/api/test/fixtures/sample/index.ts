@@ -27,7 +27,10 @@ export default defineModule({
     },
     events: { emits: [{ type: "sample.note.created" }], subscribes: ["core.contact.created"] },
     workflow: { triggers: ["sample.note.created"], actions: [{ key: "sample.add_note", label: "Add note" }] },
-    ui: { slots: [{ slot: "entity.tab:contact", label: "Notes", component: "NotesTab" }] },
+    ui: { slots: [
+      { slot: "entity.tab:contact", label: "Notes", component: "NotesTab" },
+      { slot: "nav.main", label: "Notes", icon: "notebook", route: "/notes", permission: "sample:notes.read" },
+    ] },
     settings: {
       type: "object",
       properties: { greeting: { type: "string", default: "Welcome", maxLength: 50 }, apiToken: { type: "string", "x-secret": true } },

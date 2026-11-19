@@ -30,7 +30,8 @@ export async function listModules(tx: Tx, d: ModuleDeps) {
     return {
       key: m.manifest.key, name: m.manifest.name, version: m.manifest.version, description: m.manifest.description,
       dependsOn: m.manifest.dependsOn, enabled: r?.enabled ?? false, settings: r?.settings ?? {},
-      secretsSet: r?.secrets ? secretKeys(m) : [], permissions: m.manifest.permissions.declares, ui: m.manifest.ui,
+      secretsSet: r?.secrets ? secretKeys(m) : [], permissions: m.manifest.permissions.declares,
+      requires: m.manifest.permissions.requires, settingsSchema: m.manifest.settings, ui: m.manifest.ui,
     };
   });
 }
