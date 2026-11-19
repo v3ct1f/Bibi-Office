@@ -46,7 +46,7 @@ describe("employee records", () => {
   it("rejects loops, duplicate links, non-members and bad dates", async () => {
     expect((await c(alice).patch(`${base}/employees/${emp.carol}`, { managerId: emp.dave })).body.title).toBe("That would make a management loop");
     expect((await c(alice).post(`${base}/employees`, { firstName: "X", startDate: "2026-01-01", userId: ids.dave })).status).toBe(409);
-    expect((await c(alice).post(`${base}/employees`, { firstName: "X", startDate: "2026-01-01", userId: ids.vera!.replace(/.$/, "0") })).status).toBe(422);
+    expect((await c(alice).post(`${base}/employees`, { firstName: "X", startDate: "2026-01-01", userId: "00000000-0000-4000-8000-000000000001" })).status).toBe(422);
     expect((await c(alice).post(`${base}/employees`, { firstName: "X", startDate: "2026-01-01", workEmail: "dave@acme.test" })).status).toBe(409);
     expect((await c(alice).post(`${base}/employees`, { firstName: "X", startDate: "2026-05-01", endDate: "2026-04-01" })).status).toBe(422);
   });
