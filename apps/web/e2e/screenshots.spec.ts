@@ -181,4 +181,16 @@ test("capture", async ({ page }) => {
   await page.getByRole("button", { name: "Stock count" }).click();
   await page.getByRole("table", { name: "Count sheet" }).waitFor();
   await page.screenshot({ path: `${dir}/inventory-count-light.png` });
+
+  // E-sign: documents, a signed document, templates; the signing page on a phone
+  await page.goto("/m/docs/documents");
+  await page.getByRole("table", { name: "Documents" }).waitFor();
+  await page.screenshot({ path: `${dir}/esign-documents-light.png` });
+  await page.getByRole("table", { name: "Documents" }).getByText("Agreement with Grace").click();
+  await page.getByRole("list", { name: "Evidence trail" }).waitFor();
+  await page.screenshot({ path: `${dir}/esign-signed-light.png`, fullPage: true });
+  await page.goto("/m/docs/documents");
+  await page.getByRole("tab", { name: "Templates" }).click();
+  await page.getByRole("list", { name: "Templates" }).waitFor();
+  await page.screenshot({ path: `${dir}/esign-templates-light.png` });
 });

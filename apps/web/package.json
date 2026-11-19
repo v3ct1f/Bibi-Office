@@ -27,7 +27,8 @@
     "@office/module-scheduling": "workspace:*",
     "@office/module-support": "workspace:*",
     "@office/module-hr": "workspace:*",
-    "@office/module-inventory": "workspace:*"
+    "@office/module-inventory": "workspace:*",
+    "@office/module-docs": "workspace:*"
   },
   "devDependencies": {
     "@office/config": "workspace:*",
@@ -44,6 +45,7 @@
     "tailwindcss": "4.1.14",
     "vite": "6.4.1",
     "@office/testing": "workspace:*",
+    "postgres": "3.4.7",
     "@office/platform": "workspace:*",
     "@office/modules": "workspace:*"
   }

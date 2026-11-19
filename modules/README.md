@@ -19,3 +19,4 @@ Checklist for a new module:
 | `support` | v1.0.0 (Session 9) |
 | `hr` | v1.0.0 (Session 10, shown as "People") |
 | `inventory` | v1.0.0 (Session 11) |
+| `docs` | v1.0.0 (Session 12, shown as "E-sign") |

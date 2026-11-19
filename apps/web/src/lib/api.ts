@@ -87,5 +87,5 @@ export function publicApi(tenantSlug: string, key: string) {
     if (!res.ok) return fail(res);
     return (res.status === 204 ? undefined : await res.json()) as T;
   };
-  return { get: <T,>(p: string) => call<T>("GET", p), post: <T,>(p: string, body: unknown = {}) => call<T>("POST", p, body) };
+  return { get: <T,>(p: string) => call<T>("GET", p), post: <T,>(p: string, body: unknown = {}) => call<T>("POST", p, body), url: (p: string) => `${base}${p}` };
 }

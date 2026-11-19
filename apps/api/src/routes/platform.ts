@@ -4,7 +4,7 @@ import { z } from "zod";
 import { badRequest, notFound, requirePermission, type RequestContext } from "@office/core";
 import { tenants, withTenant, type Db, type Tx } from "@office/db";
 import { and, eq } from "drizzle-orm";
-import { isFileResponse, type PublicRouteSpec, type RouteSpec } from "@office/sdk";
+import { isFileResponse, type FileResponse, type PublicRouteSpec, type RouteSpec } from "@office/sdk";
 import {
   actionCatalog, createModuleContext, disableModule, enableModule, listModules, loadEnabledModule,
   updateModuleSettings, webhookService, WebhookInput, workflowService, WorkflowInput, CORE_EVENTS,
@@ -13,6 +13,15 @@ import {
 } from "@office/platform";
 
 type InTenant = <T>(req: FastifyRequest, perm: string | null, fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T>;
+const sendFile = (reply: FastifyReply, out: FileResponse) => {
+  const name = out.filename.replace(/[^\w.-]+/g, "_").slice(0, 120) || "file";
+  return reply.status(200).type(out.contentType)
+    .header("content-disposition", `${out.inline ? "inline" : "attachment"}; filename="${name}"`)
+    .header("cache-control", "private, no-store")
+    .header("x-content-type-options", "nosniff")
+    .send(Buffer.from(out.body));
+};
+
 export interface PlatformOpts {
   db: Db; inTenant: InTenant; registry: ModuleRegistry; secrets: SecretBox; files: FileDeps; requireHttps: boolean; publicRatePerMin?: number;
   mail?: MailEnv | undefined; inboundMailSecret?: string | undefined;
@@ -150,14 +159,7 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
               body: r.upload ? undefined : req.body, query: req.query, params: req.params, file,
             });
           });
-          if (isFileResponse(out)) {
-            const name = out.filename.replace(/[^\w.-]+/g, "_").slice(0, 120) || "file";
-            return reply.status(200).type(out.contentType)
-              .header("content-disposition", `${out.inline ? "inline" : "attachment"}; filename="${name}"`)
-              .header("cache-control", "private, no-store")
-              .header("x-content-type-options", "nosniff")
-              .send(Buffer.from(out.body));
-          }
+          if (isFileResponse(out)) return sendFile(reply, out);
           return reply.status(r.status ?? (out === undefined ? 204 : 200)).send(out);
         },
       });
@@ -192,7 +194,10 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
       handler: async (req, reply) => {
         const { tenant, ...rest } = req.params as { tenant: string } & Record<string, unknown>;
         const out = await inPublic(req, tenant, key, (tx, ctx, l) =>
-          r.handler(createModuleContext(tx, ctx, l.def, l.state, req.log, { anonymous: true }), { body: req.body, query: req.query, params: rest, ip: req.ip }));
+          r.handler(createModuleContext(tx, ctx, l.def, l.state, req.log, { anonymous: true }), {
+            body: req.body, query: req.query, params: rest, ip: req.ip, userAgent: String(req.headers["user-agent"] ?? "").slice(0, 300),
+          }));
+        if (isFileResponse(out)) return sendFile(reply, out);
         reply.header("cache-control", "no-store");
         return reply.status(r.status ?? (out === undefined ? 204 : 200)).send(out);
       },
