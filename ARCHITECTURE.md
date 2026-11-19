@@ -439,3 +439,11 @@ office/
 - Ledger pattern: movements are the source of truth (append-only, trigger-enforced); `inventory_stock` is a projection written only by an `AFTER INSERT` `SECURITY DEFINER` trigger (app role: SELECT). RLS still applies because the table forces it for the owner too.
 - Negative stock is impossible: `CHECK (quantity >= 0)` on the projection; the service locks the item row first and maps the check violation to 409. The trigger UPDATEs before INSERT so a negative delta on a missing row fails the CHECK instead of skipping ON CONFLICT.
 - E2E order: … → `workforce` → `yard`.
+
+## 20. Docs & e-sign (Session 12, as built)
+
+- `modules/docs` (shown as "E-sign"): see `modules/docs/README.md`.
+- Integrity: `content_hash` (SHA-256 of title + body) fixed at send; a trigger blocks content changes after send and status changes after close; signatures are immutable; the evidence trail is append-only (cascade-safe for tenant deletion).
+- Signing links: 32-byte random token in the URL fragment, stored only as SHA-256 per signer, compared in constant time; rotated on reminder, cleared on cancel.
+- Core additions: public routes may return `file(...)` (same headers as authenticated file responses) and receive `userAgent`; `PublicApi.url(path)` for download links.
+- E2E: mail stays in `mail_outbox` (no worker); `helpers.lastMailTo()` reads it as the owner role. Order: … → `yard` → `zero-paper`.

@@ -111,7 +111,8 @@ export interface PublicRouteSpec<B extends z.ZodType = z.ZodType, Q extends z.Zo
   path: string;
   body?: B; query?: Q; params?: P;
   status?: number;
-  handler(ctx: ModuleContext, req: { body: z.infer<B>; query: z.infer<Q>; params: z.infer<P>; ip: string }): Promise<unknown>;
+  /** May return `file(...)` (e.g. a signed PDF). */
+  handler(ctx: ModuleContext, req: { body: z.infer<B>; query: z.infer<Q>; params: z.infer<P>; ip: string; userAgent: string }): Promise<unknown>;
 }
 
 /** A scheduled per-tenant job; the worker runs it about every `everySeconds` for tenants with the module enabled. */

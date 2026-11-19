@@ -19,7 +19,8 @@
     "@office/module-scheduling": "workspace:*",
     "@office/module-support": "workspace:*",
     "@office/module-hr": "workspace:*",
-    "@office/module-inventory": "workspace:*"
+    "@office/module-inventory": "workspace:*",
+    "@office/module-docs": "workspace:*"
   },
   "devDependencies": {
     "@office/config": "workspace:*"

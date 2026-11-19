@@ -33,8 +33,8 @@
 | 9 | Module: Support inbox (+ core email) | ✅ done (20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 24 E2E) |
 | 10 | Module: HR ("People") | ✅ done (20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 28 E2E) |
 | 11 | Module: Inventory | ✅ done (15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 31 E2E) |
-| 12 | Module: Docs & e-sign | ⏳ next |
-| 13 | Module: AI email/meeting summaries | ☐ |
+| 12 | Module: Docs & e-sign | ✅ done (14 docs + 15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 34 E2E) |
+| 13 | Module: AI email/meeting summaries | ⏳ next |
 | 14 | Module: KPI dashboard | ☐ |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
@@ -56,7 +56,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 11)
+## Handoff (Session 12)
+1. Done: `modules/docs` (shown as "E-sign"): templates with merge fields from contacts/companies, drafts, signers (parallel or in order), signing by emailed link (hashed token in the URL fragment), typed name + optional drawing + consent, decline, reminders (rotate link), cancel, hourly expiry, content hash fixed at send, append-only evidence trail, deterministic PDF with signature certificate, workflow action `docs.send_template`. Core: public routes may return files and get the user agent; `PublicApi.url()`.
+2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
+3. Next (Session 13): `modules/ai` (summaries of support threads and meeting notes via the Claude API; tenant API key in module secrets; per-tenant usage caps; no data sent unless enabled).
+4. Open: sign fields placed inside the text; uploading an existing PDF to sign; signer ID checks (SMS/email code); archiving signed PDFs into core documents; DOCX import; QES providers.
+5. Open (carried): inventory–invoice link, purchase orders, HR carry-over/accruals, mail attachments, bounce handling/DKIM, CAPTCHA, calendar sync, blob sweep, antivirus hook, code splitting (bundle ~620 KB).
+
+## Handoff (Session 11, archived)
 1. Done: `modules/inventory`: items (SKU, barcode, unit, moving-average cost, reorder point/qty), locations (Main seeded), append-only movement ledger (receive, issue, transfer, adjust with reason, count), stock table kept by a DB trigger and never negative (CHECK + row lock), low-stock event on crossing, reorder list, stock value, CSV export, dashboard widget, workflow actions `inventory.issue` / `inventory.receive`.
 2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
 3. Next (Session 12): `modules/docs` (document templates, merge fields from contacts, PDF, e-sign via public signing page + audit trail).

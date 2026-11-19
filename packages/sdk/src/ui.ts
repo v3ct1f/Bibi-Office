@@ -38,6 +38,8 @@ export interface SlotProps {
 export interface PublicApi {
   get<T>(path: string): Promise<T>;
   post<T>(path: string, body?: unknown): Promise<T>;
+  /** Full URL of a public route, for links and downloads (e.g. a PDF). */
+  url(path: string): string;
 }
 
 /** Props for a module's public page, served at /p/<tenantSlug>/<key><route>. No session, no permissions. */

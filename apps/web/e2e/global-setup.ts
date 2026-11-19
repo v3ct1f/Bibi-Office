@@ -34,7 +34,7 @@ export default async function globalSetup() {
     .setProtectedHeader({ alg: "RS256", kid: "e2e" }).setIssuer(ISSUER).setAudience("office-api")
     .setSubject(sub).setIssuedAt().setExpirationTime("1h").sign(privateKey);
   const inboundSecret = randomBytes(24).toString("hex");
-  writeFileSync(STATE_FILE, JSON.stringify({ alice: await token("alice"), bob: await token("bob"), inboundSecret, api: `http://127.0.0.1:${API_PORT}` }));
+  writeFileSync(STATE_FILE, JSON.stringify({ alice: await token("alice"), bob: await token("bob"), inboundSecret, api: `http://127.0.0.1:${API_PORT}`, ownerUrl: db.ownerUrl }));
 
   const env = {
     ...process.env, NODE_ENV: "test", PORT: String(API_PORT), HOST: "127.0.0.1",

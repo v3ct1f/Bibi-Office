@@ -3,7 +3,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Button, Select, cn } from "@office/ui";
 import {
   Blocks, Building2, FileClock, Home, KeyRound, LogOut, Menu, Moon, Shield, Sun, SunMoon, Users, Webhook, Workflow, X, Contact,
-  CalendarDays, Inbox, Package, UsersRound, Handshake, ReceiptText, Wallet, type LucideIcon,
+  CalendarDays, Inbox, Package, Signature, UsersRound, Handshake, ReceiptText, Wallet, type LucideIcon,
 } from "lucide-react";
 import { auth } from "../lib/auth.ts";
 import { useSession } from "../lib/session.tsx";
@@ -11,7 +11,7 @@ import { applyTheme, getTheme, type Theme } from "../lib/theme.ts";
 import { moduleNav } from "../modules/slot.tsx";
 
 /** Icons modules may name in ui.slots[].icon; unknown names fall back to a generic block. */
-const MODULE_ICONS: Record<string, LucideIcon> = { handshake: Handshake, receipt: ReceiptText, wallet: Wallet, calendar: CalendarDays, inbox: Inbox, users: UsersRound, package: Package };
+const MODULE_ICONS: Record<string, LucideIcon> = { handshake: Handshake, receipt: ReceiptText, wallet: Wallet, calendar: CalendarDays, inbox: Inbox, users: UsersRound, package: Package, signature: Signature };
 
 const CORE_NAV = [
   { to: "/", label: "Home", icon: Home },
