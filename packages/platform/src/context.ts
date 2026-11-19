@@ -2,9 +2,10 @@ import {
   audit, emitEvent, entityService, forbidden, hasPermission, badRequest, type EntityKey, type RequestContext,
 } from "@office/core";
 import { memberships, tenants, users, type Tx } from "@office/db";
-import { and, eq, inArray } from "drizzle-orm";
-import type { EntityRepo, Logger, ModuleContext, ModuleDefinition } from "@office/sdk";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { sqlRows, type EntityRepo, type Logger, type ModuleContext, type ModuleDefinition } from "@office/sdk";
 import { deleteFileById, readFileById, storeFile, type FileDeps } from "./files.ts";
+import { asCore } from "./module-role.ts";
 import { inboundAddress, queueMail, type MailEnv } from "./mail.ts";
 
 export interface ModuleState { settings: Record<string, unknown>; secrets: Record<string, string>; files?: FileDeps | undefined; mail?: MailEnv | undefined }
@@ -27,6 +28,7 @@ export function createModuleContext(
   const requires = new Set(m.permissions.requires);
   const emits = new Set(m.events.emits.map((e) => e.type));
 
+  const core = <T,>(fn: () => Promise<T>) => asCore(tx, fn);
   const repo = (key: EntityKey): EntityRepo => {
     const svc = entityService(key);
     const gate = (a: "read" | "write") => {
@@ -35,11 +37,11 @@ export function createModuleContext(
       if (!requires.has(p)) throw forbidden(`Module ${m.key} did not declare ${p} in permissions.requires`);
     };
     return {
-      list: async (q = {}) => { gate("read"); return svc.list(tx, base, { limit: Math.min(q.limit ?? 25, 100), cursor: q.cursor, q: q.q }); },
-      get: async (id) => { gate("read"); return svc.get(tx, base, id); },
-      create: async (input) => { gate("write"); return svc.create(tx, base, input); },
-      update: async (id, input) => { gate("write"); return svc.update(tx, base, id, input); },
-      remove: async (id) => { gate("write"); return svc.remove(tx, base, id); },
+      list: async (q = {}) => { gate("read"); return core(() => svc.list(tx, base, { limit: Math.min(q.limit ?? 25, 100), cursor: q.cursor, q: q.q })); },
+      get: async (id) => { gate("read"); return core(() => svc.get(tx, base, id)); },
+      create: async (input) => { gate("write"); return core(() => svc.create(tx, base, input)); },
+      update: async (id, input) => { gate("write"); return core(() => svc.update(tx, base, id, input)); },
+      remove: async (id) => { gate("write"); return core(() => svc.remove(tx, base, id)); },
     };
   };
 
@@ -52,9 +54,9 @@ export function createModuleContext(
   };
 
   const files: ModuleContext["files"] = {
-      put: async (f) => { const d = fileDeps("write"); return storeFile(tx, base, d, { filename: f.filename, bytes: f.bytes, declaredType: f.contentType, title: f.title }, m.key); },
-    get: async (id) => readFileById(tx, fileDeps("read"), id, m.key),
-    remove: async (id) => { fileDeps("write"); await deleteFileById(tx, base, id, m.key); },
+      put: async (f) => { const d = fileDeps("write"); return core(() => storeFile(tx, base, d, { filename: f.filename, bytes: f.bytes, declaredType: f.contentType, title: f.title }, m.key)); },
+    get: async (id) => { const d = fileDeps("read"); return core(() => readFileById(tx, d, id, m.key)); },
+    remove: async (id) => { fileDeps("write"); await core(() => deleteFileById(tx, base, id, m.key)); },
   };
 
   const mailEnv = () => {
@@ -63,11 +65,11 @@ export function createModuleContext(
     return state.mail;
   };
   const mail: ModuleContext["mail"] = {
-    send: (msg) => queueMail(tx, base, mailEnv(), m.key, msg),
-    inboundAddress: () => inboundAddress(tx, base, mailEnv(), m.key),
+    send: async (msg) => { const env = mailEnv(); return core(() => queueMail(tx, base, env, m.key, msg)); },
+    inboundAddress: async () => { const env = mailEnv(); return core(() => inboundAddress(tx, base, env, m.key)); },
     get appUrl() { return state.mail?.appUrl ?? ""; },
     async publicPageUrl(path: string) {
-      const [t] = await tx.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, base.tenantId));
+      const [t] = await core(() => tx.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, base.tenantId)));
       return `${state.mail?.appUrl ?? ""}/p/${t!.slug}/${m.key}${path.startsWith("/") ? path : `/${path}`}`;
     },
   };
@@ -82,7 +84,7 @@ export function createModuleContext(
     events: {
       async emit(type: string, payload: Record<string, unknown>, version = 1) {
         if (!emits.has(type)) throw badRequest(`Module ${m.key} cannot emit undeclared event ${type}`);
-        return emitEvent(tx, base, type, payload, version);
+        return core(() => emitEvent(tx, base, type, payload, version));
       },
     },
     authz: {
@@ -91,7 +93,7 @@ export function createModuleContext(
     },
     audit: {
       log: (action: string, entity?: { type: string; id: string }, diff?: unknown) =>
-        audit(tx, { ...base, actor: { ...base.actor } }, `${m.key}.${action}`, entity, diff),
+        core(() => audit(tx, { ...base, actor: { ...base.actor } }, `${m.key}.${action}`, entity, diff)),
     },
     files,
     mail,
@@ -100,11 +102,15 @@ export function createModuleContext(
         if (anon) return {};
         const uniq = [...new Set(ids.filter((x) => /^[0-9a-f-]{36}$/i.test(x)))].slice(0, 500);
         if (!uniq.length) return {};
-        const rows = await tx.select({ id: users.id, name: users.name, email: users.email }).from(memberships)
+        const rows = await core(() => tx.select({ id: users.id, name: users.name, email: users.email }).from(memberships)
           .innerJoin(users, eq(users.id, memberships.userId))
-          .where(and(eq(memberships.tenantId, base.tenantId), inArray(memberships.userId, uniq)));
+          .where(and(eq(memberships.tenantId, base.tenantId), inArray(memberships.userId, uniq))));
         return Object.fromEntries(rows.map((r) => [r.id, r.name || r.email]));
       },
+    },
+    clock: {
+      async timeZone() { const [r] = sqlRows<{ tz: string }>(await tx.execute(sql`select current_setting('TimeZone') as tz`)); return r!.tz; },
+      async today() { const [r] = sqlRows<{ d: string }>(await tx.execute(sql`select current_date::text as d`)); return r!.d; },
     },
     settings: { get: <T,>() => structuredClone(state.settings) as T },
     secrets: { get: (k: string) => state.secrets[k] },

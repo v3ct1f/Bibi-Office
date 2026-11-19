@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Button, Select, cn } from "@office/ui";
 import {
-  Blocks, Building2, FileClock, Home, KeyRound, LogOut, Menu, Moon, Shield, Sun, SunMoon, Users, Webhook, Workflow, X, Contact,
+  Blocks, Building, Building2, FileClock, Home, KeyRound, LogOut, Menu, Moon, Shield, Sun, SunMoon, Users, Webhook, Workflow, X, Contact,
   CalendarDays, Gauge, Inbox, Package, Signature, Sparkles, UsersRound, Handshake, ReceiptText, Wallet, type LucideIcon,
 } from "lucide-react";
 import { auth } from "../lib/auth.ts";
@@ -19,6 +19,7 @@ const CORE_NAV = [
   { to: "/companies", label: "Companies", icon: Building2, perm: "core:companies.read" },
 ] as const;
 const ADMIN_NAV = [
+  { to: "/admin/organization", label: "Organization", icon: Building, perm: "core:members.read" },
   { to: "/admin/modules", label: "Modules", icon: Blocks, perm: "core:modules.read" },
   { to: "/admin/members", label: "Members", icon: Users, perm: "core:members.read" },
   { to: "/admin/roles", label: "Roles", icon: Shield, perm: "core:roles.read" },

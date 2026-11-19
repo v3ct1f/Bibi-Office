@@ -2,7 +2,7 @@ import { and, desc, eq, ilike, isNull, lt, or, sql, type SQL } from "drizzle-orm
 import { z } from "zod";
 import { uuidv7 } from "@office/db";
 import { moduleErrors as E, type ModuleContext } from "@office/sdk";
-import { addDays, computeLine, computeTotals, numberFormat, todayUtc } from "./money.ts";
+import { addDays, computeLine, computeTotals, numberFormat } from "./money.ts";
 import { invoices, lines, payments, type PartySnapshot } from "./schema.ts";
 
 // ───────────────────────── settings ─────────────────────────
@@ -69,7 +69,7 @@ const MAX_SAFE_TOTAL = 1e15;
 
 // ───────────────────────── DTOs ─────────────────────────
 type InvoiceRow = typeof invoices.$inferSelect;
-export function toDto(r: InvoiceRow, today = todayUtc()) {
+export function toDto(r: InvoiceRow, today: string) {
   return {
     id: r.id, number: r.number, status: r.status,
     overdue: r.status === "open" && !!r.dueDate && r.dueDate < today,
@@ -107,7 +107,7 @@ export async function getInvoice(ctx: ModuleContext, id: string) {
     ctx.db.select().from(payments).where(eq(payments.invoiceId, id)).orderBy(payments.paidOn, payments.id),
   ]);
   return {
-    ...toDto(r),
+    ...toDto(r, await ctx.clock.today()),
     lines: ls.map((l) => ({
       id: l.id, description: l.description, quantity: l.quantityMilli / 1000, unitPrice: l.unitPrice,
       taxRate: l.taxRateBp / 100, net: l.net, tax: l.tax,
@@ -117,7 +117,7 @@ export async function getInvoice(ctx: ModuleContext, id: string) {
 }
 
 export async function listInvoices(ctx: ModuleContext, q: z.infer<typeof ListQuery>) {
-  const today = todayUtc();
+  const today = await ctx.clock.today();
   const w: SQL[] = [];
   if (q.status === "overdue") w.push(eq(invoices.status, "open"), lt(invoices.dueDate, today));
   else if (q.status) w.push(eq(invoices.status, q.status));
@@ -135,7 +135,7 @@ export async function listInvoices(ctx: ModuleContext, q: z.infer<typeof ListQue
 
 /** Outstanding / overdue / paid-in-30-days per currency, for the dashboard widget. */
 export async function summary(ctx: ModuleContext) {
-  const today = todayUtc(), since = addDays(today, -30);
+  const today = await ctx.clock.today(), since = addDays(today, -30);
   const rows = await ctx.db.select({
     currency: invoices.currency,
     outstanding: sql<string>`coalesce(sum(${invoices.total} - ${invoices.amountPaid}) filter (where ${invoices.status} = 'open'), 0)`,
@@ -261,7 +261,7 @@ export async function issue(ctx: ModuleContext, id: string, opts: { issueDate?: 
   const s = settingsOf(ctx);
   const customer = await customerSnapshot(ctx, r);
   if (!customer.name) throw E.unprocessable("Customer has no name");
-  const issueDate = opts.issueDate ?? r.issueDate ?? todayUtc();
+  const issueDate = opts.issueDate ?? r.issueDate ?? await ctx.clock.today();
   const dueDate = r.dueDate && r.dueDate >= issueDate ? r.dueDate : addDays(issueDate, s.paymentTermDays);
   const number = await nextNumber(ctx, s.numberFormat, issueDate);
   const zero = r.total === 0;
@@ -298,7 +298,7 @@ export async function recordPayment(ctx: ModuleContext, id: string, raw: z.input
   if (p.amount > balance) throw E.unprocessable(`Payment exceeds the balance due (${balance})`, { balance });
   const paymentId = uuidv7();
   await ctx.db.insert(payments).values({
-    id: paymentId, tenantId: ctx.tenantId, invoiceId: id, amount: p.amount, paidOn: p.paidOn ?? todayUtc(),
+    id: paymentId, tenantId: ctx.tenantId, invoiceId: id, amount: p.amount, paidOn: p.paidOn ?? await ctx.clock.today(),
     method: p.method, reference: p.reference ?? null, createdBy: ctx.actor.id,
   });
   const amountPaid = r.amountPaid + p.amount, paid = amountPaid === r.total;
@@ -339,7 +339,7 @@ export async function remind(ctx: ModuleContext, id: string) {
 
 /** Job: flag open invoices past due once and emit invoicing.invoice.overdue. Idempotent. */
 export async function markOverdue(ctx: ModuleContext, limit = 500) {
-  const today = todayUtc();
+  const today = await ctx.clock.today();
   const rows = await ctx.db.update(invoices).set({ overdueAt: new Date() })
     .where(and(eq(invoices.status, "open"), lt(invoices.dueDate, today), isNull(invoices.overdueAt),
       sql`${invoices.id} in (select id from invoicing_invoices where status = 'open' and due_date < ${today} and overdue_at is null limit ${limit})`))

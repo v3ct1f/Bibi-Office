@@ -1,4 +1,5 @@
-import { useMemo, type ComponentType } from "react";
+import { Suspense, useMemo, type ComponentType } from "react";
+import { Spinner } from "@office/ui";
 import { useNavigate } from "@tanstack/react-router";
 import type { ModuleApi, SlotProps } from "@office/sdk/ui";
 import { api, errorMessage, getBlob, uploadFile } from "../lib/api.ts";
@@ -31,7 +32,9 @@ export function Hosted({ module, Component, entity, subPath }: {
   }), [module, s.can, nav]);
   return (
     <SlotBoundary module={module}>
-      <Component tenantId={s.tenantId!} tenantSlug={s.tenant?.slug ?? ""} {...base} {...(entity ? { entity } : {})} {...(subPath !== undefined ? { subPath } : {})} />
+      <Suspense fallback={<Spinner />}>
+      <Component tenantId={s.tenantId!} tenantSlug={s.tenant?.slug ?? ""} timeZone={s.tenant?.timeZone ?? "UTC"} {...base} {...(entity ? { entity } : {})} {...(subPath !== undefined ? { subPath } : {})} />
+      </Suspense>
     </SlotBoundary>
   );
 }

@@ -10,7 +10,7 @@ export function KpiWidget(props: SlotProps) {
   const { api, tenantId, navigate, errorMessage } = props;
   const list = useQuery({ queryKey: ["tenant", tenantId, "kpi", "dashboards"], queryFn: () => api.get<{ data: Dashboard[] }>("/dashboards") });
   const first = list.data?.data[0];
-  const values = useMetricValues(props, first?.tiles.map((t) => t.metric) ?? [], presetRange("this_month"));
+  const values = useMetricValues(props, first?.tiles.map((t) => t.metric) ?? [], presetRange("this_month", props.timeZone));
   const ok = (values.data?.data ?? []).filter((r) => r.ok);
   const order = first?.tiles.map((t) => t.metric) ?? [];
   const top = ok.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key)).slice(0, 4);

@@ -57,7 +57,6 @@ export const DeclineIn = TokenIn.extend({ reason: z.string().trim().min(1, "Tell
 // ───────────────────────── helpers ─────────────────────────
 const hashToken = (t: string) => createHash("sha256").update(t).digest();
 const contentHash = (title: string, body: string) => createHash("sha256").update(`${title}\n\n${body}`).digest("hex");
-const today = () => new Date().toISOString().slice(0, 10);
 
 async function trail(ctx: ModuleContext, documentId: string, kind: EventKind, o: { signerId?: string | null; actor?: string | null; ip?: string | null; detail?: Record<string, unknown> } = {}) {
   await ctx.db.insert(events).values({
@@ -75,7 +74,7 @@ const eventPayload = (d: Doc, extra: Record<string, unknown> = {}) => ({ id: d.i
 
 /** Merge values: contact, company, org, today, plus caller-supplied ones (which win). */
 async function mergeValues(ctx: ModuleContext, contactId: string | undefined, given: Record<string, string>) {
-  const v: Record<string, string> = { "org.name": sender(ctx), today: today() };
+  const v: Record<string, string> = { "org.name": sender(ctx), today: await ctx.clock.today() };
   let contactEmail: string | null = null, contactName = "";
   if (contactId) {
     const c = await ctx.data.contacts.get(contactId);

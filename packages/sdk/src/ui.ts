@@ -21,6 +21,8 @@ export interface SlotProps {
   tenantId: string;
   /** URL name of the organization, e.g. for links to public pages (/p/<tenantSlug>/<module>/...). */
   tenantSlug: string;
+  /** The organization's time zone (IANA, e.g. "Europe/Berlin"); "today" and date ranges follow it. */
+  timeZone: string;
   /** Set for entity.* slots. */
   entity?: { type: string; id: string; data?: Record<string, unknown> };
   api: ModuleApi;

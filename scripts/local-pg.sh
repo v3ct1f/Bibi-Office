@@ -14,7 +14,8 @@ case "${1:-start}" in
     $RUN $PGBIN/pg_ctl -D "$DIR" -o "-p $PORT -k /tmp" -l "$DIR/log" -w start >/dev/null
     psql -h localhost -p $PORT -U postgres -q -v ON_ERROR_STOP=1 <<SQL
 DO \$\$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='office_owner') THEN CREATE ROLE office_owner LOGIN PASSWORD 'office_owner' CREATEDB; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='office_owner') THEN CREATE ROLE office_owner LOGIN PASSWORD 'office_owner' CREATEDB CREATEROLE; END IF;
+  ALTER ROLE office_owner CREATEROLE;  -- installer creates per-module roles (office_mod_*)
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='office_app') THEN CREATE ROLE office_app LOGIN PASSWORD 'office_app' NOBYPASSRLS; END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='office_relay') THEN CREATE ROLE office_relay LOGIN PASSWORD 'office_relay' BYPASSRLS; END IF;
 END \$\$;

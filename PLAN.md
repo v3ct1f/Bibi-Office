@@ -36,6 +36,7 @@
 | 12 | Module: Docs & e-sign | ✅ done (14 docs + 15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 34 E2E) |
 | 13 | Module: AI email/meeting summaries | ✅ done (14 ai + 14 docs + 15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 37 E2E) |
 | 14 | Module: KPI dashboard (+ SDK metrics, core metrics API) | ✅ done (14 kpi + 14 ai + 14 docs + 15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 42 E2E) |
+| 15 | Hardening: org time zones, per-module DB roles, code-splitting, Docker smoke test | ✅ done (15 kpi + 14 ai + 14 docs + 15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 62 api + 2 worker + 5 web unit + 43 E2E; smoke in CI) |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
@@ -56,7 +57,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 14)
+## Handoff (Session 15)
+1. Done: org time zone (`PATCH /tenant`, Organization page; every tenant tx sets Postgres `TimeZone`, `ctx.clock`); each module's code runs under its own DB role `office_mod_<prefix>` (only its tables); module UIs and admin pages load on demand (main bundle 668 → 374 KB); fixed api/worker Docker images (didn't start); `scripts/smoke.sh` + CI job `smoke`.
+2. Verify: `scripts/local-pg.sh stop && start` (owner now needs CREATEROLE); `TEST_DATABASE_URL=... pnpm test`; E2E as before; `bash scripts/smoke.sh` on a Docker host (Linux, host network).
+3. Next: suggested Session 16: OpenAPI-generated web types, Helm chart + prod role provisioning (CREATEROLE or pre-created module roles), per-user dashboards, or new modules (purchase orders, timesheets).
+4. Open (hardening): smoke test can't run in this cloud sandbox (quay.io blocked, Docker Hub rate limit), so it's CI-only; scheduling still has its own `timezone` setting (default could follow the org); `MODULE_DB_ROLES=off` escape hatch if the owner can't create roles.
+5. Open (carried): KPI currency conversion/digests/alerts, AI email forwarding and core Tasks page, e-sign PDF upload/ID checks, inventory–invoice link, HR accruals, mail attachments, bounce handling/DKIM, CAPTCHA, calendar sync, blob sweep, antivirus hook.
+
+## Handoff (Session 14, archived)
 1. Done: SDK `metrics` contract (+ `flowSum`/`scalar`/`inRange` helpers); core `GET /metrics` and `/metrics/values` (live, permission- and module-aware, savepoint per metric, previous period, filled buckets); 20 metrics across all 9 modules; `modules/kpi` ("KPIs"): saved dashboards, period picker, stat tiles with comparison, sparkline/line/bar charts, targets, edit mode, Home widget.
 2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test` (`modules/kpi/tests/all-metrics.test.ts` runs every module's metrics); `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
 3. Next: the planned module sessions are complete. Suggested Session 15: hardening pass (tenant time zones for dates/periods, per-module DB roles, route code-splitting, Keycloak + Temporal smoke test on a Docker host, OpenAPI-generated web types).

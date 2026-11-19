@@ -461,9 +461,28 @@ office/
 ## 22. Metrics and KPI dashboard (Session 14, as built)
 
 - SDK: `ModuleDefinition.metrics: Record<"<module>.<name>", MetricSpec>`; `defineModule` checks the name prefix and that the permission is declared/required. Helpers `flowSum`, `scalar`, `inRange`, `sqlRows` (identifiers are module constants; values are bound).
-- Platform (`packages/platform/src/metrics.ts`): `metricRange` (UTC, inclusive dates, ≤3 years, auto bucket), `previousRange` (same length, just before), `bucketStarts` (Postgres `date_trunc` semantics), `metricCatalog`, `computeMetrics`.
+- Platform (`packages/platform/src/metrics.ts`): `metricRange` (organization calendar since §23, inclusive dates, ≤3 years, auto bucket), `previousRange` (same length, just before), `bucketStarts` (Postgres `date_trunc` semantics), `metricCatalog`, `computeMetrics`.
 - Core API: `GET /metrics`, `GET /metrics/values` (≤30 keys). Per key: permission check → module enabled → savepoint → module ctx → compute now (+ previous for flow) → fill buckets. Errors are per key (`unavailable` / `failed`), never a 500 for the page.
 - Live computation, no materialized copies: always consistent with module data and RLS; cost is a few indexed queries per tile per view. Add caching or rollups only if needed.
 - `modules/kpi` stores layouts only and reads values through the core API (`api.core`). Charts are inline SVG (single series in the theme accent, hover + keyboard readout, screen-reader table, no chart library).
 - E2E order: … → `zest` → `zz-kpi`.
 
+## 23. Hardening (Session 15, as built)
+
+### Organization time zone
+- `tenants.settings.timeZone` (IANA, default `UTC`); `PATCH /tenant {name?, timeZone?}` needs `core:tenant.manage`, validated by `Intl` and `pg_timezone_names`, audited.
+- `withTenant` sets `app.tenant_id` and `TimeZone` in one statement (`set_config(..., true)`, tx-local): `current_date`, `date_trunc`, `date ↔ timestamptz` follow the organization. Timestamps stay `timestamptz` (absolute).
+- SDK: `ctx.clock.today()` / `ctx.clock.timeZone()`; `SlotProps.timeZone` for UIs. Invoicing due/overdue, e-sign `{{today}}`, AI prompt date, all metrics and KPI presets use it.
+
+### Per-module DB roles
+- Installer creates `office_mod_<prefix>` (NOLOGIN, NOBYPASSRLS), granted to `office_app`, with only the module's `<prefix>_*` table grants (copied from `office_app`).
+- `inModuleRole(tx, key, fn)` = `SET LOCAL ROLE` around module code: routes, public routes, inbound mail, event handlers, workflow actions, jobs, metrics, enable/disable hooks. RLS still applies.
+- Core services reached through `ctx` (data, files, mail, events, audit, people) switch back with `asCore` (ref-counted `RESET ROLE`).
+- Effect: a module bug or injection can't touch core tables or other modules' tables (Postgres 42501 → 403). Owner needs `CREATEROLE`; `MODULE_DB_ROLES=off` disables.
+
+### Code splitting
+- `MODULE_UI_LOADERS` (dynamic `import()` per module), `useModuleUi` (React `use`), `lazySlotComponent`; admin/data pages via `lazyRouteComponent`; `Suspense` around module UIs.
+
+### Images and smoke test
+- tsup bundles `@office/*` sources, keeps npm deps external (`skipNodeModulesBundle`); image installs them flat (`pnpm deploy --config.node-linker=hoisted`), Debian build stage to match distroless.
+- `scripts/smoke.sh` (CI job `smoke`): builds both images, compose Postgres/NATS/Keycloak/Temporal, migrate + install, Keycloak user via admin API, then login → tenant → time zone → modules → KPI (module role) → metrics → workflow run on Temporal → API key.

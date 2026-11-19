@@ -4,6 +4,7 @@ import { emitEvent, entityService, type RequestContext } from "@office/core";
 import type { Tx } from "@office/db";
 import type { ModuleRegistry } from "../registry.ts";
 import { createModuleContext } from "../context.ts";
+import { inModuleRole } from "../module-role.ts";
 import { loadEnabledModule, type ModuleDeps } from "../tenant-modules.ts";
 import { assertUrlAllowed, guardedAgent } from "../ssrf.ts";
 
@@ -97,5 +98,5 @@ export async function executeAction(env: ActionEnv, key: string, rawInput: unkno
   const loaded = await loadEnabledModule(env.tx, env.deps, env.ctx.tenantId, found.module.manifest.key);
   if (!loaded) throw new Error(`Module ${found.module.manifest.key} is not enabled`);
   const input = found.spec.input.parse(rawInput);
-  return (await found.spec.run(createModuleContext(env.tx, env.ctx, loaded.def, loaded.state), input)) ?? {};
+  return (await inModuleRole(env.tx, found.module.manifest.key, () => found.spec.run(createModuleContext(env.tx, env.ctx, loaded.def, loaded.state), input))) ?? {};
 }

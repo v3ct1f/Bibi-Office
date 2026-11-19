@@ -13,7 +13,7 @@ Dashboards of key numbers from the other modules: revenue, overdue invoices, pip
 `kpi_dashboards`: name (unique per tenant), position, tiles (≤24) `[{id, metric, view: number | line | bar, target}]`. An "Overview" dashboard is created on enable.
 
 ## Periods
-Presets: this month, last month, last 30/90 days, this quarter, this year, last 12 months, or custom dates (UTC, ≤3 years). Points per day (≤31 days), week (≤190 days, Monday start) or month. Comparison: the same number of days just before.
+Presets: this month, last month, last 30/90 days, this quarter, this year, last 12 months, or custom dates (organization time zone, ≤3 years). Points per day (≤31 days), week (≤190 days, Monday start) or month. Comparison: the same number of days just before.
 
 ## Money
 Minor units in each module's default currency. Rows in other currencies aren't converted (the tile says how many were left out). Targets are entered in major units (e.g. 5000 = €5,000).

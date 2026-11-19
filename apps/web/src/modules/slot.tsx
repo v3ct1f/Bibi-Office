@@ -1,16 +1,21 @@
 import { Component, type ReactNode } from "react";
 import type { ModuleInfo, UiSlot } from "../lib/types.ts";
 import { can } from "../lib/session.tsx";
-import { MODULE_UI, type ModuleUi } from "./registry.ts";
+import { lazySlotComponent, MODULE_UI_LOADERS, type ModuleUi } from "./registry.ts";
 
-/** Slots for enabled modules the user may see, whose component exists in the UI registry. */
+/**
+ * Slots for enabled modules the user may see. With the default (lazy) registry, components load with their module's chunk;
+ * tests can pass a ready registry object.
+ */
 export function resolveSlots(
-  name: string, modules: ModuleInfo[], perms: Set<string>, registry: Record<string, ModuleUi> = MODULE_UI,
+  name: string, modules: ModuleInfo[], perms: Set<string>, registry?: Record<string, ModuleUi>,
 ): { module: string; slot: UiSlot; Component: NonNullable<ModuleUi["components"]>[string] }[] {
   return modules.filter((m) => m.enabled).flatMap((m) => m.ui.slots
     .filter((s) => s.slot === name && (!s.permission || can(perms, s.permission)))
     .flatMap((s) => {
-      const C = s.component ? registry[m.key]?.components?.[s.component] : undefined;
+      const C = !s.component ? undefined
+        : registry ? registry[m.key]?.components?.[s.component]
+        : m.key in MODULE_UI_LOADERS ? lazySlotComponent(m.key, s.component) : undefined;
       return C ? [{ module: m.key, slot: s, Component: C }] : [];
     }));
 }

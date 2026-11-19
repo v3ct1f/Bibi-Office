@@ -31,6 +31,18 @@ jobs:
           pnpm --filter @office/web exec playwright install --with-deps chromium
           pnpm --filter @office/web build:e2e
           pnpm --filter @office/web e2e
+  smoke:
+    # Real images + compose stack (Postgres, NATS, Keycloak, Temporal); see scripts/smoke.sh.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env: { TURBO_TELEMETRY_DISABLED: 1 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: bash scripts/smoke.sh
   scan:
     runs-on: ubuntu-latest
     steps:

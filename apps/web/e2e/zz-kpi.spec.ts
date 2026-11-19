@@ -80,3 +80,16 @@ test("home widget and dark theme, phone layout", async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   if (shots) await page.screenshot({ path: `${shots}/kpi-mobile.png`, fullPage: true });
 });
+
+test("organization time zone: owner changes it, KPI periods follow", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/admin/organization");
+  await expect(page.getByRole("heading", { name: "Organization" })).toBeVisible();
+  await page.getByLabel("Time zone").selectOption("Pacific/Auckland");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Saved.")).toBeVisible();
+  const shots = process.env.SCREENSHOTS_DIR;
+  if (shots) await page.screenshot({ path: `${shots}/organization-light.png` });
+  await nav(page).getByRole("link", { name: "KPIs" }).click();
+  await expect(page.getByText(/Pacific\/Auckland|Pacific Auckland/).first()).toBeVisible();
+});
