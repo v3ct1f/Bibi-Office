@@ -116,5 +116,26 @@ test("capture", async ({ page }) => {
   await pub.getByRole("heading", { name: "You're booked" }).waitFor();
   await pub.screenshot({ path: `${dir}/booking-public-confirmed-mobile.png`, fullPage: true });
   await pub.close();
-});
 
+  // Support inbox (alice): list, ticket, and the public contact form on a phone
+  await page.goto("/m/support/inbox");
+  await page.getByRole("list", { name: "Tickets" }).waitFor();
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: `${dir}/support-inbox-light.png` });
+  await page.getByRole("link", { name: /Wedding cake order/ }).click();
+  await page.getByRole("list", { name: "Conversation" }).waitFor();
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: `${dir}/support-ticket-light.png`, fullPage: true });
+  await page.goto("/m/support/inbox");
+  await page.getByRole("button", { name: "Inbox address" }).click();
+  await page.getByLabel("Inbox email address").waitFor();
+  await page.screenshot({ path: `${dir}/support-setup-light.png` });
+  const form = await page.context().browser()!.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  await form.goto("/p/acme-bakery/support/contact");
+  await form.getByLabel("Your name").fill("Katherine Johnson");
+  await form.getByLabel("Email").fill("katherine@example.com");
+  await form.getByLabel("Subject").fill("Order pickup time");
+  await form.getByLabel("Message").fill("Can I pick up my order at 7 am?");
+  await form.screenshot({ path: `${dir}/support-contact-mobile.png`, fullPage: true });
+  await form.close();
+});

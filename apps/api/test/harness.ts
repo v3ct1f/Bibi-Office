@@ -4,12 +4,15 @@ import { createTestDatabase } from "@office/testing";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FsBlobStore, installModules, ModuleRegistry, SecretBox, type FileDeps } from "@office/platform";
+import postgres from "postgres";
+import { FsBlobStore, installModules, MemoryTransport, ModuleRegistry, SecretBox, sendDueMail, type FileDeps, type MailEnv } from "@office/platform";
 import type { ModuleDefinition } from "@office/sdk";
 import { buildApp } from "../src/app.ts";
 
 export const ISSUER = "https://idp.test/realms/office";
 export const AUDIENCE = "office-api";
+export const INBOUND_SECRET = "inbound-secret-for-tests-0123456789";
+export const MAIL: MailEnv = { fromEmail: "no-reply@office.test", fromName: "Office", inboundDomain: "in.office.test", appUrl: "https://app.office.test" };
 
 export async function setup(modules: ModuleDefinition[] = []) {
   const tdb = await createTestDatabase();
@@ -22,7 +25,7 @@ export async function setup(modules: ModuleDefinition[] = []) {
   const { publicKey, privateKey } = await generateKeyPair("RS256");
   const jwk = { ...(await exportJWK(publicKey)), kid: "k1", alg: "RS256" };
   const app = await buildApp({
-    db: app_.db, logger: false, jwks: createLocalJWKSet({ keys: [jwk] }), platform: { registry, secrets, files },
+    db: app_.db, logger: false, jwks: createLocalJWKSet({ keys: [jwk] }), platform: { registry, secrets, files, mail: MAIL, inboundMailSecret: INBOUND_SECRET },
     config: {
       OIDC_ISSUER: ISSUER, OIDC_AUDIENCE: AUDIENCE, API_KEY_PEPPER: "x".repeat(32),
       CORS_ORIGINS: [], RATE_LIMIT_PER_MIN: 10_000, TRUST_PROXY: false, NODE_ENV: "test",
@@ -61,7 +64,23 @@ export async function setup(modules: ModuleDefinition[] = []) {
   const asOwner = <T>(tenantId: string, fn: (tx: import("postgres").TransactionSql) => Promise<T>) =>
     owner.sql.begin(async (tx) => { await tx`select set_config('app.tenant_id', ${tenantId}, true)`; return fn(tx); }) as Promise<T>;
 
+  const relay = postgres(tdb.relayUrl, { max: 2, onnotice: () => {} });
+  const mailbox = new MemoryTransport();
+
   return {
+    mailbox, relay,
+    /** Run the worker's mail sender once; returns messages sent in this call. */
+    async flushMail() {
+      const before = mailbox.sent.length;
+      await relay`update mail_outbox set next_attempt_at = now() where status = 'queued'`;
+      await sendDueMail(relay, mailbox, MAIL);
+      return mailbox.sent.slice(before);
+    },
+    /** POST to the inbound mail webhook. */
+    inbound: async (body: unknown, secret = INBOUND_SECRET) => {
+      const res = await app.inject({ method: "POST", url: "/api/v1/inbound/mail", headers: { "x-inbound-secret": secret }, payload: body as object });
+      return { status: res.statusCode, body: res.body ? res.json() : null };
+    },
     app, token, client, asOwner, ownerSql: owner.sql, appSql: app_.sql, db: app_.db, registry, secrets, files, tdb,
     /** Pending outbox events for a tenant as envelopes (what the relay would publish). */
     async events(tenantId: string, type?: string) {
@@ -73,7 +92,7 @@ export async function setup(modules: ModuleDefinition[] = []) {
       }));
     },
     async teardown() {
-      await app.close(); await app_.close(); await owner.close(); await tdb.drop();
+      await app.close(); await app_.close(); await owner.close(); await relay.end(); await tdb.drop();
     },
   };
 }

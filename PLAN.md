@@ -30,8 +30,8 @@
 | 6 | Module: CRM (+ companies pages in shell) | ✅ done (12 crm + 23 invoicing + 36 api + 2 worker + 5 web unit + 13 E2E) |
 | 7 | Module: Expenses (+ core file uploads) | ✅ done (18 expenses + 12 crm + 23 invoicing + 45 api + 2 worker + 5 web unit + 16 E2E) |
 | 8 | Module: Scheduling (+ public module pages) | ✅ done (15 scheduling + 18 expenses + 12 crm + 23 invoicing + 45 api + 2 worker + 5 web unit + 20 E2E) |
-| 9 | Module: Support inbox | ⏳ next |
-| 10 | Module: HR | ☐ |
+| 9 | Module: Support inbox (+ core email) | ✅ done (20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 24 E2E) |
+| 10 | Module: HR | ⏳ next |
 | 11 | Module: Inventory | ☐ |
 | 12 | Module: Docs & e-sign | ☐ |
 | 13 | Module: AI email/meeting summaries | ☐ |
@@ -46,7 +46,8 @@
 | Billing | Not in core v1. Later as a module (Stripe) using `tenants.plan`. |
 | 3rd-party marketplace | Not in v1. First-party modules only; sandboxed iframe UI in v2. |
 | Currency / locale | Per-tenant settings; defaults EUR, `en`, UTC. |
-| Email invites | Later core pass. |
+| Email invites | Later core pass (core mail exists since Session 9). |
+| Email | Built in Session 9: outbound queue sent by the worker over SMTP (any provider); inbound via provider webhook (normalized JSON or Postmark format) to per-module addresses `<key>@INBOUND_MAIL_DOMAIN`. |
 | Document uploads | Built in Session 7: server-side upload (no presign), local disk or S3, 10 MB, content-detected types. |
 
 ## Session rules
@@ -55,7 +56,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 8)
+## Handoff (Session 9)
+1. Done: core email (`ctx.mail.send` queues in the request tx, worker sends via SMTP with 5 retries; `inboundMail` handler + `POST /api/v1/inbound/mail` with shared secret, routed by per-module address, deduped by Message-ID); Scheduling now emails customers on book/move/cancel; `modules/support` (numbered tickets from email, contact form, or team; threading by Message-ID then `[#n]` + sender; replies emailed in-thread; internal notes; assign/status/priority; first-reply SLA job; contact linking) + inbox UI, ticket view, public contact form, widget, contact tab.
+2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
+3. Next (Session 10): `modules/hr` (employee records linked to members, leave requests + approvals, documents via `ctx.files`).
+4. Open: attachments on inbound/outbound mail; bounce/complaint handling and per-tenant sending domains (DKIM); business-hours SLAs; canned replies; CSAT; booking reminder emails (needs a scheduled job); CAPTCHA option for public pages.
+5. Open (carried): per-host time zones, calendar sync, blob sweep, antivirus hook, contacts `companyId` filter, CRM owner picker, code splitting (bundle ~550 KB).
+
+## Handoff (Session 8, archived)
 1. Done: public module routes (`publicRoutes`, `/api/v1/public/<tenantSlug>/m/<key>/…`, anonymous ctx, 60/min per IP) and public pages in the web app (`/p/<tenantSlug>/<key>/…`, no sign-in); `modules/scheduling` (services + hosts, weekly hours in a business time zone, time off, slot finder, bookings with a DB exclusion constraint against double-booking, reschedule/cancel/outcomes, customer manage link with hashed token, contact linking by email) + team calendar UI and phone-friendly public booking page.
 2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
 3. Next (Session 9): `modules/support` (shared inbox: tickets from email/web form, assign, status, replies, SLAs). Needs inbound/outbound email: build a core mail service (SMTP out + inbound webhook) first in the same session?

@@ -9,6 +9,7 @@ import type { ModuleRegistry } from "./registry.ts";
 import type { SecretBox } from "./crypto.ts";
 import { createModuleContext, type ModuleState } from "./context.ts";
 import type { FileDeps } from "./files.ts";
+import type { MailEnv } from "./mail.ts";
 
 const ajv = new Ajv2020({ allErrors: true, useDefaults: true, strict: false });
 const validators = new WeakMap<object, ReturnType<typeof ajv.compile>>();
@@ -23,7 +24,7 @@ const secretKeys = (m: ModuleDefinition): string[] => {
 };
 
 /** `files` absent => ctx.files throws (e.g. a process without storage configured). */
-export interface ModuleDeps { registry: ModuleRegistry; secrets: SecretBox; files?: FileDeps | undefined }
+export interface ModuleDeps { registry: ModuleRegistry; secrets: SecretBox; files?: FileDeps | undefined; mail?: MailEnv | undefined }
 
 export async function listModules(tx: Tx, d: ModuleDeps) {
   const rows = await tx.select().from(tenantModules);
@@ -45,7 +46,7 @@ export async function loadEnabledModule(tx: Tx, d: ModuleDeps, tenantId: string,
   const [r] = await tx.select().from(tenantModules).where(and(eq(tenantModules.moduleKey, key), eq(tenantModules.enabled, true)));
   if (!r) return null;
   const secrets = r.secrets ? JSON.parse(d.secrets.open(r.secrets, tenantId)) as Record<string, string> : {};
-  return { def, state: { settings: r.settings, secrets, files: d.files } };
+  return { def, state: { settings: r.settings, secrets, files: d.files, mail: d.mail } };
 }
 
 export async function enabledModuleKeys(tx: Tx): Promise<Set<string>> {

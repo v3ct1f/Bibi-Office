@@ -8,11 +8,15 @@ import { isFileResponse, type PublicRouteSpec, type RouteSpec } from "@office/sd
 import {
   actionCatalog, createModuleContext, disableModule, enableModule, listModules, loadEnabledModule,
   updateModuleSettings, webhookService, WebhookInput, workflowService, WorkflowInput, CORE_EVENTS,
-  storeFile, readFileById, inlineSafe, publicContext, type FileDeps, type ModuleRegistry, type SecretBox,
+  storeFile, readFileById, inlineSafe, publicContext, systemContext, normalizeInbound, resolveInboundRoute, recordInbound, htmlToText, secretMatches,
+  type FileDeps, type MailEnv, type ModuleRegistry, type SecretBox,
 } from "@office/platform";
 
 type InTenant = <T>(req: FastifyRequest, perm: string | null, fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T>;
-export interface PlatformOpts { db: Db; inTenant: InTenant; registry: ModuleRegistry; secrets: SecretBox; files: FileDeps; requireHttps: boolean; publicRatePerMin?: number }
+export interface PlatformOpts {
+  db: Db; inTenant: InTenant; registry: ModuleRegistry; secrets: SecretBox; files: FileDeps; requireHttps: boolean; publicRatePerMin?: number;
+  mail?: MailEnv | undefined; inboundMailSecret?: string | undefined;
+}
 
 const AUTH = { auth: "authenticated" } as const;
 const Id = z.object({ id: z.uuid() });
@@ -47,7 +51,7 @@ const bodyBytes = (b: unknown) => {
 export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (app0, o) => {
   const app = app0.withTypeProvider<ZodTypeProvider>();
   const { inTenant, registry } = o;
-  const md = { registry, secrets: o.secrets, files: o.files };
+  const md = { registry, secrets: o.secrets, files: o.files, mail: o.mail };
 
   // ───── Files: core documents with content ─────
   await app.register(async (scope0) => {
@@ -195,4 +199,29 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
     });
   };
   for (const m of registry.all()) for (const r of m.publicRoutes ?? []) publicRouteFor(m.manifest.key, r);
+
+  // ───── Inbound email webhook (from the mail provider). Secret via header or Basic auth password. ─────
+  app.post("/inbound/mail", { config: { auth: "inbound" }, bodyLimit: 5 * 1_048_576, schema: { hide: true } }, async (req, reply) => {
+    const basic = /^Basic\s+(.+)$/i.exec(req.headers.authorization ?? "")?.[1];
+    const given = (req.headers["x-inbound-secret"] as string | undefined) ?? (basic ? Buffer.from(basic, "base64").toString().split(":").slice(1).join(":") : undefined);
+    if (!o.mail?.inboundDomain || !o.inboundMailSecret) throw notFound("Route");
+    if (!secretMatches(given, o.inboundMailSecret)) return reply.status(401).send({ type: "about:blank", title: "Unauthorized", status: 401 });
+    let msg;
+    try { msg = normalizeInbound(req.body); } catch { throw badRequest("Unrecognized inbound mail payload"); }
+    const route = await resolveInboundRoute(o.db as unknown as Tx, o.mail, msg.to);
+    // 200 for unroutable mail so the provider does not retry forever.
+    if (!route) return { accepted: false, reason: "unknown_recipient" };
+    const result = await withTenant(o.db, route.tenantId, async (tx) => {
+      const loaded = await loadEnabledModule(tx, md, route.tenantId, route.module);
+      if (!loaded?.def.inboundMail) return { accepted: false, reason: "module_disabled" };
+      if (!(await recordInbound(tx, route.tenantId, route.module, msg))) return { accepted: true, duplicate: true };
+      const ctx = systemContext(route.tenantId, req.id, `mail:${route.module}`);
+      await loaded.def.inboundMail(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log), {
+        messageId: msg.messageId, inReplyTo: msg.inReplyTo, references: msg.references, from: msg.from, to: msg.to,
+        subject: msg.subject, text: msg.text || (msg.html ? htmlToText(msg.html) : ""),
+      });
+      return { accepted: true };
+    });
+    return result;
+  });
 };

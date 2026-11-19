@@ -16,7 +16,8 @@
     "@office/module-invoicing": "workspace:*",
     "@office/module-crm": "workspace:*",
     "@office/module-expenses": "workspace:*",
-    "@office/module-scheduling": "workspace:*"
+    "@office/module-scheduling": "workspace:*",
+    "@office/module-support": "workspace:*"
   },
   "devDependencies": {
     "@office/config": "workspace:*"
