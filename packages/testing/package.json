@@ -1,0 +1,10 @@
+{
+  "name": "@office/testing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc -p tsconfig.json" },
+  "dependencies": { "@office/db": "workspace:*", "postgres": "3.4.7" },
+  "devDependencies": { "@office/config": "workspace:*" }
+}

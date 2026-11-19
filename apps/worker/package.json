@@ -1,0 +1,24 @@
+{
+  "name": "@office/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsup",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@office/db": "workspace:*",
+    "nats": "2.29.3",
+    "postgres": "3.4.7",
+    "pino": "9.13.1"
+  },
+  "devDependencies": {
+    "@office/config": "workspace:*",
+    "tsup": "8.5.0",
+    "@office/testing": "workspace:*"
+  }
+}
