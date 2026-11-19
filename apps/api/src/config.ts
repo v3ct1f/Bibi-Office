@@ -7,6 +7,8 @@ const Env = z.object({
   DATABASE_URL_APP: z.string().url(),
   OIDC_ISSUER: z.string().url(),
   OIDC_AUDIENCE: z.string().min(1),
+  /** Optional internal URL for the signing keys (e.g. http://keycloak:8080/...); default: <issuer>/protocol/openid-connect/certs. */
+  OIDC_JWKS_URL: z.string().url().optional(),
   API_KEY_PEPPER: z.string().min(32, "API_KEY_PEPPER must be >= 32 chars"),
   SECRETS_KEY: z.string().refine((s) => Buffer.from(s, "base64").length === 32, "SECRETS_KEY must be 32 bytes base64"),
   CORS_ORIGINS: z.string().default("").transform((s) => s.split(",").map((x) => x.trim()).filter(Boolean)),

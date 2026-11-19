@@ -53,9 +53,12 @@ test("public: a signed-out customer books a time", async ({ page }) => {
 
 test("team: the booking shows up; book for a contact", async ({ page }) => {
   await signIn(page);
+  // The week grid renders before its bookings arrive: wait for the data before deciding which week to look at.
+  const bookingsLoaded = () => page.waitForResponse((r) => r.url().includes("/m/scheduling/bookings?") && r.request().method() === "GET");
+  let loaded = bookingsLoaded();
   await page.goto("/m/scheduling/calendar");
   const hedy = page.getByRole("button", { name: /Hedy Lamarr/ });
-  await expect(page.getByRole("region").first()).toBeVisible();   // agenda loaded
+  await loaded;
   if (!(await hedy.isVisible())) await page.getByRole("button", { name: "Next week" }).click();
   await hedy.click();
   const dlg = page.getByRole("dialog", { name: "Hedy Lamarr" });
@@ -67,12 +70,17 @@ test("team: the booking shows up; book for a contact", async ({ page }) => {
   await nb.getByLabel("Service").selectOption({ label: "Cake tasting (30 min)" });
   await nb.getByRole("button", { name: /^\d{2}:\d{2}/ }).nth(2).click();
   await nb.getByLabel("Contact").selectOption({ label: "Ada" });
+  loaded = bookingsLoaded();
   await nb.getByRole("button", { name: "Book" }).click();
   await expect(nb).toBeHidden();
-  await page.getByRole("button", { name: "This week" }).click();
+  await loaded;   // refetch after the booking
   const ada = page.getByRole("button", { name: /Ada/ });
-  await expect(page.getByRole("region").first()).toBeVisible();
-  if (!(await ada.isVisible())) await page.getByRole("button", { name: "Next week" }).click();
+  for (const week of ["This week", "Next week"]) {   // the slot is this week or next, depending on today
+    if (await ada.isVisible()) break;
+    loaded = bookingsLoaded();
+    await page.getByRole("button", { name: week }).click();
+    await Promise.race([loaded, page.waitForTimeout(3000)]);   // "This week" may already be showing (no fetch)
+  }
   await expect(ada).toBeVisible();
 });
 

@@ -43,6 +43,13 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: bash scripts/smoke.sh
+  trial:
+    # The beginner test install (infra/trial): setup on localhost, HTTPS sign-in, API, backup.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/trial-check.sh
   scan:
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,95 @@
+# Office test install: one server, one domain, HTTPS. Managed by ./office.sh (reads .env next to this file).
+# Public: only Caddy (80/443). Everything else stays on the internal network.
+name: office-trial
+x-app-env: &app-env
+  NODE_ENV: production
+  DATABASE_URL_APP: postgres://office_app:${APP_DB_PASSWORD}@postgres:5432/office
+  SECRETS_KEY: ${SECRETS_KEY}
+  FILES_DIR: /data/files
+  APP_URL: https://${DOMAIN}
+  MAIL_DRIVER: ${MAIL_DRIVER:-log}
+  MAIL_FROM: ${MAIL_FROM:-Office <no-reply@example.com>}
+  SMTP_URL: ${SMTP_URL:-}
+
+services:
+  caddy:
+    build: { context: ../.., dockerfile: infra/trial/web.Dockerfile, args: { DOMAIN: "${DOMAIN}" } }
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment: { DOMAIN: "${DOMAIN}", ACME_EMAIL: "${ACME_EMAIL}" }
+    volumes: [caddy_data:/data, caddy_config:/config]
+    depends_on: [api, keycloak]
+
+  postgres:
+    image: postgres:16.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: office_owner
+      POSTGRES_PASSWORD: ${OWNER_DB_PASSWORD}
+      POSTGRES_DB: office
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+      RELAY_DB_PASSWORD: ${RELAY_DB_PASSWORD}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    volumes: [pgdata:/var/lib/postgresql/data, ./postgres-init.sh:/docker-entrypoint-initdb.d/01-init.sh:ro]
+    healthcheck: { test: ["CMD", "pg_isready", "-U", "office_owner", "-d", "office"], interval: 5s, retries: 30 }
+
+  nats:
+    image: nats:2.10-alpine
+    restart: unless-stopped
+    command: ["-js", "-sd", "/data"]
+    volumes: [natsdata:/data]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: ["start", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_HOSTNAME: https://${DOMAIN}/id
+      KC_HTTP_RELATIVE_PATH: /id
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    volumes: [../keycloak:/opt/keycloak/data/import:ro]
+    depends_on: { postgres: { condition: service_healthy } }
+
+  # One-shot: database migrations, module install, file-volume ownership. Runs on every start/update.
+  migrate:
+    build: { context: ../.., dockerfile: Dockerfile, target: build }
+    environment: { DATABASE_URL: "postgres://office_owner:${OWNER_DB_PASSWORD}@postgres:5432/office" }
+    command: ["sh", "-c", "chown 65532:65532 /data/files && pnpm -s db:migrate && pnpm -s modules:install"]
+    volumes: [files:/data/files]
+    depends_on: { postgres: { condition: service_healthy } }
+
+  api:
+    build: { context: ../.., args: { APP: api } }
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      PORT: "3000"
+      OIDC_ISSUER: https://${DOMAIN}/id/realms/office
+      OIDC_JWKS_URL: http://keycloak:8080/id/realms/office/protocol/openid-connect/certs
+      OIDC_AUDIENCE: office-api
+      API_KEY_PEPPER: ${API_KEY_PEPPER}
+      CORS_ORIGINS: https://${DOMAIN}
+      TRUST_PROXY: "true"
+      INBOUND_MAIL_SECRET: ${INBOUND_MAIL_SECRET:-}
+    volumes: [files:/data/files]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+
+  worker:
+    build: { context: ../.., args: { APP: worker } }
+    restart: unless-stopped
+    command: ["dist/main.js"]
+    environment:
+      <<: *app-env
+      DATABASE_URL_RELAY: postgres://office_relay:${RELAY_DB_PASSWORD}@postgres:5432/office
+      NATS_URL: nats://nats:4222
+    volumes: [files:/data/files]
+    depends_on: { migrate: { condition: service_completed_successfully }, nats: { condition: service_started } }
+
+volumes: { pgdata: {}, natsdata: {}, files: {}, caddy_data: {}, caddy_config: {} }

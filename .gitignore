@@ -10,3 +10,5 @@ dist-e2e
 test-results
 playwright-report
 .data
+infra/trial/backups/
+infra/trial/.env.before-restore
