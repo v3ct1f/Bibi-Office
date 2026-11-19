@@ -72,7 +72,7 @@ log "Modules"
 for m in invoicing crm kpi; do api POST /modules/$m/enable >/dev/null; done
 check "$(api GET /modules | jq '[.[] | select(.enabled)] | length')" . 3 "3 modules enabled"
 check "$(api GET /m/kpi/dashboards | jq '.data[0].name')" . Overview "kpi dashboard seeded (module DB role)"
-check "$(api GET '/metrics/values?keys=invoicing.revenue,crm.pipeline&from=2026-01-01&to=2026-01-31' | jq '[.results[] | select(.ok)] | length')" . 2 "metrics computed"
+check "$(api GET '/metrics/values?keys=invoicing.revenue,crm.pipeline&from=2026-01-01&to=2026-01-31' | jq '[.data[] | select(.ok)] | length')" . 2 "metrics computed"
 
 log "Workflow on Temporal"
 WF=$(api POST /workflows -d '{"name":"Smoke","trigger":{"event":"core.contact.created"},"actions":[{"key":"core.create_task","input":{"title":"Call back"}}]}' | jq -r .id)
