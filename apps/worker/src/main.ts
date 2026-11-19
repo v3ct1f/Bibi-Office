@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { AckPolicy, connect, DeliverPolicy, RetentionPolicy, StorageType, type JsMsg } from "nats";
 import pino from "pino";
@@ -35,7 +37,10 @@ if (process.env.TEMPORAL_ADDRESS) {
   temporalWorker = await Worker.create({
     connection: await NativeConnection.connect({ address: process.env.TEMPORAL_ADDRESS }),
     taskQueue: TASK_QUEUE,
-    workflowsPath: import.meta.resolve("@office/platform/temporal-workflow").replace("file://", ""),
+    // Built image: dist/temporal-workflow.js (plain JS). Dev (tsx): the TS source.
+    workflowsPath: existsSync(fileURLToPath(new URL("./temporal-workflow.js", import.meta.url)))
+      ? fileURLToPath(new URL("./temporal-workflow.js", import.meta.url))
+      : fileURLToPath(import.meta.resolve("@office/platform/temporal-workflow")),
     activities: temporalActivities(exec),
   });
   log.info("temporal runner enabled");

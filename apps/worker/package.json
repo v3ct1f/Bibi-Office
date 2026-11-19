@@ -12,17 +12,18 @@
   },
   "dependencies": {
     "@office/db": "workspace:*",
-    "nats": "2.29.3",
-    "postgres": "3.4.7",
-    "pino": "9.13.1",
     "@office/modules": "workspace:*",
     "@office/platform": "workspace:*",
     "@office/sdk": "workspace:*",
-    "@temporalio/worker": "1.13.2"
+    "@temporalio/worker": "1.13.2",
+    "@temporalio/workflow": "1.13.2",
+    "nats": "2.29.3",
+    "pino": "9.13.1",
+    "postgres": "3.4.7"
   },
   "devDependencies": {
     "@office/config": "workspace:*",
-    "tsup": "8.5.0",
-    "@office/testing": "workspace:*"
+    "@office/testing": "workspace:*",
+    "tsup": "8.5.0"
   }
 }
