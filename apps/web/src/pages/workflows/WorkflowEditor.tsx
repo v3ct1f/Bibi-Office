@@ -280,7 +280,7 @@ export function WorkflowEditor() {
 
   const builder = (
     <form onSubmit={(e) => { e.preventDefault(); if (valid) save.mutate(wf); }}>
-      {isBlank && manage && <RecipePicker recipes={recipesFor(cat.events)} onPick={(r) => setWf(r.build())} />}
+      {isBlank && manage && <RecipePicker recipes={recipesFor(cat.events, cat.actions.map((a) => a.key))} onPick={(r) => setWf(r.build())} />}
       {summary && (
         <p data-testid="workflow-summary" className="mb-5 rounded-md border-l-4 border-primary bg-muted/40 px-4 py-3 text-sm">{summary}</p>
       )}

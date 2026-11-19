@@ -7,7 +7,8 @@ import { defineConfig, devices } from "@playwright/test";
  */
 const PG = process.env.E2E_DATABASE_URL ?? "postgres://office_owner:office_owner@localhost:55432/postgres";
 const appDb = (() => { const u = new URL(PG); u.username = "office_app"; u.password = "office_app"; u.pathname = "/office_e2e"; return u.toString(); })();
-const WEB = 5183, API = 3103, OIDC = 8093;
+const WEB = 5183, API = 3103, OIDC = 8093, WORKER = 3193;
+const relayDb = (() => { const u = new URL(appDb); u.username = "office_relay"; u.password = "office_relay"; return u.toString(); })();
 const issuer = `http://localhost:${OIDC}/realms/office`;
 
 export default defineConfig({
@@ -36,6 +37,14 @@ export default defineConfig({
       },
       reuseExistingServer: false,
       timeout: 60_000,
+    },
+    {
+      // Local worker (no NATS): dispatches events so module handlers and workflows run during E2E.
+      // Its loops retry until prepare-db (run by the API entry above) has created the database.
+      command: `pnpm --filter @office/worker exec tsx scripts/dev-local.ts --health-port ${WORKER}`,
+      url: `http://127.0.0.1:${WORKER}/`,
+      env: { NODE_ENV: "development", DATABASE_URL_APP: appDb, DATABASE_URL_RELAY: relayDb, SECRETS_KEY: Buffer.alloc(32, 9).toString("base64"), LOG_LEVEL: "warn" },
+      reuseExistingServer: false,
     },
     {
       command: `vite --port ${WEB} --strictPort`,

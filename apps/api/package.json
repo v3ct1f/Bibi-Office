@@ -34,6 +34,7 @@
     "tsup": "8.5.0",
     "@office/testing": "workspace:*",
     "postgres": "3.4.7",
+    "@office/module-crm": "workspace:*",
     "@office/module-invoicing": "workspace:*"
   }
 }

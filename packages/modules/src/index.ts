@@ -1,8 +1,9 @@
 // Build-time list of built-in modules, shared by api, worker and the installer.
-// Each module session adds: import invoicing from "@office/module-invoicing"; ... MODULES = [invoicing]
+// Each module session adds its import here: MODULES = [invoicing, crm, ...]
 import type { ModuleDefinition } from "@office/sdk";
 import { ModuleRegistry } from "@office/platform";
+import crm from "@office/module-crm";
 import invoicing from "@office/module-invoicing";
 
-export const MODULES: ModuleDefinition[] = [invoicing];
+export const MODULES: ModuleDefinition[] = [invoicing, crm];
 export const createRegistry = () => new ModuleRegistry(MODULES);

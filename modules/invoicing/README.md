@@ -72,7 +72,7 @@ plus `daysOverdue` (overdue), `reminderCount` (reminded), `reason` (voided), `pa
 
 ## Subscriptions
 
-- `crm.deal.won` (from the CRM module, Session 6): drafts one invoice per deal. Expected payload v1:
+- `crm.deal.won` (from the CRM module, `modules/crm`): drafts one invoice per deal. Expected payload v1:
   `{ id, title?, valueCents, currency?, companyId?, contactId? }`. Idempotent per deal id.
 
 ## Jobs

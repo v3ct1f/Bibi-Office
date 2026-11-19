@@ -13,6 +13,7 @@
   "dependencies": {
     "@office/platform": "workspace:*",
     "@office/sdk": "workspace:*",
+    "@office/module-crm": "workspace:*",
     "@office/module-invoicing": "workspace:*"
   },
   "devDependencies": {

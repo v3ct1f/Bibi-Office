@@ -22,7 +22,17 @@ const EVENT_LABELS: Record<string, string> = {
   "invoicing.invoice.voided": "An invoice is voided",
   "invoicing.invoice.reminded": "A payment reminder is logged",
   "invoicing.payment.recorded": "A payment is recorded",
+  "crm.deal.created": "A deal is added",
+  "crm.deal.updated": "A deal is changed",
+  "crm.deal.stage_changed": "A deal moves to another stage",
+  "crm.deal.won": "A deal is won",
+  "crm.deal.lost": "A deal is lost",
+  "crm.deal.reopened": "A closed deal is reopened",
+  "crm.deal.deleted": "A deal is deleted",
+  "crm.activity.logged": "A note or call is logged on a deal",
 };
+
+const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing" };
 
 const ENTITY_WORDS: Record<string, [string, string]> = {
   contact: ["A contact", "Contacts"], company: ["A company", "Companies"], document: ["A document", "Documents"], task: ["A task", "Tasks"],
@@ -42,7 +52,7 @@ export function eventLabel(event: string): string {
 export function eventGroup(event: string): string {
   const [mod, entity] = event.split(".");
   if (mod === "core") return entity && ENTITY_WORDS[entity] ? ENTITY_WORDS[entity][1] : "Workspace";
-  return cap(mod ?? event);
+  return GROUP_NAMES[mod ?? ""] ?? cap(mod ?? event);
 }
 
 const ENTITY_FIELDS: Record<string, EventField[]> = {
@@ -71,6 +81,16 @@ const INVOICE_EXTRA: Record<string, EventField[]> = {
   "invoicing.payment.recorded": [{ path: "amountCents", label: "Payment amount (in cents)" }],
 };
 
+const DEAL_FIELDS: EventField[] = [
+  { path: "title", label: "Deal name" }, { path: "valueCents", label: "Value (in cents)" }, { path: "currency", label: "Currency" },
+  { path: "stage", label: "Stage" }, { path: "status", label: "Status (open, won, lost)" }, { path: "expectedClose", label: "Expected close date" },
+  { path: "companyId", label: "Company ID" }, { path: "contactId", label: "Contact ID" }, { path: "ownerId", label: "Owner ID" },
+];
+const DEAL_EXTRA: Record<string, EventField[]> = {
+  "crm.deal.stage_changed": [{ path: "fromStage", label: "Previous stage" }],
+  "crm.deal.lost": [{ path: "lostReason", label: "Lost reason" }],
+};
+
 const OTHER_FIELDS: Record<string, EventField[]> = {
   "core.tenant.created": [{ path: "slug", label: "Workspace slug" }],
   "core.member.added": [{ path: "userId", label: "User ID" }, { path: "roles", label: "Roles" }],
@@ -78,6 +98,11 @@ const OTHER_FIELDS: Record<string, EventField[]> = {
   "core.module.enabled": [{ path: "key", label: "Module key" }, { path: "version", label: "Module version" }],
   "core.module.disabled": [{ path: "key", label: "Module key" }],
   "core.notification.requested": [{ path: "userId", label: "User ID" }, { path: "message", label: "Message" }],
+  "crm.deal.deleted": [{ path: "title", label: "Deal name" }, { path: "id", label: "Deal ID" }],
+  "crm.activity.logged": [
+    { path: "title", label: "Deal name" }, { path: "kind", label: "Type (note, call, meeting, email)" }, { path: "body", label: "Text" },
+    { path: "dealId", label: "Deal ID" }, { path: "companyId", label: "Company ID" }, { path: "contactId", label: "Contact ID" },
+  ],
 };
 
 const withPrefix = (fs: EventField[], prefix = "payload.", labelPrefix = "") =>
@@ -93,6 +118,7 @@ export function eventFields(event: string): EventField[] {
     if (verb === "deleted") return [idField];
   }
   if (event.startsWith("invoicing.")) return [...withPrefix(INVOICE_FIELDS), ...withPrefix(INVOICE_EXTRA[event] ?? []), { path: "payload.id", label: "Invoice ID" }];
+  if (event.startsWith("crm.deal.") && !OTHER_FIELDS[event]) return [...withPrefix(DEAL_FIELDS), ...withPrefix(DEAL_EXTRA[event] ?? []), { path: "payload.id", label: "Deal ID" }];
   return withPrefix(OTHER_FIELDS[event] ?? []);
 }
 
@@ -132,6 +158,25 @@ export const RECIPES: Recipe[] = [
     }),
   },
   {
+    id: "deal-won-kickoff", title: "Kick off won deals", event: "crm.deal.won",
+    description: "When a deal is won, create a kickoff task and send a notification.",
+    build: () => ({
+      name: "Kick off won deals", enabled: true, trigger: { event: "crm.deal.won" }, conditions: null,
+      actions: [
+        { key: "core.create_task", input: { title: "Kick off: {{payload.title}}", dueInDays: 2 } },
+        { key: "core.notify", input: { message: "Deal won: {{payload.title}}" } },
+      ],
+    }),
+  },
+  {
+    id: "deal-for-company", title: "Open a deal for new companies", event: "core.company.created",
+    description: "When a company is added, create a deal in the first stage of your pipeline.",
+    build: () => ({
+      name: "Open a deal for new companies", enabled: true, trigger: { event: "core.company.created" }, conditions: null,
+      actions: [{ key: "crm.create_deal", input: { title: "New business: {{payload.name}}", companyId: "{{payload.id}}" } }],
+    }),
+  },
+  {
     id: "onboard-member", title: "Onboard new team members", event: "core.member.added",
     description: "When someone joins the workspace, create an onboarding task.",
     build: () => ({
@@ -142,4 +187,5 @@ export const RECIPES: Recipe[] = [
 ];
 
 /** Recipes whose trigger exists in this workspace (e.g. invoicing ones only when Invoicing is installed). */
-export const recipesFor = (events: string[]) => RECIPES.filter((r) => events.includes(r.event));
+export const recipesFor = (events: string[], actions?: string[]) =>
+  RECIPES.filter((r) => events.includes(r.event) && (!actions || r.build().actions.every((a) => actions.includes(a.key))));

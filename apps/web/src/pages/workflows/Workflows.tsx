@@ -14,7 +14,7 @@ export function WorkflowsPage() {
   const navigate = useNavigate();
   const list = useTQuery<Workflow[]>(["workflows"], "/workflows");
   const catalog = useTQuery<Catalog>(["workflow-catalog"], "/workflow-catalog");
-  const recipes = recipesFor(catalog.data?.events ?? []);
+  const recipes = recipesFor(catalog.data?.events ?? [], catalog.data?.actions.map((a) => a.key));
   const manage = can("core:workflows.manage");
   const toggle = useTMutation((w: Workflow) => api.put(`/workflows/${w.id}`, { ...toInput(w), enabled: !w.enabled }), {
     invalidate: [["workflows"]], success: (_r, w) => (w.enabled ? "Workflow paused" : "Workflow enabled"),

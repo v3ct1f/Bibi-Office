@@ -27,8 +27,8 @@
 | 3 | Workflow engine + module loader (+ webhooks, `@office/sdk`) | ✅ done (37 tests green) |
 | 4 | Admin UI + design system | ✅ done (55 unit/integration + 9 E2E green) |
 | 5 | Module: Invoicing | ✅ done (75 unit/integration + 16 E2E green) |
-| 6 | Module: CRM | ⏳ next |
-| 7 | Module: Expenses | ☐ |
+| 6 | Module: CRM | ✅ done (84 unit/integration + 23 E2E green) |
+| 7 | Module: Expenses | ⏳ next |
 | 8 | Module: Scheduling | ☐ |
 | 9 | Module: Support inbox | ☐ |
 | 10 | Module: HR | ☐ |
@@ -54,7 +54,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 5)
+## Handoff (Session 6)
+1. Done: `modules/crm` (pipelines + ordered stages with open/won/lost kind and probability, deals, activity timeline, next steps, board/list/detail/editor pages, pipeline settings, company/contact Deals tab, dashboard widget, 3 workflow actions, 8 events; `crm.deal.won` feeds Invoicing). Local NATS-free worker (`pnpm dev:local-worker`, also started by E2E) so workflows and module handlers run locally. Workflow vocabulary + recipes for deals.
+2. Verify: Postgres on :55432; `TEST_DATABASE_URL=... pnpm test` (52 api incl. 7 crm, 2 worker, 8 ui, 14 web, 8 invoicing); `pnpm typecheck`; `pnpm e2e` (23 flows incl. 7 CRM). Local stack: `pnpm dev:oidc`, `pnpm dev:local`, `pnpm dev:local-worker`, `pnpm dev:web`.
+3. Next (Session 7): `modules/expenses` (receipts, categories, approval, reimbursement; may emit events Invoicing/KPI can use).
+4. Open: deal owners in the UI, email/next-step reminders (core `send_email`), invoice email delivery, uploads for receipts/PDFs.
+5. Open: same as Session 4 (Windows Postgres script, Docker smoke test, email invites, per-module DB roles).
+
+## Handoff (Session 5, archived)
 1. Done: `modules/invoicing` (business details + logo settings page, customer billing details, reference/service date, seller snapshot at finalize, guided editor/detail pages, drafts, gapless numbering, payments, void, reminders, overdue job, events, 2 workflow actions, `crm.deal.won` handler, UI pages/tab/widget/print view); SDK scheduled `jobs` + `module_job_state` + worker loop; `ModuleError`; core prefix search; E2E DB installs modules; workflow builder in plain language (trigger names, field picker, value chips, summary, recipes); `pnpm dev:local` one-command local API.
 2. Verify: Postgres on :55432; `TEST_DATABASE_URL=... pnpm test` (36+9 api incl. invoicing, 2 worker, 8 ui, 12 web, 8 invoicing money); `pnpm typecheck`; `pnpm e2e` (16 flows).
 3. Next (Session 6): `modules/crm` (pipelines, deals, stages, activities). Must emit `crm.deal.won` with payload `{ id, title, valueCents, currency, companyId?, contactId? }` so Invoicing drafts invoices (contract in modules/invoicing/README.md).

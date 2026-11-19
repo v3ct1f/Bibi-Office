@@ -19,6 +19,7 @@
     "oidc-client-ts": "3.5.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "@office/module-crm": "workspace:*",
     "@office/module-invoicing": "workspace:*"
   },
   "devDependencies": {
