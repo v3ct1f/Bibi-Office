@@ -5,7 +5,7 @@ dist
 *.log
 .pgdata
 coverage
-e2e/.state.json
+**/e2e/.state.json
 dist-e2e
 test-results
 playwright-report
