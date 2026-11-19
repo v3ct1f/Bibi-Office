@@ -426,3 +426,10 @@ office/
 - Env: `MAIL_FROM`, `MAIL_DRIVER`, `SMTP_URL`, `INBOUND_MAIL_DOMAIN`, `INBOUND_MAIL_SECRET`, `APP_URL`.
 - Support: see `modules/support/README.md`. E2E order: … → `timetable` → `triage`.
 
+## 18. HR / People (Session 10, as built)
+
+- `modules/hr` (manifest name "People"): see `modules/hr/README.md`.
+- Privacy tiers enforced in the service, not the UI: directory fields (all with `hr:directory.read`); private fields + documents (HR with `hr:employees.manage`, or the linked person); leave details and balance (HR, approvers, the person, their direct manager). Others see absences on the calendar as "Away" without the type.
+- DB guards: management-loop trigger, one live leave request per person per day (`daterange` exclusion), decided requests immutable except cancel, requests may not cross a year boundary.
+- E2E order: … → `triage` → `workforce`.
+
