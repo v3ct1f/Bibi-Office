@@ -19,7 +19,9 @@
     "lucide-react": "0.545.0",
     "oidc-client-ts": "3.3.0",
     "react": "19.1.10",
-    "react-dom": "19.1.10"
+    "react-dom": "19.1.10",
+    "@office/module-invoicing": "workspace:*",
+    "@office/sdk": "workspace:*"
   },
   "devDependencies": {
     "@office/config": "workspace:*",
@@ -35,6 +37,8 @@
     "jsdom": "26.1.0",
     "tailwindcss": "4.1.14",
     "vite": "6.4.1",
-    "@office/testing": "workspace:*"
+    "@office/testing": "workspace:*",
+    "@office/platform": "workspace:*",
+    "@office/modules": "workspace:*"
   }
 }

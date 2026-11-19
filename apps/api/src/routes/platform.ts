@@ -3,6 +3,7 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { notFound, requirePermission, type RequestContext } from "@office/core";
 import type { Tx } from "@office/db";
+import { isFileResponse } from "@office/sdk";
 import {
   actionCatalog, createModuleContext, disableModule, enableModule, listModules, loadEnabledModule,
   updateModuleSettings, webhookService, WebhookInput, workflowService, WorkflowInput, CORE_EVENTS,
@@ -102,6 +103,13 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
               body: req.body, query: req.query, params: req.params,
             });
           });
+          if (isFileResponse(out)) {
+            const name = out.filename.replace(/[^\w.-]+/g, "_").slice(0, 120) || "file";
+            return reply.status(200).type(out.contentType)
+              .header("content-disposition", `${out.inline ? "inline" : "attachment"}; filename="${name}"`)
+              .header("cache-control", "private, no-store")
+              .send(Buffer.from(out.body));
+          }
           return reply.status(r.status ?? (out === undefined ? 204 : 200)).send(out);
         },
       });

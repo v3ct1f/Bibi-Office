@@ -52,6 +52,29 @@ export interface RouteSpec<B extends z.ZodType = z.ZodType, Q extends z.ZodType 
   handler(ctx: ModuleContext, req: { body: z.infer<B>; query: z.infer<Q>; params: z.infer<P> }): Promise<unknown>;
 }
 
+/** A scheduled per-tenant job; the worker runs it about every `everySeconds` for tenants with the module enabled. */
+export interface JobSpec {
+  everySeconds: number;                // >= 60
+  /** Must be idempotent: a job may run again after a crash. Return a count for logs. */
+  run(ctx: ModuleContext): Promise<number | void>;
+}
+
+/** Return from a route handler to send a file (e.g. a PDF) instead of JSON. */
+export interface FileResponse { readonly __file: true; contentType: string; filename: string; body: Uint8Array; inline?: boolean }
+export const file = (f: Omit<FileResponse, "__file">): FileResponse => ({ __file: true, ...f });
+export const isFileResponse = (v: unknown): v is FileResponse => !!v && typeof v === "object" && (v as FileResponse).__file === true;
+
+/** Throw from module code to return an RFC 9457 problem with this status (4xx only). */
+export class ModuleError extends Error {
+  constructor(public status: 400 | 403 | 404 | 409 | 422, public code: string, message: string, public details?: unknown) { super(message); }
+}
+export const moduleErrors = {
+  badRequest: (m: string, d?: unknown) => new ModuleError(400, "bad_request", m, d),
+  notFound: (what = "Resource") => new ModuleError(404, "not_found", `${what} not found`),
+  conflict: (m: string) => new ModuleError(409, "conflict", m),
+  unprocessable: (m: string, d?: unknown) => new ModuleError(422, "unprocessable", m, d),
+};
+
 export interface ActionSpec<I extends z.ZodType = z.ZodType> {
   label: string;
   input: I;
@@ -66,6 +89,8 @@ export interface ModuleDefinition {
   handlers?: Record<string, (ctx: ModuleContext, event: EventEnvelope) => Promise<void>>;
   actions?: Record<string, ActionSpec>;
   lifecycle?: Partial<Record<"enable" | "disable", (ctx: ModuleContext) => Promise<void>>>;
+  /** Scheduled per-tenant jobs, keyed by name ([a-z0-9-]+). */
+  jobs?: Record<string, JobSpec>;
 }
 
 export interface DefineModuleInput extends Omit<ModuleDefinition, "manifest"> { manifest: ManifestInput }
@@ -85,6 +110,10 @@ export function defineModule(def: DefineModuleInput): ModuleDefinition {
     if (!perms.has(r.permission) && !manifest.permissions.requires.includes(r.permission)) {
       errors.push(`route ${r.method} ${r.path} uses undeclared permission ${r.permission}`);
     }
+  }
+  for (const [k, j] of Object.entries(def.jobs ?? {})) {
+    if (!/^[a-z][a-z0-9-]{0,40}$/.test(k)) errors.push(`job name ${k} invalid`);
+    if (!(j.everySeconds >= 60)) errors.push(`job ${k} everySeconds must be >= 60`);
   }
   if (errors.length) throw new Error(`Module ${manifest.key}: ${errors.join("; ")}`);
   return { ...def, manifest };

@@ -7,7 +7,8 @@ import { del, errorMessage, get, post } from "../lib/api.ts";
 import { useSession } from "../lib/session.tsx";
 import type { Contact, Page } from "../lib/types.ts";
 import { ConfirmButton, QueryView, fmtDate, fullName } from "../components/common.tsx";
-import { resolveSlots, SlotBoundary } from "../modules/slot.tsx";
+import { resolveSlots } from "../modules/slot.tsx";
+import { Hosted } from "../modules/host.tsx";
 
 export function ContactsPage() {
   const s = useSession();
@@ -114,7 +115,7 @@ export function ContactDetailPage() {
                   ))}
                 </div>
                 <div role="tabpanel" className="p-4">
-                  {tabs[tab] && (() => { const T = tabs[tab]!; return <SlotBoundary module={T.module}><T.Component tenantId={s.tenantId!} entity={{ type: "contact", id: c.id, data: c as never }} /></SlotBoundary>; })()}
+                  {tabs[tab] && (() => { const T = tabs[tab]!; return <Hosted key={T.module} module={T.module} Component={T.Component} entity={{ type: "contact", id: c.id, data: c as never }} />; })()}
                 </div>
               </>
             )}

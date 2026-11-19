@@ -51,3 +51,14 @@ describe("SchemaForm", () => {
     expect(cleanPatch(onChange.mock.lastCall![0])).toEqual({ days: 45, currency: "USD" });
   });
 });
+
+describe("module page routing", () => {
+  it("matches the longest page route and passes the rest as subPath", async () => {
+    const { matchPage } = await import("./pages/module-page.tsx");
+    const pages = { "/invoices": 1, "/invoices/settings": 2 };
+    expect(matchPage(pages, "/invoices")).toEqual({ route: "/invoices", subPath: "" });
+    expect(matchPage(pages, "/invoices/0190-a/edit")).toEqual({ route: "/invoices", subPath: "/0190-a/edit" });
+    expect(matchPage(pages, "/invoices/settings")).toEqual({ route: "/invoices/settings", subPath: "" });
+    expect(matchPage(pages, "/invoicesx")).toBeNull();
+  });
+});

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { hasZodFastifySchemaValidationErrors } from "fastify-type-provider-zod";
 import { AppError } from "@office/core";
+import { ModuleError } from "@office/sdk";
 
 const PG: Record<string, [number, string, string]> = {
   "23505": [409, "conflict", "Resource already exists"],
@@ -16,7 +17,7 @@ export function registerErrorHandler(app: FastifyInstance) {
     let status = 500, code = "internal", title = "Internal error", details: unknown;
     const anyErr = err as { code?: string; statusCode?: number; message?: string; cause?: { code?: string } };
     const pg = PG[anyErr.code ?? ""] ?? PG[anyErr.cause?.code ?? ""];
-    if (err instanceof AppError) {
+    if (err instanceof AppError || err instanceof ModuleError) {
       ({ status, code } = err); title = err.message; details = err.details;
     } else if (hasZodFastifySchemaValidationErrors(err)) {
       status = 400; code = "validation_failed"; title = "Validation failed";

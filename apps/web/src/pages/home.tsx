@@ -5,7 +5,8 @@ import { Alert, Button, Card, CardContent, Field, Input, PageHeader, Spinner } f
 import { auth } from "../lib/auth.ts";
 import { errorMessage, post, tenantStore } from "../lib/api.ts";
 import { useSession } from "../lib/session.tsx";
-import { resolveSlots, SlotBoundary } from "../modules/slot.tsx";
+import { resolveSlots } from "../modules/slot.tsx";
+import { Hosted } from "../modules/host.tsx";
 import { Link } from "@tanstack/react-router";
 
 export function HomePage() {
@@ -17,7 +18,7 @@ export function HomePage() {
       <PageHeader title={s.tenant?.name ?? "Office"} description="Your workspace at a glance." />
       {widgets.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {widgets.map((w, i) => <SlotBoundary key={i} module={w.module}><w.Component tenantId={s.tenantId!} /></SlotBoundary>)}
+          {widgets.map((w, i) => <Hosted key={i} module={w.module} Component={w.Component} />)}
         </div>
       ) : (
         <Card><CardContent className="grid gap-2 text-sm">

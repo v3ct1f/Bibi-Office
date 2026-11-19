@@ -11,6 +11,7 @@ test("capture", async ({ page }) => {
   for (const [path, name, theme] of [
     ["/contacts", "contacts-light", "light"], ["/admin/workflows", "workflows-list-light", "light"],
     ["/admin/audit", "audit-dark", "dark"], ["/admin/roles", "roles-dark", "dark"],
+    ["/m/invoicing/invoices", "invoices-light", "light"], ["/", "dashboard-dark", "dark"],
   ] as const) {
     await page.addInitScript((t) => localStorage.setItem("office.theme", t), theme);
     await page.goto(path);
@@ -21,4 +22,12 @@ test("capture", async ({ page }) => {
   await page.getByRole("link", { name: "Follow up new contacts" }).click();
   await page.waitForLoadState("networkidle");
   await page.screenshot({ path: `${dir}/workflow-editor-dark.png`, fullPage: true });
+  await page.addInitScript(() => localStorage.setItem("office.theme", "light"));
+  await page.goto("/m/invoicing/invoices");
+  await page.getByRole("link", { name: /^INV-/ }).click();
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: `${dir}/invoice-detail-light.png`, fullPage: true });
+  await page.goto("/m/invoicing/invoices/new");
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: `${dir}/invoice-new-light.png`, fullPage: true });
 });

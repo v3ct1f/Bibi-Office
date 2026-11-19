@@ -4,6 +4,8 @@ import { writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { createTestDatabase } from "@office/testing";
+import { installModules } from "@office/platform";
+import { createRegistry } from "@office/modules";
 
 const JWKS_PORT = 3998, API_PORT = 3999, WEB_PORT = 4173;
 const ISSUER = `http://127.0.0.1:${JWKS_PORT}/realms/e2e`;
@@ -20,6 +22,7 @@ async function waitFor(url: string, ms = 30_000) {
 
 export default async function globalSetup() {
   const db = await createTestDatabase();
+  await installModules(db.ownerUrl, createRegistry(), () => {});
   const { publicKey, privateKey } = await generateKeyPair("RS256");
   const jwk = { ...(await exportJWK(publicKey)), kid: "e2e", alg: "RS256", use: "sig" };
   const jwks: Server = createServer((_q, r) => { r.setHeader("content-type", "application/json"); r.end(JSON.stringify({ keys: [jwk] })); });

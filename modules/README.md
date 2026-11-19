@@ -7,4 +7,9 @@ Checklist for a new module:
 2. Tables `<key_with_underscores>_*`, each with `tenant_id`, `ENABLE`+`FORCE ROW LEVEL SECURITY`, policy `tenant_id = app_tenant_id()`, composite FKs `(tenant_id, id)`, grants to `office_app`. Installer refuses otherwise.
 3. Use only `ctx` (no imports from other modules or `@office/core`).
 4. Register in `packages/modules/src/index.ts`, run `pnpm modules:install`.
-5. Reference implementation: `apps/api/test/fixtures/sample/`.
+5. UI: export `{ pages, components }` from `ui/index.tsx` (props: `SlotProps` from `@office/sdk/ui`), register in `apps/web/src/modules/registry.ts`.
+6. Reference implementations: `modules/invoicing/` (full), `apps/api/test/fixtures/sample/` (minimal).
+
+| Module | Status |
+|---|---|
+| `invoicing` | v1.0.0 (Session 5) |
