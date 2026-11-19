@@ -31,8 +31,8 @@
 | 7 | Module: Expenses (+ core file uploads) | ✅ done (18 expenses + 12 crm + 23 invoicing + 45 api + 2 worker + 5 web unit + 16 E2E) |
 | 8 | Module: Scheduling (+ public module pages) | ✅ done (15 scheduling + 18 expenses + 12 crm + 23 invoicing + 45 api + 2 worker + 5 web unit + 20 E2E) |
 | 9 | Module: Support inbox (+ core email) | ✅ done (20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 24 E2E) |
-| 10 | Module: HR | ⏳ next |
-| 11 | Module: Inventory | ☐ |
+| 10 | Module: HR ("People") | ✅ done (20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 28 E2E) |
+| 11 | Module: Inventory | ⏳ next |
 | 12 | Module: Docs & e-sign | ☐ |
 | 13 | Module: AI email/meeting summaries | ☐ |
 | 14 | Module: KPI dashboard | ☐ |
@@ -56,7 +56,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 9)
+## Handoff (Session 10)
+1. Done: `modules/hr` (shown as "People"): employee records linked to member accounts, managers (DB-checked, no loops), private fields visible only to HR and the person, self-service contact details, employee documents via `ctx.files` (HR uploads; HR and the person read; views audited), leave types (seeded), company holidays, leave requests counted in working days (settings `workDays`, holidays excluded, half days), yearly allowance prorated for joiners/leavers, overlap guard (exclusion constraint), manager or approver decides (never own), emails to manager and employee, team "who's away" calendar hiding the reason from others, dashboard widget, workflow action `hr.decide_leave`.
+2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
+3. Next (Session 11): `modules/inventory` (items/SKUs, locations, stock movements as a ledger, low-stock alerts; later link to invoicing lines).
+4. Open: carry-over of unused days; per-person work patterns (part-time days); accrual policies; onboarding checklists (core tasks); org chart view; reminder emails; per-country holiday presets.
+5. Open (carried): mail attachments, bounce handling/DKIM, business-hours SLAs, CAPTCHA, per-host time zones, calendar sync, blob sweep, antivirus hook, code splitting (bundle ~580 KB).
+
+## Handoff (Session 9, archived)
 1. Done: core email (`ctx.mail.send` queues in the request tx, worker sends via SMTP with 5 retries; `inboundMail` handler + `POST /api/v1/inbound/mail` with shared secret, routed by per-module address, deduped by Message-ID); Scheduling now emails customers on book/move/cancel; `modules/support` (numbered tickets from email, contact form, or team; threading by Message-ID then `[#n]` + sender; replies emailed in-thread; internal notes; assign/status/priority; first-reply SLA job; contact linking) + inbox UI, ticket view, public contact form, widget, contact tab.
 2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
 3. Next (Session 10): `modules/hr` (employee records linked to members, leave requests + approvals, documents via `ctx.files`).

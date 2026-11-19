@@ -138,4 +138,29 @@ test("capture", async ({ page }) => {
   await form.getByLabel("Message").fill("Can I pick up my order at 7 am?");
   await form.screenshot({ path: `${dir}/support-contact-mobile.png`, fullPage: true });
   await form.close();
+
+  // People (alice): directory, profile, approvals; bob's time off
+  await page.goto("/m/hr/people");
+  await page.getByRole("tab", { name: "Directory" }).click();
+  await page.getByRole("list", { name: "People" }).waitFor();
+  await page.screenshot({ path: `${dir}/people-directory-light.png` });
+  await page.getByRole("link", { name: /Bob Baker/ }).click();
+  await page.getByRole("list", { name: "Documents" }).waitFor();
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: `${dir}/people-profile-light.png`, fullPage: true });
+  await page.goto("/m/hr/people");
+  await page.getByRole("tab", { name: "Who's away" }).click();
+  await page.getByRole("button", { name: "Next month" }).click();
+  await page.getByRole("list", { name: "Away" }).waitFor();
+  await page.screenshot({ path: `${dir}/people-away-light.png` });
+  await page.getByRole("tab", { name: "Setup" }).click();
+  await page.getByRole("list", { name: "Leave types" }).waitFor();
+  await page.screenshot({ path: `${dir}/people-setup-light.png` });
+  const bob = await page.context().browser()!.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  await signIn(bob, "bob");
+  await bob.goto("/m/hr/people");
+  await bob.getByRole("tab", { name: "My time off" }).click();
+  await bob.getByRole("list", { name: "Time off requests" }).waitFor();
+  await bob.screenshot({ path: `${dir}/people-timeoff-mobile.png`, fullPage: true });
+  await bob.close();
 });
