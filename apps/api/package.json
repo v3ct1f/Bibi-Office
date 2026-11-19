@@ -35,6 +35,7 @@
     "@office/testing": "workspace:*",
     "postgres": "3.4.7",
     "@office/module-crm": "workspace:*",
+    "@office/module-expenses": "workspace:*",
     "@office/module-invoicing": "workspace:*"
   }
 }

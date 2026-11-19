@@ -16,6 +16,9 @@ export interface EntityRepo {
   remove(id: string): Promise<void>;
 }
 
+/** A member of the tenant (an employee), as modules see them. */
+export interface Person { userId: string; name: string; email: string; roles: string[] }
+
 export interface Logger {
   debug(o: object | string, msg?: string): void;
   info(o: object | string, msg?: string): void;
@@ -35,6 +38,8 @@ export interface ModuleContext {
   /** RLS-bound transaction. Use only your own `<module>_*` tables. */
   readonly db: Tx;
   readonly data: { contacts: EntityRepo; companies: EntityRepo; documents: EntityRepo; tasks: EntityRepo };
+  /** Active members of the tenant. Needs "core:members.read" in the manifest's `requires` (not in the caller's grants). */
+  readonly people: { list(): Promise<Person[]>; get(userId: string): Promise<Person | null> };
   readonly events: { emit(type: string, payload: Record<string, unknown>, version?: number): Promise<string> };
   readonly authz: { can(permission: string): boolean; require(permission: string): void };
   readonly audit: { log(action: string, entity?: { type: string; id: string }, diff?: unknown): Promise<void> };
@@ -49,6 +54,8 @@ export interface RouteSpec<B extends z.ZodType = z.ZodType, Q extends z.ZodType 
   permission: string;                // required; deny by default
   body?: B; query?: Q; params?: P;
   status?: number;
+  /** Max request body in bytes (default 1 MiB; at most 10 MiB), e.g. for file uploads. */
+  bodyLimit?: number;
   handler(ctx: ModuleContext, req: { body: z.infer<B>; query: z.infer<Q>; params: z.infer<P> }): Promise<unknown>;
 }
 
@@ -121,6 +128,7 @@ export class ModuleError extends Error {
 }
 export const moduleErrors = {
   badRequest: (m: string) => new ModuleError(400, "bad_request", m),
+  forbidden: (m: string) => new ModuleError(403, "forbidden", m),
   notFound: (what = "Resource") => new ModuleError(404, "not_found", `${what} not found`),
   conflict: (m: string) => new ModuleError(409, "conflict", m),
 };

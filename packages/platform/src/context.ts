@@ -1,8 +1,8 @@
 import {
-  audit, emitEvent, entityService, forbidden, hasPermission, badRequest, type EntityKey, type RequestContext,
+  audit, emitEvent, entityService, forbidden, hasPermission, badRequest, listMembers, type EntityKey, type RequestContext,
 } from "@office/core";
 import type { Tx } from "@office/db";
-import type { EntityRepo, Logger, ModuleContext, ModuleDefinition } from "@office/sdk";
+import type { EntityRepo, Logger, ModuleContext, ModuleDefinition, Person } from "@office/sdk";
 
 export interface ModuleState { settings: Record<string, unknown>; secrets: Record<string, string> }
 
@@ -38,6 +38,14 @@ export function createModuleContext(
     };
   };
 
+  let peopleCache: Promise<Person[]> | null = null;
+  const people = () => {
+    if (!requires.has("core:members.read")) throw forbidden(`Module ${m.key} did not declare core:members.read in permissions.requires`);
+    peopleCache ??= listMembers(tx, base).then((rows) => rows.filter((r) => r.status === "active")
+      .map((r) => ({ userId: r.userId, name: r.name || r.email, email: r.email, roles: r.roles })));
+    return peopleCache;
+  };
+
   return Object.freeze({
     module: m.key,
     tenantId: base.tenantId,
@@ -45,6 +53,10 @@ export function createModuleContext(
     requestId: base.requestId,
     db: tx,
     data: { contacts: repo("contacts"), companies: repo("companies"), documents: repo("documents"), tasks: repo("tasks") },
+    people: {
+      list: async () => [...await people()],
+      get: async (userId: string) => (await people()).find((p) => p.userId === userId) ?? null,
+    },
     events: {
       async emit(type: string, payload: Record<string, unknown>, version = 1) {
         if (!emits.has(type)) throw badRequest(`Module ${m.key} cannot emit undeclared event ${type}`);

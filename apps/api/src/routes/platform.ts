@@ -106,6 +106,7 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
         method: r.method,
         url: `/m/${key}${r.path === "/" ? "" : r.path}`,
         config: AUTH,
+        ...(r.bodyLimit ? { bodyLimit: Math.min(r.bodyLimit, 10 * 1024 * 1024) } : {}),
         schema: {
           tags: [`module:${key}`], headers: tenantHeader,
           ...(r.body ? { body: r.body } : {}), ...(r.query ? { querystring: r.query } : {}), ...(r.params ? { params: r.params } : {}),

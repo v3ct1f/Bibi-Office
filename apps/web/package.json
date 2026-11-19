@@ -20,7 +20,12 @@
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "@office/module-crm": "workspace:*",
-    "@office/module-invoicing": "workspace:*"
+    "@office/module-expenses": "workspace:*",
+    "@office/module-invoicing": "workspace:*",
+    "tesseract.js": "7.0.0",
+    "tesseract.js-core": "7.0.0",
+    "@tesseract.js-data/eng": "1.0.0",
+    "@tesseract.js-data/spa": "1.0.0"
   },
   "devDependencies": {
     "@office/config": "workspace:*",

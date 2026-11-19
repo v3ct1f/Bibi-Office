@@ -30,9 +30,14 @@ const EVENT_LABELS: Record<string, string> = {
   "crm.deal.reopened": "A closed deal is reopened",
   "crm.deal.deleted": "A deal is deleted",
   "crm.activity.logged": "A note or call is logged on a deal",
+  "expenses.expense.created": "An expense is added",
+  "expenses.expense.submitted": "An expense is submitted for approval",
+  "expenses.expense.approved": "An expense is approved",
+  "expenses.expense.rejected": "An expense is rejected",
+  "expenses.expense.paid": "An expense is marked paid",
 };
 
-const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing" };
+const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing", expenses: "Expenses" };
 
 const ENTITY_WORDS: Record<string, [string, string]> = {
   contact: ["A contact", "Contacts"], company: ["A company", "Companies"], document: ["A document", "Documents"], task: ["A task", "Tasks"],
@@ -91,6 +96,12 @@ const DEAL_EXTRA: Record<string, EventField[]> = {
   "crm.deal.lost": [{ path: "lostReason", label: "Lost reason" }],
 };
 
+const EXPENSE_FIELDS: EventField[] = [
+  { path: "vendor", label: "Vendor" }, { path: "totalCents", label: "Total (in cents)" }, { path: "taxCents", label: "Tax (in cents)" },
+  { path: "currency", label: "Currency" }, { path: "category", label: "Category" }, { path: "docDate", label: "Date" },
+  { path: "kind", label: "Type (receipt, invoice)" }, { path: "status", label: "Status" }, { path: "employeeId", label: "Employee (user ID)" },
+];
+
 const OTHER_FIELDS: Record<string, EventField[]> = {
   "core.tenant.created": [{ path: "slug", label: "Workspace slug" }],
   "core.member.added": [{ path: "userId", label: "User ID" }, { path: "roles", label: "Roles" }],
@@ -118,6 +129,10 @@ export function eventFields(event: string): EventField[] {
     if (verb === "deleted") return [idField];
   }
   if (event.startsWith("invoicing.")) return [...withPrefix(INVOICE_FIELDS), ...withPrefix(INVOICE_EXTRA[event] ?? []), { path: "payload.id", label: "Invoice ID" }];
+  if (event.startsWith("expenses.expense.")) {
+    const comment = event.endsWith(".approved") || event.endsWith(".rejected") ? [{ path: "comment", label: "Manager's comment" }] : [];
+    return [...withPrefix([...EXPENSE_FIELDS, ...comment]), { path: "payload.id", label: "Expense ID" }];
+  }
   if (event.startsWith("crm.deal.") && !OTHER_FIELDS[event]) return [...withPrefix(DEAL_FIELDS), ...withPrefix(DEAL_EXTRA[event] ?? []), { path: "payload.id", label: "Deal ID" }];
   return withPrefix(OTHER_FIELDS[event] ?? []);
 }

@@ -28,8 +28,9 @@
 | 4 | Admin UI + design system | ✅ done (55 unit/integration + 9 E2E green) |
 | 5 | Module: Invoicing | ✅ done (75 unit/integration + 16 E2E green) |
 | 6 | Module: CRM | ✅ done (84 unit/integration + 23 E2E green) |
-| 7 | Module: Expenses | ⏳ next |
-| 8 | Module: Scheduling | ☐ |
+| 6b | Feature modules: Add features page, Manager role, per-role grants, 403 while off | ✅ done |
+| 7 | Module: Invoices & Expenses (receipt OCR, approvals, CSV) | ✅ done (105 unit/integration + 32 E2E green) |
+| 8 | Module: Staff Scheduling & Time Clock | ⏳ next |
 | 9 | Module: Support inbox | ☐ |
 | 10 | Module: HR | ☐ |
 | 11 | Module: Inventory | ☐ |

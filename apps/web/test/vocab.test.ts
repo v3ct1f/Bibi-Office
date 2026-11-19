@@ -44,3 +44,12 @@ describe("CRM vocabulary", () => {
     expect(recipesFor(["core.company.created"], ["crm.create_deal"]).map((r) => r.id)).toEqual(["deal-for-company"]);
   });
 });
+
+describe("Expenses vocabulary", () => {
+  it("names expense events and their details", () => {
+    expect(eventLabel("expenses.expense.submitted")).toBe("An expense is submitted for approval");
+    expect(eventGroup("expenses.expense.paid")).toBe("Expenses");
+    expect(eventFields("expenses.expense.rejected").map((f) => f.path)).toEqual(expect.arrayContaining(["payload.vendor", "payload.comment", "payload.id"]));
+    expect(eventFields("expenses.expense.paid").map((f) => f.path)).not.toContain("payload.comment");
+  });
+});
