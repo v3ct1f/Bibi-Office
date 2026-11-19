@@ -20,7 +20,8 @@
     "@office/module-support": "workspace:*",
     "@office/module-hr": "workspace:*",
     "@office/module-inventory": "workspace:*",
-    "@office/module-docs": "workspace:*"
+    "@office/module-docs": "workspace:*",
+    "@office/module-ai": "workspace:*"
   },
   "devDependencies": {
     "@office/config": "workspace:*"

@@ -8,6 +8,7 @@ import support from "@office/module-support/ui";
 import hr from "@office/module-hr/ui";
 import inventory from "@office/module-inventory/ui";
 import docs from "@office/module-docs/ui";
+import ai from "@office/module-ai/ui";
 
 export type { PublicPageProps, SlotProps };
 
@@ -24,4 +25,4 @@ export interface ModuleUi {
   publicPages?: Record<string, ComponentType<PublicPageProps>>;
 }
 
-export const MODULE_UI: Record<string, ModuleUi> = { invoicing, crm, expenses, scheduling, support, hr, inventory, docs };
+export const MODULE_UI: Record<string, ModuleUi> = { invoicing, crm, expenses, scheduling, support, hr, inventory, docs, ai };

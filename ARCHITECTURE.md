@@ -447,3 +447,14 @@ office/
 - Signing links: 32-byte random token in the URL fragment, stored only as SHA-256 per signer, compared in constant time; rotated on reminder, cleared on cancel.
 - Core additions: public routes may return `file(...)` (same headers as authenticated file responses) and receive `userAgent`; `PublicApi.url(path)` for download links.
 - E2E: mail stays in `mail_outbox` (no worker); `helpers.lastMailTo()` reads it as the owner role. Order: … → `yard` → `zero-paper`.
+
+## 21. AI summaries (Session 13, as built)
+
+- `modules/ai` (shown as "Summaries"): see `modules/ai/README.md`.
+- First module that sends tenant data to an outside service. Rules: off until the tenant supplies its own key (module secret); sent only on an explicit user action or a workflow the tenant built; per-tenant monthly token limit enforced before the call; usage recorded per month (`ai_usage`); every call audited (kind, size, model, tokens, never the text).
+- Prompt-injection stance: submitted text is wrapped as untrusted data; output is schema-validated JSON rendered as text; turning action items into tasks is a separate, explicit user step (the model never writes data directly).
+- One adapter file (`src/claude.ts`) owns the SDK; SDK errors map to 4xx module errors. Base URL via `ANTHROPIC_BASE_URL` so tests/E2E use a local fake.
+- Trade-off: the API call runs inside the request's DB transaction (simple, consistent usage accounting; holds a connection up to 120 s). Move to a job + polling if long texts or load make that costly.
+- Core web: Home "Open tasks" card (shared tasks entity), so task-producing modules have a visible destination.
+- E2E: order … → `zero-paper` → `zest`; global setup starts the fake Claude API and raises the API rate limit for the single test user.
+

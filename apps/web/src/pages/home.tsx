@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, CardContent, Field, Input, PageHeader, Spinner } from "@office/ui";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, PageHeader, Spinner } from "@office/ui";
 import { auth } from "../lib/auth.ts";
-import { errorMessage, post, tenantStore } from "../lib/api.ts";
+import { errorMessage, get, patch, post, tenantStore } from "../lib/api.ts";
 import { useSession } from "../lib/session.tsx";
 import { resolveSlots } from "../modules/slot.tsx";
 import { Hosted } from "../modules/host.tsx";
@@ -13,11 +13,13 @@ export function HomePage() {
   const s = useSession();
   const widgets = resolveSlots("dashboard.widget", s.modules, s.permissions);
   const enabled = s.modules.filter((m) => m.enabled);
+  const tasks = s.can("core:tasks.read") && s.tenant ? <TasksCard tenantId={s.tenant.id} canWrite={s.can("core:tasks.write")} /> : null;
   return (
     <>
       <PageHeader title={s.tenant?.name ?? "Office"} description="Your workspace at a glance." />
-      {widgets.length > 0 ? (
+      {widgets.length > 0 || tasks ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {tasks}
           {widgets.map((w, i) => <Hosted key={i} module={w.module} Component={w.Component} />)}
         </div>
       ) : (
@@ -27,6 +29,36 @@ export function HomePage() {
         </CardContent></Card>
       )}
     </>
+  );
+}
+
+interface Task { id: string; title: string; status: "open" | "in_progress" | "done" | "cancelled"; dueAt: string | null }
+
+/** Open tasks from the shared tasks entity (created by modules such as AI summaries, or via the API). */
+function TasksCard({ tenantId, canWrite }: { tenantId: string; canWrite: boolean }) {
+  const qc = useQueryClient();
+  const qk = ["tenant", tenantId, "core", "tasks", "home"];
+  const q = useQuery({ queryKey: qk, queryFn: () => get<{ data: Task[] }>("/tasks?limit=100") });
+  const done = useMutation({ mutationFn: (id: string) => patch(`/tasks/${id}`, { status: "done" }), onSuccess: () => void qc.invalidateQueries({ queryKey: qk }) });
+  const open = (q.data?.data ?? []).filter((t) => t.status === "open" || t.status === "in_progress")
+    .sort((a, b) => (a.dueAt ?? "9999").localeCompare(b.dueAt ?? "9999")).slice(0, 8);
+  const today = new Date().toISOString().slice(0, 10);
+  return (
+    <Card>
+      <CardHeader><CardTitle>Open tasks</CardTitle></CardHeader>
+      <CardContent className="grid gap-2 text-sm">
+        {done.error && <Alert>{errorMessage(done.error)}</Alert>}
+        {q.isPending ? <Spinner /> : q.isError ? <Alert>{errorMessage(q.error)}</Alert> : open.length === 0 ? <p className="text-muted">Nothing open.</p> : (
+          <ul className="grid gap-1.5" aria-label="Open tasks">{open.map((t) => (
+            <li key={t.id} className="flex items-start gap-2">
+              {canWrite && <input type="checkbox" className="mt-1" aria-label={`Mark done: ${t.title}`} disabled={done.isPending} onChange={() => done.mutate(t.id)} />}
+              <span className="min-w-0 flex-1 truncate">{t.title}</span>
+              {t.dueAt && <span className={`shrink-0 tabular-nums ${t.dueAt.slice(0, 10) < today ? "text-danger" : "text-muted"}`}>{new Date(t.dueAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>}
+            </li>
+          ))}</ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

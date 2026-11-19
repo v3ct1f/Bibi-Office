@@ -34,8 +34,8 @@
 | 10 | Module: HR ("People") | ✅ done (20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 28 E2E) |
 | 11 | Module: Inventory | ✅ done (15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 31 E2E) |
 | 12 | Module: Docs & e-sign | ✅ done (14 docs + 15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 34 E2E) |
-| 13 | Module: AI email/meeting summaries | ⏳ next |
-| 14 | Module: KPI dashboard | ☐ |
+| 13 | Module: AI email/meeting summaries | ✅ done (14 ai + 14 docs + 15 inventory + 20 hr + 20 support + 16 scheduling + 18 expenses + 12 crm + 23 invoicing + 60 api + 2 worker + 5 web unit + 37 E2E) |
+| 14 | Module: KPI dashboard | ⏳ next |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
@@ -56,7 +56,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 12)
+## Handoff (Session 13)
+1. Done: `modules/ai` ("Summaries"): meeting notes, transcripts (.vtt/.srt/.txt upload) and email threads summarized by Claude (official SDK, structured output, refusal fallback) into overview, key points, decisions, action items, open questions; chosen action items → core tasks; tenant's own API key as a module secret; monthly token limit checked before each call; `keepSource` toggle; workflow action `ai.summarize`. Core web: "Open tasks" card on Home. E2E: fake Claude API in global setup; test-only rate limit 5000/min.
+2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e` (no real API calls anywhere).
+3. Next (Session 14): `modules/kpi` dashboard: tiles and charts from module data (revenue, overdue, pipeline, expenses, tickets, stock, signatures), each module exposing metrics through an SDK hook; date ranges; permission-aware.
+4. Open (AI): forwarding emails to summarize (needs sender verification), summarizing support threads in place, a core Tasks page, streaming/background jobs for very long texts (call now runs inside the request transaction, ≤120 s), Batch API for bulk.
+5. Open (carried): e-sign fields in text/PDF upload/ID checks, inventory–invoice link, purchase orders, HR accruals, mail attachments, bounce handling/DKIM, CAPTCHA, calendar sync, blob sweep, antivirus hook, code splitting.
+
+## Handoff (Session 12, archived)
 1. Done: `modules/docs` (shown as "E-sign"): templates with merge fields from contacts/companies, drafts, signers (parallel or in order), signing by emailed link (hashed token in the URL fragment), typed name + optional drawing + consent, decline, reminders (rotate link), cancel, hourly expiry, content hash fixed at send, append-only evidence trail, deterministic PDF with signature certificate, workflow action `docs.send_template`. Core: public routes may return files and get the user agent; `PublicApi.url()`.
 2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
 3. Next (Session 13): `modules/ai` (summaries of support threads and meeting notes via the Claude API; tenant API key in module secrets; per-tenant usage caps; no data sent unless enabled).

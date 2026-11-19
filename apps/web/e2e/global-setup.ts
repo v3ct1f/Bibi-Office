@@ -8,6 +8,7 @@ import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { createTestDatabase } from "@office/testing";
 import { installModules } from "@office/platform";
 import { createRegistry } from "@office/modules";
+import { startFakeClaude } from "../../../modules/ai/tests/fake-claude.ts";
 
 const JWKS_PORT = 3998, API_PORT = 3999, WEB_PORT = 4173;
 const ISSUER = `http://127.0.0.1:${JWKS_PORT}/realms/e2e`;
@@ -34,6 +35,7 @@ export default async function globalSetup() {
     .setProtectedHeader({ alg: "RS256", kid: "e2e" }).setIssuer(ISSUER).setAudience("office-api")
     .setSubject(sub).setIssuedAt().setExpirationTime("1h").sign(privateKey);
   const inboundSecret = randomBytes(24).toString("hex");
+  const claude = await startFakeClaude();   // stand-in for the Claude API; E2E never calls the real one
   writeFileSync(STATE_FILE, JSON.stringify({ alice: await token("alice"), bob: await token("bob"), inboundSecret, api: `http://127.0.0.1:${API_PORT}`, ownerUrl: db.ownerUrl }));
 
   const env = {
@@ -42,6 +44,8 @@ export default async function globalSetup() {
     API_KEY_PEPPER: randomBytes(32).toString("hex"), SECRETS_KEY: randomBytes(32).toString("base64"),
     FILES_DRIVER: "fs", FILES_DIR: mkdtempSync(join(tmpdir(), "office-e2e-files-")),
     MAIL_FROM: "Office <no-reply@e2e.test>", INBOUND_MAIL_DOMAIN: "in.e2e.test", INBOUND_MAIL_SECRET: inboundSecret, APP_URL: `http://127.0.0.1:${WEB_PORT}`,
+    ANTHROPIC_BASE_URL: claude.url,
+    RATE_LIMIT_PER_MIN: "5000",   // the whole suite signs in as one user; production default stays 600
   };
   const procs: ChildProcess[] = [
     spawn("node", ["--import", "tsx", "../api/src/server.ts"], { env, stdio: ["ignore", "ignore", "inherit"] }),
@@ -60,6 +64,7 @@ export default async function globalSetup() {
       setTimeout(() => { p.kill("SIGKILL"); r(); }, 5000);
     })));
     jwks.close();
+    await claude.close();
     await db.drop();
   };
 }
