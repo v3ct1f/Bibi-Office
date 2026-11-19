@@ -18,3 +18,4 @@ Checklist for a new module:
 | `scheduling` | v1.1.0 (Session 8; customer emails in Session 9) |
 | `support` | v1.0.0 (Session 9) |
 | `hr` | v1.0.0 (Session 10, shown as "People") |
+| `inventory` | v1.0.0 (Session 11) |
