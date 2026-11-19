@@ -23,7 +23,7 @@ const types = async () => (await h.events(tA)).map((e) => e.type).filter((t) => 
 
 beforeAll(async () => {
   h = await setup([invoicing, crm]);
-  exec = { db: h.db, registry: h.registry, secrets: h.secrets, http: { allowPrivate: true, requireHttps: false } };
+  exec = { db: h.db, registry: h.registry, secrets: h.secrets, files: h.files, http: { allowPrivate: true, requireHttps: false } };
   [alice, carol] = await Promise.all([h.token("alice"), h.token("carol")]);
   tA = (await h.client(alice).post("/tenants", { slug: "acme", name: "Acme" })).body.id;
   aliceId = (await h.client(alice).get("/me")).body.userId;

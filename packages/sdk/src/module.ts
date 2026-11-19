@@ -40,8 +40,24 @@ export interface ModuleContext {
   readonly audit: { log(action: string, entity?: { type: string; id: string }, diff?: unknown): Promise<void> };
   readonly settings: { get<T = Record<string, unknown>>(): T };
   readonly secrets: { get(key: string): string | undefined };
+  /**
+   * Module-private files (stored as documents owned by this module, hidden from core document routes).
+   * Needs core:documents.write (put/remove) / core:documents.read (get) in manifest `requires`.
+   * Type is detected from content; allowed: PDF, PNG, JPEG, WebP, GIF, plain text, CSV.
+   */
+  readonly files: {
+    put(f: { filename: string; bytes: Uint8Array; contentType?: string; title?: string }): Promise<StoredFile>;
+    get(id: string): Promise<{ file: StoredFile; bytes: Uint8Array }>;
+    remove(id: string): Promise<void>;
+  };
+  /** Display names of members of this tenant (unknown ids are omitted). Read-only; no permission needed. */
+  readonly people: { names(userIds: string[]): Promise<Record<string, string>> };
   readonly log: Logger;
 }
+
+export interface StoredFile { id: string; title: string; filename: string; mime: string; size: number; sha256: string; module: string | null; createdAt: Date }
+/** Raw request body of an `upload: true` route. Filename comes from `?filename=`. */
+export interface UploadedFile { filename: string; bytes: Uint8Array; contentType: string | undefined }
 
 export interface RouteSpec<B extends z.ZodType = z.ZodType, Q extends z.ZodType = z.ZodType, P extends z.ZodType = z.ZodType> {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -49,7 +65,9 @@ export interface RouteSpec<B extends z.ZodType = z.ZodType, Q extends z.ZodType 
   permission: string;                // required; deny by default
   body?: B; query?: Q; params?: P;
   status?: number;
-  handler(ctx: ModuleContext, req: { body: z.infer<B>; query: z.infer<Q>; params: z.infer<P> }): Promise<unknown>;
+  /** Accept the raw file bytes as the request body (POST/PUT only; `body` must be unset). Size-limited by the platform. */
+  upload?: boolean;
+  handler(ctx: ModuleContext, req: { body: z.infer<B>; query: z.infer<Q>; params: z.infer<P>; file?: UploadedFile | undefined }): Promise<unknown>;
 }
 
 /** A scheduled per-tenant job; the worker runs it about every `everySeconds` for tenants with the module enabled. */
@@ -70,6 +88,7 @@ export class ModuleError extends Error {
 }
 export const moduleErrors = {
   badRequest: (m: string, d?: unknown) => new ModuleError(400, "bad_request", m, d),
+  forbidden: (m: string) => new ModuleError(403, "forbidden", m),
   notFound: (what = "Resource") => new ModuleError(404, "not_found", `${what} not found`),
   conflict: (m: string) => new ModuleError(409, "conflict", m),
   unprocessable: (m: string, d?: unknown) => new ModuleError(422, "unprocessable", m, d),
@@ -110,6 +129,7 @@ export function defineModule(def: DefineModuleInput): ModuleDefinition {
     if (!perms.has(r.permission) && !manifest.permissions.requires.includes(r.permission)) {
       errors.push(`route ${r.method} ${r.path} uses undeclared permission ${r.permission}`);
     }
+    if (r.upload && (r.body || !["POST", "PUT"].includes(r.method))) errors.push(`upload route ${r.method} ${r.path} must be POST/PUT without body schema`);
   }
   for (const [k, j] of Object.entries(def.jobs ?? {})) {
     if (!/^[a-z][a-z0-9-]{0,40}$/.test(k)) errors.push(`job name ${k} invalid`);

@@ -28,8 +28,8 @@
 | 4 | Admin UI + design system | ✅ done |
 | 5 | Module: Invoicing (+ SDK jobs/files/UI contract) | ✅ done |
 | 6 | Module: CRM (+ companies pages in shell) | ✅ done (12 crm + 23 invoicing + 36 api + 2 worker + 5 web unit + 13 E2E) |
-| 7 | Module: Expenses | ⏳ next |
-| 8 | Module: Scheduling | ☐ |
+| 7 | Module: Expenses (+ core file uploads) | ✅ done (18 expenses + 12 crm + 23 invoicing + 45 api + 2 worker + 5 web unit + 16 E2E) |
+| 8 | Module: Scheduling | ⏳ next |
 | 9 | Module: Support inbox | ☐ |
 | 10 | Module: HR | ☐ |
 | 11 | Module: Inventory | ☐ |
@@ -46,7 +46,8 @@
 | Billing | Not in core v1. Later as a module (Stripe) using `tenants.plan`. |
 | 3rd-party marketplace | Not in v1. First-party modules only; sandboxed iframe UI in v2. |
 | Currency / locale | Per-tenant settings; defaults EUR, `en`, UTC. |
-| Email invites, document uploads | Later core pass (not Session 3). |
+| Email invites | Later core pass. |
+| Document uploads | Built in Session 7: server-side upload (no presign), local disk or S3, 10 MB, content-detected types. |
 
 ## Session rules
 - Update PLAN.md + ARCHITECTURE.md at end of every session.
@@ -54,7 +55,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 6)
+## Handoff (Session 7)
+1. Done: core file uploads (`FILES_DRIVER=fs|s3`, `POST /documents/upload`, `GET /documents/:id/content`, type sniffing + size limit + safe download headers), SDK `ctx.files`, `upload: true` routes, `ctx.people.names`, `defaultRoles` on declared permissions; `modules/expenses` (categories, claims with one receipt, draft → submitted → approved/rejected → reimbursed, DB-enforced immutability, batch reimburse, CSV export, auto-approve workflow action) + UI and dashboard card. Module nav icons.
+2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
+3. Next (Session 8): `modules/scheduling` (bookable resources/services, availability, bookings, public booking link?). Decide: public (unauthenticated) booking pages in v1 or members-only?
+4. Open: blob sweep for orphaned keys (tx rollback after put); antivirus scanning hook for uploads; multi-line expense reports and mileage; rebill expenses to customers via invoicing.
+5. Open (carried): contacts `companyId` filter; CRM owner picker; core email/notifications; route-level code splitting (bundle ~500 KB).
+
+## Handoff (Session 6, archived)
 1. Done: `modules/crm` (stages, deals, won/lost/reopen, activities + tasks, board/summary, 7 events, 2 workflow actions, consumes `invoicing.invoice.paid`); UI board (drag and drop) + list + deal page + contact/company tabs + dashboard card. Shell: companies list/detail with module tabs. Invoicing 1.1.0: company tab, `source` in event payloads.
 2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
 3. Next (Session 7): `modules/expenses` (expense claims + receipts, categories, approval flow, reimbursement status). Receipts need the deferred core document upload (S3 presign): build that core piece first in the same session, or store receipts later?

@@ -1,7 +1,10 @@
 import { generateKeyPair, exportJWK, createLocalJWKSet, SignJWT } from "jose";
 import { createDb } from "@office/db";
 import { createTestDatabase } from "@office/testing";
-import { installModules, ModuleRegistry, SecretBox } from "@office/platform";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { FsBlobStore, installModules, ModuleRegistry, SecretBox, type FileDeps } from "@office/platform";
 import type { ModuleDefinition } from "@office/sdk";
 import { buildApp } from "../src/app.ts";
 
@@ -13,12 +16,13 @@ export async function setup(modules: ModuleDefinition[] = []) {
   const registry = new ModuleRegistry(modules);
   if (modules.length) await installModules(tdb.ownerUrl, registry, () => {});
   const secrets = new SecretBox(Buffer.alloc(32, 7).toString("base64"));
+  const files: FileDeps = { blobs: new FsBlobStore(mkdtempSync(join(tmpdir(), "office-files-"))), maxBytes: 2 * 1_048_576 };
   const app_ = createDb(tdb.appUrl);
   const owner = createDb(tdb.ownerUrl, { max: 2 });
   const { publicKey, privateKey } = await generateKeyPair("RS256");
   const jwk = { ...(await exportJWK(publicKey)), kid: "k1", alg: "RS256" };
   const app = await buildApp({
-    db: app_.db, logger: false, jwks: createLocalJWKSet({ keys: [jwk] }), platform: { registry, secrets },
+    db: app_.db, logger: false, jwks: createLocalJWKSet({ keys: [jwk] }), platform: { registry, secrets, files },
     config: {
       OIDC_ISSUER: ISSUER, OIDC_AUDIENCE: AUDIENCE, API_KEY_PEPPER: "x".repeat(32),
       CORS_ORIGINS: [], RATE_LIMIT_PER_MIN: 10_000, TRUST_PROXY: false, NODE_ENV: "test",
@@ -33,13 +37,14 @@ export async function setup(modules: ModuleDefinition[] = []) {
 
   /** Tiny client: c(user).get("/contacts", tenantId) */
   const client = (auth: string, tenantId?: string) => {
-    const call = async (method: string, url: string, body?: unknown) => {
+    const call = async (method: string, url: string, body?: unknown, contentType?: string) => {
       const res = await app.inject({
         method: method as "GET", url: `/api/v1${url}`,
-        headers: { authorization: `Bearer ${auth}`, ...(tenantId ? { "x-tenant-id": tenantId } : {}) },
-        ...(body !== undefined ? { payload: body as object } : {}),
+        headers: { authorization: `Bearer ${auth}`, ...(tenantId ? { "x-tenant-id": tenantId } : {}), ...(contentType ? { "content-type": contentType } : {}) },
+        ...(body !== undefined ? { payload: (body instanceof Uint8Array ? Buffer.from(body) : body) as object } : {}),
       });
-      return { status: res.statusCode, body: res.body ? res.json() : null, headers: res.headers };
+      const json = String(res.headers["content-type"] ?? "").includes("json");
+      return { status: res.statusCode, body: res.body ? (json ? res.json() : res.body) : null, raw: res.rawPayload, headers: res.headers };
     };
     return {
       get: (u: string) => call("GET", u),
@@ -47,6 +52,8 @@ export async function setup(modules: ModuleDefinition[] = []) {
       patch: (u: string, b: unknown) => call("PATCH", u, b),
       put: (u: string, b: unknown) => call("PUT", u, b),
       del: (u: string) => call("DELETE", u),
+      /** Raw-body file upload (core /documents/upload or a module `upload: true` route). */
+      upload: (u: string, bytes: Uint8Array, contentType = "application/octet-stream") => call("POST", u, bytes, contentType),
     };
   };
 
@@ -55,7 +62,7 @@ export async function setup(modules: ModuleDefinition[] = []) {
     owner.sql.begin(async (tx) => { await tx`select set_config('app.tenant_id', ${tenantId}, true)`; return fn(tx); }) as Promise<T>;
 
   return {
-    app, token, client, asOwner, ownerSql: owner.sql, appSql: app_.sql, db: app_.db, registry, secrets, tdb,
+    app, token, client, asOwner, ownerSql: owner.sql, appSql: app_.sql, db: app_.db, registry, secrets, files, tdb,
     /** Pending outbox events for a tenant as envelopes (what the relay would publish). */
     async events(tenantId: string, type?: string) {
       const rows = await asOwner(tenantId, (tx) => tx`select * from outbox order by id`);

@@ -1,27 +1,67 @@
-import type { FastifyPluginAsync, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { notFound, requirePermission, type RequestContext } from "@office/core";
+import { badRequest, notFound, requirePermission, type RequestContext } from "@office/core";
 import type { Tx } from "@office/db";
-import { isFileResponse } from "@office/sdk";
+import { isFileResponse, type RouteSpec } from "@office/sdk";
 import {
   actionCatalog, createModuleContext, disableModule, enableModule, listModules, loadEnabledModule,
   updateModuleSettings, webhookService, WebhookInput, workflowService, WorkflowInput, CORE_EVENTS,
-  type ModuleRegistry, type SecretBox,
+  storeFile, readFileById, inlineSafe, type FileDeps, type ModuleRegistry, type SecretBox,
 } from "@office/platform";
 
 type InTenant = <T>(req: FastifyRequest, perm: string | null, fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T>;
-export interface PlatformOpts { inTenant: InTenant; registry: ModuleRegistry; secrets: SecretBox; requireHttps: boolean }
+export interface PlatformOpts { inTenant: InTenant; registry: ModuleRegistry; secrets: SecretBox; files: FileDeps; requireHttps: boolean }
 
 const AUTH = { auth: "authenticated" } as const;
 const Id = z.object({ id: z.uuid() });
 const ModKey = z.object({ key: z.string().regex(/^[a-z][a-z0-9-]{1,40}$/) });
 const tenantHeader = z.object({ "x-tenant-id": z.uuid().optional() }).loose();
+const UploadQuery = z.object({
+  filename: z.string().min(1).max(255), title: z.string().max(300).optional(), folder: z.string().regex(/^\/[\w\- /]{0,200}$/).optional(),
+});
+
+const asciiName = (n: string) => n.replace(/[^\w.\- ()]+/g, "_").slice(0, 120) || "file";
+/** Send stored bytes safely: nosniff, no caching, inline only for types the browser renders without running code. */
+export function sendStoredFile(reply: FastifyReply, f: { filename: string; mime: string }, bytes: Uint8Array, wantInline = true) {
+  const inline = wantInline && inlineSafe(f.mime);
+  return reply.status(200).type(f.mime)
+    .header("content-disposition", `${inline ? "inline" : "attachment"}; filename="${asciiName(f.filename)}"; filename*=UTF-8''${encodeURIComponent(f.filename)}`)
+    .header("cache-control", "private, no-store")
+    .header("x-content-type-options", "nosniff")
+    .header("content-security-policy", "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox")
+    .send(Buffer.from(bytes));
+}
+
+/** Upload routes take the raw file as the body (any content type), limited to files.maxBytes. Scoped to this plugin only. */
+const rawBody = (app: FastifyInstance, maxBytes: number) => {
+  app.removeAllContentTypeParsers();
+  app.addContentTypeParser("*", { parseAs: "buffer", bodyLimit: maxBytes }, (_req, body, done) => done(null, body));
+};
+const bodyBytes = (b: unknown) => {
+  if (!Buffer.isBuffer(b)) throw badRequest("Send the file bytes as the request body");
+  return new Uint8Array(b.buffer, b.byteOffset, b.byteLength);
+};
 
 export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (app0, o) => {
   const app = app0.withTypeProvider<ZodTypeProvider>();
   const { inTenant, registry } = o;
-  const md = { registry, secrets: o.secrets };
+  const md = { registry, secrets: o.secrets, files: o.files };
+
+  // ───── Files: core documents with content ─────
+  await app.register(async (scope0) => {
+    rawBody(scope0, o.files.maxBytes);
+    const scope = scope0.withTypeProvider<ZodTypeProvider>();
+    scope.post("/documents/upload", { config: AUTH, schema: { tags: ["documents"], headers: tenantHeader, querystring: UploadQuery } },
+      async (req, reply) => reply.status(201).send(await inTenant(req, "core:documents.write", (tx, ctx) =>
+        storeFile(tx, ctx, o.files, { filename: req.query.filename, bytes: bodyBytes(req.body), declaredType: req.headers["content-type"], title: req.query.title, folder: req.query.folder }))));
+  });
+  app.get("/documents/:id/content", {
+    config: AUTH, schema: { tags: ["documents"], headers: tenantHeader, params: Id, querystring: z.object({ download: z.stringbool().optional() }) },
+  }, async (req, reply) => {
+    const { file, bytes } = await inTenant(req, "core:documents.read", (tx) => readFileById(tx, o.files, req.params.id, null));
+    return sendStoredFile(reply, file, bytes, !req.query.download);
+  });
   const wf = workflowService(registry);
   const wh = webhookService({ secrets: o.secrets, requireHttps: o.requireHttps });
 
@@ -83,10 +123,8 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
   });
 
   // ───── Module routes: /m/<key>/<path>, only when enabled for the tenant ─────
-  for (const m of registry.all()) {
-    const key = m.manifest.key;
-    for (const r of m.routes ?? []) {
-      app.route({
+  const moduleRoute = (target: FastifyInstance, key: string, r: RouteSpec) => {
+      target.route({
         method: r.method,
         url: `/m/${key}${r.path === "/" ? "" : r.path}`,
         config: AUTH,
@@ -99,8 +137,12 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
             const loaded = await loadEnabledModule(tx, md, ctx.tenantId, key);
             if (!loaded) throw notFound("Route");
             requirePermission(ctx, r.permission);
+            const file = r.upload ? {
+              filename: String((req.query as { filename?: unknown } | undefined)?.filename ?? "file"),
+              bytes: bodyBytes(req.body), contentType: req.headers["content-type"],
+            } : undefined;
             return r.handler(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log), {
-              body: req.body, query: req.query, params: req.params,
+              body: r.upload ? undefined : req.body, query: req.query, params: req.params, file,
             });
           });
           if (isFileResponse(out)) {
@@ -108,11 +150,18 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
             return reply.status(200).type(out.contentType)
               .header("content-disposition", `${out.inline ? "inline" : "attachment"}; filename="${name}"`)
               .header("cache-control", "private, no-store")
+              .header("x-content-type-options", "nosniff")
               .send(Buffer.from(out.body));
           }
           return reply.status(r.status ?? (out === undefined ? 204 : 200)).send(out);
         },
       });
-    }
+  };
+  for (const m of registry.all()) {
+    for (const r of m.routes ?? []) if (!r.upload) moduleRoute(app, m.manifest.key, r);
   }
+  await app.register(async (scope) => {
+    rawBody(scope, o.files.maxBytes);
+    for (const m of registry.all()) for (const r of m.routes ?? []) if (r.upload) moduleRoute(scope, m.manifest.key, r);
+  });
 };

@@ -11,6 +11,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1172.0",
     "@office/core": "workspace:*",
     "@office/db": "workspace:*",
     "@office/sdk": "workspace:*",

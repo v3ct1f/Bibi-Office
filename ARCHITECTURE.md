@@ -397,3 +397,15 @@ office/
 - CRM: see `modules/crm/README.md`. One pipeline per tenant, stages seeded in `lifecycle.enable` (idempotent). Deal owner is a composite FK to `memberships (tenant_id, user_id)` with `ON DELETE SET NULL (owner_id)`.
 - Module-to-module contract (no imports): `crm.deal.won` v1 → invoicing drafts an invoice with `source = crm.deal:<id>`; `invoicing.invoice.paid` (now carries `source`) → CRM logs a note on the deal. CRM's integration test loads both modules to pin this contract.
 - E2E specs run alphabetically in one worker and share data: `admin` → `invoicing` → `sales`.
+
+## 15. Core files + Expenses (Session 7, as built)
+
+- Storage: `BlobStore` (`FsBlobStore` dir / `S3BlobStore` with SSE-AES256, any S3-compatible endpoint), picked by `fileDepsFromEnv()` in API and worker: `FILES_DRIVER` (`fs` default), `FILES_DIR`, `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT?`, `S3_ACCESS_KEY_ID?`, `S3_SECRET_ACCESS_KEY?`, `FILES_MAX_BYTES` (10 MB).
+- Keys are `<tenantId>/<documentId>`, never user input. Rows live in `documents` (migration 0004 adds `module`, `filename`); `sha256`, `size`, detected `mime` stored.
+- Upload = raw request body (`POST /documents/upload?filename=…`), parsed only in an encapsulated Fastify scope with its own body limit; everything else keeps the 1 MB JSON limit.
+- Allowed types detected from magic bytes: PDF, PNG, JPEG, WebP, GIF, UTF-8 text/CSV (markup rejected; declared type ignored). Downloads: `nosniff`, `private, no-store`, sandbox CSP, `inline` only for PDF/images.
+- Module-private files: `documents.module = <key>`; hidden from core document routes via `EntityDef.scope`. SDK `ctx.files.put/get/remove` needs `core:documents.read|write` in `requires`. Routes with `upload: true` receive `req.file`.
+- SDK: `ctx.people.names(ids)` (display names of tenant members); `moduleErrors.forbidden`; manifest `permissions.declares[].defaultRoles` granted on first enable only (admin always).
+- Expenses: see `modules/expenses/README.md`. Approved/reimbursed rows are immutable by trigger; only drafts/rejected can be deleted.
+- E2E order: `admin` → `invoicing` → `sales` → `spend`. E2E API uses a temp `FILES_DIR`.
+

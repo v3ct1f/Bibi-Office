@@ -19,7 +19,7 @@ export function resolveSlots(
 export function moduleNav(modules: ModuleInfo[], perms: Set<string>) {
   return modules.filter((m) => m.enabled).flatMap((m) => m.ui.slots
     .filter((s) => s.slot === "nav.main" && s.route && (!s.permission || can(perms, s.permission)))
-    .map((s) => ({ module: m.key, label: s.label ?? m.name, to: `/m/${m.key}${s.route}` })));
+    .map((s) => ({ module: m.key, label: s.label ?? m.name, icon: s.icon, to: `/m/${m.key}${s.route}` })));
 }
 
 /** Isolates a crashing module component so it can't take the shell down. */

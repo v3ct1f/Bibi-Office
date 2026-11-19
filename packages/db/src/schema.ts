@@ -127,6 +127,8 @@ export const documents = pgTable("documents", {
   sha256: text("sha256"),
   ownerId: uuid("owner_id"),
   folder: text("folder").notNull().default("/"),
+  module: text("module"),          // set => module-private, hidden from core routes
+  filename: text("filename"),
 });
 
 export const tasks = pgTable("tasks", {

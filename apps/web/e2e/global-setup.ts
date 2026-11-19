@@ -1,6 +1,8 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer, type Server } from "node:http";
-import { writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { createTestDatabase } from "@office/testing";
@@ -37,6 +39,7 @@ export default async function globalSetup() {
     ...process.env, NODE_ENV: "test", PORT: String(API_PORT), HOST: "127.0.0.1",
     DATABASE_URL_APP: db.appUrl, OIDC_ISSUER: ISSUER, OIDC_AUDIENCE: "office-api",
     API_KEY_PEPPER: randomBytes(32).toString("hex"), SECRETS_KEY: randomBytes(32).toString("base64"),
+    FILES_DRIVER: "fs", FILES_DIR: mkdtempSync(join(tmpdir(), "office-e2e-files-")),
   };
   const procs: ChildProcess[] = [
     spawn("node", ["--import", "tsx", "../api/src/server.ts"], { env, stdio: ["ignore", "ignore", "inherit"] }),
