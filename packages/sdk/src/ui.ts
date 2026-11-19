@@ -19,6 +19,8 @@ export interface ModuleApi {
 /** Props every slot component and module page receives. */
 export interface SlotProps {
   tenantId: string;
+  /** URL name of the organization, e.g. for links to public pages (/p/<tenantSlug>/<module>/...). */
+  tenantSlug: string;
   /** Set for entity.* slots. */
   entity?: { type: string; id: string; data?: Record<string, unknown> };
   api: ModuleApi;
@@ -29,5 +31,20 @@ export interface SlotProps {
   /** Navigate within the app, e.g. navigate("/m/invoicing/invoices/new"). */
   navigate(to: string): void;
   /** Human-readable message for an API error. */
+  errorMessage(e: unknown): string;
+}
+
+/** API for public (signed-out) pages: `/api/v1/public/<tenantSlug>/m/<key>`. */
+export interface PublicApi {
+  get<T>(path: string): Promise<T>;
+  post<T>(path: string, body?: unknown): Promise<T>;
+}
+
+/** Props for a module's public page, served at /p/<tenantSlug>/<key><route>. No session, no permissions. */
+export interface PublicPageProps {
+  tenantSlug: string;
+  api: PublicApi;
+  subPath: string;
+  navigate(to: string): void;
   errorMessage(e: unknown): string;
 }

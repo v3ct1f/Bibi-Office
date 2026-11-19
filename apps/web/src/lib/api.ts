@@ -76,3 +76,16 @@ export function errorMessage(e: unknown): string {
   }
   return e instanceof Error ? e.message : String(e);
 }
+
+/** Client for module public routes: no token, no tenant header. */
+export function publicApi(tenantSlug: string, key: string) {
+  const base = `${BASE}/public/${encodeURIComponent(tenantSlug)}/m/${key}`;
+  const call = async <T,>(method: string, p: string, body?: unknown): Promise<T> => {
+    const res = await fetch(`${base}${p}`, {
+      method, ...(body !== undefined ? { headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : {}),
+    });
+    if (!res.ok) return fail(res);
+    return (res.status === 204 ? undefined : await res.json()) as T;
+  };
+  return { get: <T,>(p: string) => call<T>("GET", p), post: <T,>(p: string, body: unknown = {}) => call<T>("POST", p, body) };
+}

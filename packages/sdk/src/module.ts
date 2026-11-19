@@ -70,6 +70,20 @@ export interface RouteSpec<B extends z.ZodType = z.ZodType, Q extends z.ZodType 
   handler(ctx: ModuleContext, req: { body: z.infer<B>; query: z.infer<Q>; params: z.infer<P>; file?: UploadedFile | undefined }): Promise<unknown>;
 }
 
+/**
+ * Unauthenticated route at /api/v1/public/<tenantSlug>/m/<key><path> (e.g. a booking page).
+ * Runs only when the module is enabled for that tenant; strict per-IP rate limit.
+ * ctx is anonymous: no permissions, no core data (ctx.data / ctx.files throw), people.names returns {}.
+ * The module must check its own opt-in setting and validate everything.
+ */
+export interface PublicRouteSpec<B extends z.ZodType = z.ZodType, Q extends z.ZodType = z.ZodType, P extends z.ZodType = z.ZodType> {
+  method: "GET" | "POST";
+  path: string;
+  body?: B; query?: Q; params?: P;
+  status?: number;
+  handler(ctx: ModuleContext, req: { body: z.infer<B>; query: z.infer<Q>; params: z.infer<P>; ip: string }): Promise<unknown>;
+}
+
 /** A scheduled per-tenant job; the worker runs it about every `everySeconds` for tenants with the module enabled. */
 export interface JobSpec {
   everySeconds: number;                // >= 60
@@ -105,6 +119,7 @@ export interface ModuleDefinition {
   /** Absolute path to SQL migrations (tables must be "<prefix>_*" with tenant_id + RLS). */
   migrationsDir?: string;
   routes?: RouteSpec[];
+  publicRoutes?: PublicRouteSpec[];
   handlers?: Record<string, (ctx: ModuleContext, event: EventEnvelope) => Promise<void>>;
   actions?: Record<string, ActionSpec>;
   lifecycle?: Partial<Record<"enable" | "disable", (ctx: ModuleContext) => Promise<void>>>;
@@ -138,6 +153,9 @@ export function defineModule(def: DefineModuleInput): ModuleDefinition {
   if (errors.length) throw new Error(`Module ${manifest.key}: ${errors.join("; ")}`);
   return { ...def, manifest };
 }
+
+/** Helper to keep typing when building publicRoutes. */
+export const publicRoute = <B extends z.ZodType, Q extends z.ZodType, P extends z.ZodType>(r: PublicRouteSpec<B, Q, P>) => r as unknown as PublicRouteSpec;
 
 /** Helper to keep route typing when building the routes array. */
 export const route = <B extends z.ZodType, Q extends z.ZodType, P extends z.ZodType>(r: RouteSpec<B, Q, P>) => r as unknown as RouteSpec;
