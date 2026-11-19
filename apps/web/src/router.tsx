@@ -13,7 +13,7 @@ import { ApiKeysPage } from "./pages/api-keys.tsx";
 import { WorkflowEditorPage, WorkflowsPage } from "./pages/workflows.tsx";
 import { WebhooksPage } from "./pages/webhooks.tsx";
 import { AuditPage } from "./pages/audit.tsx";
-import { ModulePage } from "./pages/module-page.tsx";
+import { ModulePage, PublicModulePage } from "./pages/module-page.tsx";
 
 const Loading = () => <div className="grid min-h-dvh place-items-center"><Spinner /></div>;
 
@@ -48,6 +48,8 @@ const newOrg = createRoute({
   component: () => <SessionProvider fallback={<Loading />}><CreateTenantPage /></SessionProvider>,
 });
 const app = createRoute({ getParentRoute: () => root, id: "app", component: App });
+// Signed-out module pages (e.g. booking). Outside "app": no sign-in, no shell.
+const publicPage = createRoute({ getParentRoute: () => root, path: "/p/$tenant/$key/$", component: PublicModulePage });
 const home = createRoute({ getParentRoute: () => app, path: "/", component: HomePage });
 const contacts = createRoute({ getParentRoute: () => app, path: "/contacts", component: ContactsPage });
 const contact = createRoute({ getParentRoute: () => app, path: "/contacts/$id", component: ContactDetailPage });
@@ -63,7 +65,7 @@ const webhooks = createRoute({ getParentRoute: () => app, path: "/admin/webhooks
 const audit = createRoute({ getParentRoute: () => app, path: "/admin/audit", component: AuditPage });
 const modulePage = createRoute({ getParentRoute: () => app, path: "/m/$key/$", component: ModulePage });
 
-const routeTree = root.addChildren([callback, newOrg, app.addChildren([home, contacts, contact, companies, company, modules, members, roles, apiKeys, workflows, workflow, webhooks, audit, modulePage])]);
+const routeTree = root.addChildren([callback, newOrg, publicPage, app.addChildren([home, contacts, contact, companies, company, modules, members, roles, apiKeys, workflows, workflow, webhooks, audit, modulePage])]);
 
 export const router = createRouter({ routeTree, defaultPreload: "intent" });
 declare module "@tanstack/react-router" { interface Register { router: typeof router } }

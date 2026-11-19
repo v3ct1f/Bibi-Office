@@ -19,8 +19,9 @@ const consoleLogger = (module: string): Logger => {
  * `requires` AND in the caller's grants (user/API key, or system for handlers/workflows).
  */
 export function createModuleContext(
-  tx: Tx, base: RequestContext, def: ModuleDefinition, state: ModuleState, log?: Logger,
+  tx: Tx, base: RequestContext, def: ModuleDefinition, state: ModuleState, log?: Logger, opts: { anonymous?: boolean } = {},
 ): ModuleContext {
+  const anon = !!opts.anonymous;
   const m = def.manifest;
   const requires = new Set(m.permissions.requires);
   const emits = new Set(m.events.emits.map((e) => e.type));
@@ -28,6 +29,7 @@ export function createModuleContext(
   const repo = (key: EntityKey): EntityRepo => {
     const svc = entityService(key);
     const gate = (a: "read" | "write") => {
+      if (anon) throw forbidden("Public requests cannot access core data");
       const p = `core:${key}.${a}`;
       if (!requires.has(p)) throw forbidden(`Module ${m.key} did not declare ${p} in permissions.requires`);
     };
@@ -41,6 +43,7 @@ export function createModuleContext(
   };
 
   const fileDeps = (a: "read" | "write") => {
+    if (anon) throw forbidden("Public requests cannot access files");
     const p = `core:documents.${a}`;
     if (!requires.has(p)) throw forbidden(`Module ${m.key} did not declare ${p} in permissions.requires`);
     if (!state.files) throw new Error("File storage is not configured in this process");
@@ -77,6 +80,7 @@ export function createModuleContext(
     files,
     people: {
       async names(ids: string[]) {
+        if (anon) return {};
         const uniq = [...new Set(ids.filter((x) => /^[0-9a-f-]{36}$/i.test(x)))].slice(0, 500);
         if (!uniq.length) return {};
         const rows = await tx.select({ id: users.id, name: users.name, email: users.email }).from(memberships)
@@ -89,6 +93,14 @@ export function createModuleContext(
     secrets: { get: (k: string) => state.secrets[k] },
     log: log ?? consoleLogger(m.key),
   });
+}
+
+/** Anonymous actor for module public routes: no permissions. */
+export function publicContext(tenantId: string, requestId: string, ip?: string, userAgent?: string): RequestContext {
+  return {
+    tenantId, requestId, ...(ip ? { ip } : {}), ...(userAgent ? { userAgent } : {}),
+    actor: { type: "system", id: "public", permissions: new Set() },
+  };
 }
 
 /** Actor used when the platform (event handler, workflow) invokes a module. */

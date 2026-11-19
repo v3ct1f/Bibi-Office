@@ -2,16 +2,17 @@ import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest 
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { badRequest, notFound, requirePermission, type RequestContext } from "@office/core";
-import type { Tx } from "@office/db";
-import { isFileResponse, type RouteSpec } from "@office/sdk";
+import { tenants, withTenant, type Db, type Tx } from "@office/db";
+import { and, eq } from "drizzle-orm";
+import { isFileResponse, type PublicRouteSpec, type RouteSpec } from "@office/sdk";
 import {
   actionCatalog, createModuleContext, disableModule, enableModule, listModules, loadEnabledModule,
   updateModuleSettings, webhookService, WebhookInput, workflowService, WorkflowInput, CORE_EVENTS,
-  storeFile, readFileById, inlineSafe, type FileDeps, type ModuleRegistry, type SecretBox,
+  storeFile, readFileById, inlineSafe, publicContext, type FileDeps, type ModuleRegistry, type SecretBox,
 } from "@office/platform";
 
 type InTenant = <T>(req: FastifyRequest, perm: string | null, fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T>;
-export interface PlatformOpts { inTenant: InTenant; registry: ModuleRegistry; secrets: SecretBox; files: FileDeps; requireHttps: boolean }
+export interface PlatformOpts { db: Db; inTenant: InTenant; registry: ModuleRegistry; secrets: SecretBox; files: FileDeps; requireHttps: boolean; publicRatePerMin?: number }
 
 const AUTH = { auth: "authenticated" } as const;
 const Id = z.object({ id: z.uuid() });
@@ -164,4 +165,34 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
     rawBody(scope, o.files.maxBytes);
     for (const m of registry.all()) for (const r of m.routes ?? []) if (r.upload) moduleRoute(scope, m.manifest.key, r);
   });
+
+  // ───── Public module routes: /public/<tenantSlug>/m/<key>/<path>, no auth, per-IP limit ─────
+  const PUBLIC = { auth: "public", rateLimit: { max: o.publicRatePerMin ?? 60, timeWindow: "1 minute", keyGenerator: (req: FastifyRequest) => req.ip } } as const;
+  const Slug = z.string().regex(/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/);
+  const inPublic = async <T,>(req: FastifyRequest, slug: string, key: string, fn: (tx: Tx, ctx: RequestContext, l: NonNullable<Awaited<ReturnType<typeof loadEnabledModule>>>) => Promise<T>) => {
+    const [t] = await o.db.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.slug, slug), eq(tenants.status, "active")));
+    if (!t) throw notFound("Page");
+    return withTenant(o.db, t.id, async (tx) => {
+      const loaded = await loadEnabledModule(tx, md, t.id, key);
+      if (!loaded) throw notFound("Page");
+      return fn(tx, publicContext(t.id, req.id, req.ip, req.headers["user-agent"]), loaded);
+    });
+  };
+  const publicRouteFor = (key: string, r: PublicRouteSpec) => {
+    const params = (r.params as z.ZodObject | undefined)?.extend({ tenant: Slug }) ?? z.object({ tenant: Slug });
+    app.route({
+      method: r.method,
+      url: `/public/:tenant/m/${key}${r.path === "/" ? "" : r.path}`,
+      config: PUBLIC,
+      schema: { tags: [`public:${key}`], params, ...(r.body ? { body: r.body } : {}), ...(r.query ? { querystring: r.query } : {}) },
+      handler: async (req, reply) => {
+        const { tenant, ...rest } = req.params as { tenant: string } & Record<string, unknown>;
+        const out = await inPublic(req, tenant, key, (tx, ctx, l) =>
+          r.handler(createModuleContext(tx, ctx, l.def, l.state, req.log, { anonymous: true }), { body: req.body, query: req.query, params: rest, ip: req.ip }));
+        reply.header("cache-control", "no-store");
+        return reply.status(r.status ?? (out === undefined ? 204 : 200)).send(out);
+      },
+    });
+  };
+  for (const m of registry.all()) for (const r of m.publicRoutes ?? []) publicRouteFor(m.manifest.key, r);
 };

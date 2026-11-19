@@ -409,3 +409,11 @@ office/
 - Expenses: see `modules/expenses/README.md`. Approved/reimbursed rows are immutable by trigger; only drafts/rejected can be deleted.
 - E2E order: `admin` → `invoicing` → `sales` → `spend`. E2E API uses a temp `FILES_DIR`.
 
+## 16. Public module pages + Scheduling (Session 8, as built)
+
+- SDK `publicRoutes` (GET/POST): served at `/api/v1/public/<tenantSlug>/m/<key><path>` with `config.auth = "public"`, per-IP rate limit (60/min), `cache-control: no-store`. 404 unless the tenant is active and the module enabled. The handler ctx is anonymous (`actor = system:public`, no permissions); `ctx.data`/`ctx.files` throw, `ctx.people.names` returns `{}`. Each module checks its own opt-in setting.
+- Work that needs core data (e.g. creating a contact) runs in an event handler under the system actor, not in the public request.
+- Web: `/p/$tenant/$key/$` sits outside the signed-in app (no shell, no session). Modules export `publicPages` (props: `PublicPageProps` with an unauthenticated `api`). `SlotProps.tenantSlug` added for building public links.
+- Scheduling: see `modules/scheduling/README.md`. Opening hours are stored as weekday + minutes in the module's time zone; Postgres converts them to instants (DST-correct). `btree_gist` exclusion constraint on `(tenant_id, host_id, blocked)` for non-cancelled bookings makes double-booking impossible even under races. Customer manage links carry the token in the URL fragment (never sent to servers); only its SHA-256 is stored.
+- E2E order: `admin` → `invoicing` → `sales` → `spend` → `timetable`.
+

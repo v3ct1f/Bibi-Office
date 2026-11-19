@@ -29,8 +29,8 @@
 | 5 | Module: Invoicing (+ SDK jobs/files/UI contract) | ✅ done |
 | 6 | Module: CRM (+ companies pages in shell) | ✅ done (12 crm + 23 invoicing + 36 api + 2 worker + 5 web unit + 13 E2E) |
 | 7 | Module: Expenses (+ core file uploads) | ✅ done (18 expenses + 12 crm + 23 invoicing + 45 api + 2 worker + 5 web unit + 16 E2E) |
-| 8 | Module: Scheduling | ⏳ next |
-| 9 | Module: Support inbox | ☐ |
+| 8 | Module: Scheduling (+ public module pages) | ✅ done (15 scheduling + 18 expenses + 12 crm + 23 invoicing + 45 api + 2 worker + 5 web unit + 20 E2E) |
+| 9 | Module: Support inbox | ⏳ next |
 | 10 | Module: HR | ☐ |
 | 11 | Module: Inventory | ☐ |
 | 12 | Module: Docs & e-sign | ☐ |
@@ -55,7 +55,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 7)
+## Handoff (Session 8)
+1. Done: public module routes (`publicRoutes`, `/api/v1/public/<tenantSlug>/m/<key>/…`, anonymous ctx, 60/min per IP) and public pages in the web app (`/p/<tenantSlug>/<key>/…`, no sign-in); `modules/scheduling` (services + hosts, weekly hours in a business time zone, time off, slot finder, bookings with a DB exclusion constraint against double-booking, reschedule/cancel/outcomes, customer manage link with hashed token, contact linking by email) + team calendar UI and phone-friendly public booking page.
+2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
+3. Next (Session 9): `modules/support` (shared inbox: tickets from email/web form, assign, status, replies, SLAs). Needs inbound/outbound email: build a core mail service (SMTP out + inbound webhook) first in the same session?
+4. Open: booking confirmation/reminder emails (wait for core mail); CAPTCHA option for public pages; per-host time zones; recurring/group bookings; calendar sync (ICS feed / Google).
+5. Open (carried): blob sweep, antivirus hook, contacts `companyId` filter, CRM owner picker, code splitting (bundle ~530 KB).
+
+## Handoff (Session 7, archived)
 1. Done: core file uploads (`FILES_DRIVER=fs|s3`, `POST /documents/upload`, `GET /documents/:id/content`, type sniffing + size limit + safe download headers), SDK `ctx.files`, `upload: true` routes, `ctx.people.names`, `defaultRoles` on declared permissions; `modules/expenses` (categories, claims with one receipt, draft → submitted → approved/rejected → reimbursed, DB-enforced immutability, batch reimburse, CSV export, auto-approve workflow action) + UI and dashboard card. Module nav icons.
 2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
 3. Next (Session 8): `modules/scheduling` (bookable resources/services, availability, bookings, public booking link?). Decide: public (unauthenticated) booking pages in v1 or members-only?

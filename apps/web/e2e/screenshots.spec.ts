@@ -86,4 +86,35 @@ test("capture", async ({ page }) => {
   await page.goto("/");
   await page.waitForLoadState("networkidle");
   await page.screenshot({ path: `${dir}/dashboard-member-dark.png`, fullPage: true });
+
+  // Scheduling: team calendar (alice), public booking page (signed out, phone size)
+  await page.addInitScript(() => localStorage.setItem("office.theme", "light"));
+  await signIn(page);
+  await page.goto("/m/scheduling/calendar");
+  await page.getByRole("region").first().waitFor();
+  if (!(await page.getByRole("button", { name: /Ada/ }).isVisible())) await page.getByRole("button", { name: "Next week" }).click();
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: `${dir}/calendar-agenda-light.png`, fullPage: true });
+  await page.getByRole("tab", { name: "My hours" }).click();
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: `${dir}/calendar-hours-light.png` });
+  await page.getByRole("tab", { name: "Services" }).click();
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: `${dir}/calendar-services-light.png` });
+  const pub = await page.context().browser()!.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  await pub.goto("/p/acme-bakery/scheduling/book");
+  await pub.getByRole("link", { name: /Cake tasting/ }).waitFor();
+  await pub.screenshot({ path: `${dir}/booking-public-services-mobile.png` });
+  await pub.getByRole("link", { name: /Cake tasting/ }).click();
+  await pub.getByRole("button", { name: /^\d{2}:\d{2}/ }).first().waitFor();
+  await pub.screenshot({ path: `${dir}/booking-public-times-mobile.png`, fullPage: true });
+  await pub.getByRole("button", { name: /^\d{2}:\d{2}/ }).nth(3).click();
+  await pub.getByLabel("Your name").fill("Katherine Johnson");
+  await pub.getByLabel("Email").fill("katherine@example.com");
+  await pub.screenshot({ path: `${dir}/booking-public-form-mobile.png`, fullPage: true });
+  await pub.getByRole("button", { name: "Confirm booking" }).click();
+  await pub.getByRole("heading", { name: "You're booked" }).waitFor();
+  await pub.screenshot({ path: `${dir}/booking-public-confirmed-mobile.png`, fullPage: true });
+  await pub.close();
 });
+

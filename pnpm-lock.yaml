@@ -96,6 +96,9 @@ importers:
       '@office/module-invoicing':
         specifier: workspace:*
         version: link:../../modules/invoicing
+      '@office/module-scheduling':
+        specifier: workspace:*
+        version: link:../../modules/scheduling
       '@office/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
@@ -339,6 +342,49 @@ importers:
         specifier: 19.1.10
         version: 19.1.10
 
+  modules/scheduling:
+    dependencies:
+      '@office/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@office/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(postgres@3.4.7)
+      zod:
+        specifier: 4.1.12
+        version: 4.1.12
+    devDependencies:
+      '@office/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@office/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
+      '@office/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
+      '@office/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@tanstack/react-query':
+        specifier: 5.90.2
+        version: 5.90.2(react@19.1.10)
+      '@types/react':
+        specifier: 19.1.17
+        version: 19.1.17
+      jose:
+        specifier: 6.1.0
+        version: 6.1.0
+      postgres:
+        specifier: 3.4.7
+        version: 3.4.7
+      react:
+        specifier: 19.1.10
+        version: 19.1.10
+
   packages/config: {}
 
   packages/core:
@@ -381,6 +427,9 @@ importers:
       '@office/module-invoicing':
         specifier: workspace:*
         version: link:../../modules/invoicing
+      '@office/module-scheduling':
+        specifier: workspace:*
+        version: link:../../modules/scheduling
       '@office/platform':
         specifier: workspace:*
         version: link:../platform

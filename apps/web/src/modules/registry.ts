@@ -1,10 +1,11 @@
 import type { ComponentType } from "react";
-import type { SlotProps } from "@office/sdk/ui";
+import type { PublicPageProps, SlotProps } from "@office/sdk/ui";
 import invoicing from "@office/module-invoicing/ui";
 import crm from "@office/module-crm/ui";
 import expenses from "@office/module-expenses/ui";
+import scheduling from "@office/module-scheduling/ui";
 
-export type { SlotProps };
+export type { PublicPageProps, SlotProps };
 
 /**
  * Build-time UI registry for first-party modules (third-party: sandboxed iframes, v2).
@@ -15,6 +16,8 @@ export type { SlotProps };
 export interface ModuleUi {
   components?: Record<string, ComponentType<SlotProps>>;
   pages?: Record<string, ComponentType<SlotProps>>;
+  /** Signed-out pages served at /p/<tenantSlug>/<key><route> (e.g. a booking page). */
+  publicPages?: Record<string, ComponentType<PublicPageProps>>;
 }
 
-export const MODULE_UI: Record<string, ModuleUi> = { invoicing, crm, expenses };
+export const MODULE_UI: Record<string, ModuleUi> = { invoicing, crm, expenses, scheduling };

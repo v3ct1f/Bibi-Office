@@ -80,7 +80,7 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   const inTenant = makeTenantRunner(d.db);
   await app.register(registerRoutes, { prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER });
   await app.register(registerPlatformRoutes, {
-    prefix: "/api/v1", inTenant, registry: d.platform.registry, secrets: d.platform.secrets, files: d.platform.files,
+    prefix: "/api/v1", db: d.db, inTenant, registry: d.platform.registry, secrets: d.platform.secrets, files: d.platform.files,
     requireHttps: d.config.NODE_ENV === "production",
   });
   return app;

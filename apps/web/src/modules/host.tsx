@@ -31,7 +31,7 @@ export function Hosted({ module, Component, entity, subPath }: {
   }), [module, s.can, nav]);
   return (
     <SlotBoundary module={module}>
-      <Component tenantId={s.tenantId!} {...base} {...(entity ? { entity } : {})} {...(subPath !== undefined ? { subPath } : {})} />
+      <Component tenantId={s.tenantId!} tenantSlug={s.tenant?.slug ?? ""} {...base} {...(entity ? { entity } : {})} {...(subPath !== undefined ? { subPath } : {})} />
     </SlotBoundary>
   );
 }
