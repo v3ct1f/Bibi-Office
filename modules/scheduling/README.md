@@ -27,7 +27,10 @@ Hours → instants in SQL (`(day + minutes) AT TIME ZONE tz`, DST-correct), minu
 | `scheduling:availability.manage` | admin |
 | `scheduling:service.manage` | admin |
 
-Requires `core:contacts.read`, `core:contacts.write`.
+Requires `core:contacts.read`, `core:contacts.write`, `core:mail.send`.
+
+## Customer emails (Session 9)
+With `emailCustomers` on (default), customers with an email get a confirmation (with the private manage link), a notice when the booking moves, and a notice when it is cancelled. Queued in the same transaction; sent by the worker.
 
 ## Settings
 `timezone` (UTC), `slotStepMin` (30), `minNoticeMin` (120), `maxDaysAhead` (60), `publicBooking` (true), `pageTitle`.

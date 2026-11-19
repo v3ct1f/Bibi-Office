@@ -99,6 +99,9 @@ importers:
       '@office/module-scheduling':
         specifier: workspace:*
         version: link:../../modules/scheduling
+      '@office/module-support':
+        specifier: workspace:*
+        version: link:../../modules/support
       '@office/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
@@ -385,6 +388,49 @@ importers:
         specifier: 19.1.10
         version: 19.1.10
 
+  modules/support:
+    dependencies:
+      '@office/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@office/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(postgres@3.4.7)
+      zod:
+        specifier: 4.1.12
+        version: 4.1.12
+    devDependencies:
+      '@office/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@office/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
+      '@office/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
+      '@office/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@tanstack/react-query':
+        specifier: 5.90.2
+        version: 5.90.2(react@19.1.10)
+      '@types/react':
+        specifier: 19.1.17
+        version: 19.1.17
+      jose:
+        specifier: 6.1.0
+        version: 6.1.0
+      postgres:
+        specifier: 3.4.7
+        version: 3.4.7
+      react:
+        specifier: 19.1.10
+        version: 19.1.10
+
   packages/config: {}
 
   packages/core:
@@ -430,6 +476,9 @@ importers:
       '@office/module-scheduling':
         specifier: workspace:*
         version: link:../../modules/scheduling
+      '@office/module-support':
+        specifier: workspace:*
+        version: link:../../modules/support
       '@office/platform':
         specifier: workspace:*
         version: link:../platform
@@ -473,6 +522,9 @@ importers:
       json-logic-js:
         specifier: 2.0.5
         version: 2.0.5
+      nodemailer:
+        specifier: 6.9.16
+        version: 6.9.16
       postgres:
         specifier: 3.4.7
         version: 3.4.7
@@ -489,6 +541,9 @@ importers:
       '@types/json-logic-js':
         specifier: 2.0.8
         version: 2.0.8
+      '@types/nodemailer':
+        specifier: 6.4.17
+        version: 6.4.17
 
   packages/sdk:
     dependencies:
@@ -1970,6 +2025,9 @@ packages:
   '@types/node@22.20.5':
     resolution: {integrity: sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==}
 
+  '@types/nodemailer@6.4.17':
+    resolution: {integrity: sha512-I9CCaIp6DTldEg7vyUTZi8+9Vo0hi1/T8gv3C89yk1rSAAzoKQ8H8ki/jBYJSFoH/BisgLP8tkZMlQ91CIquww==}
+
   '@types/react-dom@19.1.11':
     resolution: {integrity: sha512-3BKc/yGdNTYQVVw4idqHtSOcFsgGuBbMveKCOgF8wQ5QtrYOc3jDIlzg3jef04zcXFIHLelyGlj0T+BJ8+KN+w==}
     peerDependencies:
@@ -2889,6 +2947,10 @@ packages:
   node-releases@2.0.65:
     resolution: {integrity: sha512-PfvofsGQ+MiOQIPkX9fU8ELUWmy5zL74CdQaph/ismKszfFkfwXaw0cGiwbwym2hT9k5+mdyl8O5WQ1MD8EHmA==}
     engines: {node: '>=18'}
+
+  nodemailer@6.9.16:
+    resolution: {integrity: sha512-psAuZdTIRN08HKVd/E8ObdV6NO7NTBY3KsC30F7M4H1OnmLCUNaS56FpYxyb26zWLSyYF9Ozch9KYHhHegsiOQ==}
+    engines: {node: '>=6.0.0'}
 
   nwsapi@2.2.28:
     resolution: {integrity: sha512-IlVB7OS7qrOsVYlpnFIkETjMwT9jwvmocJmmM+GZU/PAB3uGi9Ezd7vcWhWBUnSc0ya4ppmQITOyP1ez9gg8cg==}
@@ -5072,6 +5134,10 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
+  '@types/nodemailer@6.4.17':
+    dependencies:
+      '@types/node': 22.20.5
+
   '@types/react-dom@19.1.11(@types/react@19.1.17)':
     dependencies:
       '@types/react': 19.1.17
@@ -5870,6 +5936,8 @@ snapshots:
       tweetnacl: 1.0.3
 
   node-releases@2.0.65: {}
+
+  nodemailer@6.9.16: {}
 
   nwsapi@2.2.28: {}
 

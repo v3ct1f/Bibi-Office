@@ -108,6 +108,14 @@ describe("public booking page", () => {
     expect(linked.contactId).toEqual(expect.any(String));
     expect((await A().get(`/contacts/${linked.contactId}`)).body).toMatchObject({ firstName: "Grace", lastName: "Hopper", email: "grace@example.com" });
   });
+  it("emails the customer a confirmation with the manage link", async () => {
+    const sent = await h.flushMail();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.to).toEqual(["grace@example.com"]);
+    expect(sent[0]!.subject).toBe("Booking confirmed: Consultation");
+    expect(sent[0]!.text).toContain(`https://app.office.test/p/acme/scheduling/book/booking/${bookingId}#${token}`);
+    expect(sent[0]!.text).toMatch(/When: .*09:00 \(Europe\/Berlin\)/);
+  });
   it("never double-books; buffer keeps the next slot free", async () => {
     expect((await pub("POST", "/services/consultation/book", { start: at("09:00"), name: "X", email: "x@example.com" })).status).toBe(409);
     const s = await pub("GET", `/services/consultation/slots?from=${monday}&to=${monday}`);
@@ -129,6 +137,9 @@ describe("public booking page", () => {
     const c = await pub("POST", `/bookings/${bookingId}/cancel`, { token, reason: "Sick" });
     expect(c.body.status).toBe("cancelled");
     expect((await pub("POST", `/bookings/${bookingId}/cancel`, { token })).status).toBe(409);
+    const mails = (await h.flushMail()).filter((m) => m.to[0] === "grace@example.com");
+    expect(mails.map((m) => m.subject)).toEqual(["Booking cancelled: Consultation"]);
+    expect(mails[0]!.text).toContain("https://app.office.test/p/acme/scheduling/book");
     const s = await pub("GET", `/services/consultation/slots?from=${monday}&to=${monday}`);
     expect(berlinTime(s.body.data[0].start)).toBe("09:00");
     expect(await types()).toEqual(expect.arrayContaining(["scheduling.booking.created", "scheduling.booking.cancelled"]));

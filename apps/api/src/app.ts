@@ -15,14 +15,14 @@ import { registerErrorHandler } from "./plugins/errors.ts";
 import { makeTenantRunner } from "./tenant.ts";
 import { registerRoutes } from "./routes/index.ts";
 import { registerPlatformRoutes } from "./routes/platform.ts";
-import type { FileDeps, ModuleRegistry, SecretBox } from "@office/platform";
+import type { FileDeps, MailEnv, ModuleRegistry, SecretBox } from "@office/platform";
 import type { Config } from "./config.ts";
 
 export interface AppDeps {
   db: Db;
   config: Pick<Config, "OIDC_ISSUER" | "OIDC_AUDIENCE" | "API_KEY_PEPPER" | "CORS_ORIGINS" | "RATE_LIMIT_PER_MIN" | "TRUST_PROXY" | "NODE_ENV">;
   jwks?: JWTVerifyGetKey;      // injectable for tests
-  platform: { registry: ModuleRegistry; secrets: SecretBox; files: FileDeps };
+  platform: { registry: ModuleRegistry; secrets: SecretBox; files: FileDeps; mail?: MailEnv | undefined; inboundMailSecret?: string | undefined };
   logger?: boolean | object;
 }
 
@@ -81,6 +81,7 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   await app.register(registerRoutes, { prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER });
   await app.register(registerPlatformRoutes, {
     prefix: "/api/v1", db: d.db, inTenant, registry: d.platform.registry, secrets: d.platform.secrets, files: d.platform.files,
+    mail: d.platform.mail, inboundMailSecret: d.platform.inboundMailSecret,
     requireHttps: d.config.NODE_ENV === "production",
   });
   return app;

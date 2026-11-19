@@ -1,12 +1,13 @@
 import {
   audit, emitEvent, entityService, forbidden, hasPermission, badRequest, type EntityKey, type RequestContext,
 } from "@office/core";
-import { memberships, users, type Tx } from "@office/db";
+import { memberships, tenants, users, type Tx } from "@office/db";
 import { and, eq, inArray } from "drizzle-orm";
 import type { EntityRepo, Logger, ModuleContext, ModuleDefinition } from "@office/sdk";
 import { deleteFileById, readFileById, storeFile, type FileDeps } from "./files.ts";
+import { inboundAddress, queueMail, type MailEnv } from "./mail.ts";
 
-export interface ModuleState { settings: Record<string, unknown>; secrets: Record<string, string>; files?: FileDeps | undefined }
+export interface ModuleState { settings: Record<string, unknown>; secrets: Record<string, string>; files?: FileDeps | undefined; mail?: MailEnv | undefined }
 
 const consoleLogger = (module: string): Logger => {
   const w = (lvl: "debug" | "info" | "warn" | "error") => (o: object | string, msg?: string) =>
@@ -56,6 +57,21 @@ export function createModuleContext(
     remove: async (id) => { fileDeps("write"); await deleteFileById(tx, base, id, m.key); },
   };
 
+  const mailEnv = () => {
+    if (!requires.has("core:mail.send")) throw forbidden(`Module ${m.key} did not declare core:mail.send in permissions.requires`);
+    if (!state.mail) throw new Error("Mail is not configured in this process");
+    return state.mail;
+  };
+  const mail: ModuleContext["mail"] = {
+    send: (msg) => queueMail(tx, base, mailEnv(), m.key, msg),
+    inboundAddress: () => inboundAddress(tx, base, mailEnv(), m.key),
+    get appUrl() { return state.mail?.appUrl ?? ""; },
+    async publicPageUrl(path: string) {
+      const [t] = await tx.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, base.tenantId));
+      return `${state.mail?.appUrl ?? ""}/p/${t!.slug}/${m.key}${path.startsWith("/") ? path : `/${path}`}`;
+    },
+  };
+
   return Object.freeze({
     module: m.key,
     tenantId: base.tenantId,
@@ -78,6 +94,7 @@ export function createModuleContext(
         audit(tx, { ...base, actor: { ...base.actor } }, `${m.key}.${action}`, entity, diff),
     },
     files,
+    mail,
     people: {
       async names(ids: string[]) {
         if (anon) return {};

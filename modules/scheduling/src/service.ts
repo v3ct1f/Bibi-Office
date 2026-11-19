@@ -12,7 +12,7 @@ export const P = {
 
 // ───────────────────────── settings ─────────────────────────
 export interface SchedulingSettings {
-  timezone: string; slotStepMin: number; minNoticeMin: number; maxDaysAhead: number; publicBooking: boolean; pageTitle: string;
+  timezone: string; slotStepMin: number; minNoticeMin: number; maxDaysAhead: number; publicBooking: boolean; pageTitle: string; emailCustomers: boolean;
 }
 export const SETTINGS_SCHEMA = {
   type: "object",
@@ -23,12 +23,13 @@ export const SETTINGS_SCHEMA = {
     maxDaysAhead: { type: "integer", title: "Bookable up to (days ahead)", default: 60, minimum: 1, maximum: 365 },
     publicBooking: { type: "boolean", title: "Public booking page on", default: true },
     pageTitle: { type: "string", title: "Booking page title", default: "", maxLength: 120 },
+    emailCustomers: { type: "boolean", title: "Email customers when a booking is made, moved or cancelled", default: true },
   },
   additionalProperties: false,
 } as const;
 const validTz = (tz: string) => { try { new Intl.DateTimeFormat("en", { timeZone: tz }); return true; } catch { return false; } };
 export const settingsOf = (ctx: ModuleContext): SchedulingSettings => {
-  const s = { timezone: "UTC", slotStepMin: 30, minNoticeMin: 120, maxDaysAhead: 60, publicBooking: true, pageTitle: "", ...ctx.settings.get<Partial<SchedulingSettings>>() };
+  const s = { timezone: "UTC", slotStepMin: 30, minNoticeMin: 120, maxDaysAhead: 60, publicBooking: true, pageTitle: "", emailCustomers: true, ...ctx.settings.get<Partial<SchedulingSettings>>() };
   if (!validTz(s.timezone)) s.timezone = "UTC";
   return s;
 };
@@ -326,7 +327,30 @@ export async function book(ctx: ModuleContext, svc: Svc, i: {
   }
   await ctx.audit.log("booking.created", { type: "scheduling.booking", id: row.id }, { serviceId: svc.id, hostId, startsAt: row.startsAt, source: i.source });
   await ctx.events.emit("scheduling.booking.created", eventPayload(row, svc.name));
+  await notifyCustomer(ctx, row, svc, "confirmed", token);
   return { booking: row, token };
+}
+
+// ───────────────────────── customer emails ─────────────────────────
+const when = (d: Date, tz: string) => `${new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(d)} (${tz})`;
+/** Queue an email to the customer (no-op without an address or when turned off). Sent after commit by the worker. */
+export async function notifyCustomer(ctx: ModuleContext, b: Booking, svc: Pick<Svc, "name" | "location">, kind: "confirmed" | "cancelled" | "rescheduled", token?: string | null) {
+  const s = settingsOf(ctx);
+  if (!s.emailCustomers || !b.customerEmail) return;
+  const org = s.pageTitle || "us";
+  const lines = [`Hello ${b.customerName},`, ""];
+  const subject = { confirmed: `Booking confirmed: ${svc.name}`, cancelled: `Booking cancelled: ${svc.name}`, rescheduled: `Booking moved: ${svc.name}` }[kind];
+  if (kind === "confirmed") lines.push(`Your booking for ${svc.name} with ${org} is confirmed.`);
+  if (kind === "rescheduled") lines.push(`Your booking for ${svc.name} has moved to a new time.`);
+  if (kind === "cancelled") lines.push(`Your booking for ${svc.name} on ${when(b.startsAt, s.timezone)} has been cancelled.`);
+  if (kind !== "cancelled") {
+    lines.push("", `When: ${when(b.startsAt, s.timezone)}`, `Length: ${Math.round((b.endsAt.getTime() - b.startsAt.getTime()) / 60000)} minutes`);
+    if (svc.location) lines.push(`Where: ${svc.location}`);
+  }
+  if (token) lines.push("", "To see or cancel this booking, open:", await ctx.mail.publicPageUrl(`/book/booking/${b.id}#${token}`));
+  else if (kind === "cancelled" && s.publicBooking) lines.push("", "To book another time, open:", await ctx.mail.publicPageUrl("/book"));
+  lines.push("", "Thank you.");
+  await ctx.mail.send({ to: b.customerEmail, subject, text: lines.join("\n"), ...(s.pageTitle ? { fromName: s.pageTitle } : {}) });
 }
 
 export async function createInternalBooking(ctx: ModuleContext, i: z.infer<typeof BookingIn>) {
@@ -356,7 +380,9 @@ export async function cancelBooking(ctx: ModuleContext, id: string, by: string, 
   const [r] = await ctx.db.update(bookings).set({ status: "cancelled", cancelledAt: new Date(), cancelledBy: by, cancelReason: reason?.trim() || null, updatedAt: new Date() })
     .where(eq(bookings.id, id)).returning();
   await ctx.audit.log("booking.cancelled", { type: "scheduling.booking", id }, { by, reason: reason ?? null });
-  await ctx.events.emit("scheduling.booking.cancelled", { ...eventPayload(r!, await svcName(ctx, b.serviceId)), cancelledBy: by, reason: r!.cancelReason });
+  const [svc] = await ctx.db.select().from(services).where(eq(services.id, b.serviceId));
+  await ctx.events.emit("scheduling.booking.cancelled", { ...eventPayload(r!, svc!.name), cancelledBy: by, reason: r!.cancelReason });
+  await notifyCustomer(ctx, r!, svc!, "cancelled");
   return r!;
 }
 export async function setOutcome(ctx: ModuleContext, id: string, status: Extract<BookingStatus, "completed" | "no_show">) {
@@ -390,6 +416,7 @@ export async function reschedule(ctx: ModuleContext, id: string, start: string, 
   } catch (e) { if (pgCode(e) === "23P01") throw E.conflict("That time was just taken. Pick another time."); throw e; }
   await ctx.audit.log("booking.rescheduled", { type: "scheduling.booking", id }, { from: b.startsAt, to: st });
   await ctx.events.emit("scheduling.booking.rescheduled", { ...eventPayload(r, svc!.name), previousStartsAt: b.startsAt.toISOString() });
+  await notifyCustomer(ctx, r, svc!, "rescheduled");
   return r;
 }
 

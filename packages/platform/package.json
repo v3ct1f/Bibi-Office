@@ -21,12 +21,14 @@
     "drizzle-orm": "0.45.4",
     "ipaddr.js": "2.2.0",
     "json-logic-js": "2.0.5",
+    "nodemailer": "6.9.16",
     "postgres": "3.4.7",
     "undici": "7.30.2",
     "zod": "4.1.12"
   },
   "devDependencies": {
     "@office/config": "workspace:*",
-    "@types/json-logic-js": "2.0.8"
+    "@types/json-logic-js": "2.0.8",
+    "@types/nodemailer": "6.4.17"
   }
 }

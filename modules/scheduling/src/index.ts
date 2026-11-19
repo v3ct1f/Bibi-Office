@@ -45,7 +45,7 @@ export default defineModule({
         { key: P.manage, label: "Set anyone's working hours and time off" },
         { key: P.services, label: "Manage services and who offers them" },
       ],
-      requires: ["core:contacts.read", "core:contacts.write"],
+      requires: ["core:contacts.read", "core:contacts.write", "core:mail.send"],
     },
     entities: ["service", "booking"],
     events: {

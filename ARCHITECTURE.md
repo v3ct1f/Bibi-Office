@@ -417,3 +417,12 @@ office/
 - Scheduling: see `modules/scheduling/README.md`. Opening hours are stored as weekday + minutes in the module's time zone; Postgres converts them to instants (DST-correct). `btree_gist` exclusion constraint on `(tenant_id, host_id, blocked)` for non-cancelled bookings makes double-booking impossible even under races. Customer manage links carry the token in the URL fragment (never sent to servers); only its SHA-256 is stored.
 - E2E order: `admin` → `invoicing` → `sales` → `spend` → `timetable`.
 
+## 17. Core email + Support inbox (Session 9, as built)
+
+- Migration `0005_mail.sql`: `mail_outbox` (queued/sent/failed, attempts, backoff), `mail_routes` (random 24-hex key → tenant + module), `mail_inbound` (Message-ID dedupe). All RLS; `mail_route_lookup(key)` is a SECURITY DEFINER function so the webhook can resolve the tenant before choosing one.
+- `ctx.mail` (needs `core:mail.send` in manifest `requires`; also works in public routes): `send({to, subject, text, html?, fromName?, replyTo?, inReplyTo?, references?})` → returns Message-ID; the row commits with the caller's transaction, so rolled-back work never emails. `inboundAddress()` (created on first use; null if inbound not configured), `appUrl`, `publicPageUrl(path)`. Subject/name header injection stripped; max 20 recipients; From address is always the platform's (`MAIL_FROM`).
+- Worker loop `mail`: claims due rows with `FOR UPDATE SKIP LOCKED` + 2 min lease, sends via `MAIL_DRIVER=smtp` (`SMTP_URL`) or `log` (dev); backoff 1, 5, 30, 120, 360 min, then `failed`.
+- Inbound: `POST /api/v1/inbound/mail` (`config.auth = "inbound"`), secret in `x-inbound-secret` or Basic auth password, compared in constant time; 404 unless `INBOUND_MAIL_DOMAIN` + `INBOUND_MAIL_SECRET` set. Accepts our normalized JSON or Postmark's inbound format. Recipient `<key>[+tag]@INBOUND_MAIL_DOMAIN` → tenant + module; module `inboundMail(ctx, mail)` runs with the system actor, once per Message-ID. Unknown recipient / disabled module → 200 `{accepted:false}` (no provider retries). HTML-only mail is reduced to text; raw HTML never reaches modules.
+- Env: `MAIL_FROM`, `MAIL_DRIVER`, `SMTP_URL`, `INBOUND_MAIL_DOMAIN`, `INBOUND_MAIL_SECRET`, `APP_URL`.
+- Support: see `modules/support/README.md`. E2E order: … → `timetable` → `triage`.
+

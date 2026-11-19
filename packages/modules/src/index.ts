@@ -6,6 +6,7 @@ import invoicing from "@office/module-invoicing";
 import crm from "@office/module-crm";
 import expenses from "@office/module-expenses";
 import scheduling from "@office/module-scheduling";
+import support from "@office/module-support";
 
-export const MODULES: ModuleDefinition[] = [invoicing, crm, expenses, scheduling];
+export const MODULES: ModuleDefinition[] = [invoicing, crm, expenses, scheduling, support];
 export const createRegistry = () => new ModuleRegistry(MODULES);

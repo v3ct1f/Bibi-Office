@@ -270,3 +270,42 @@ export const webhookDeliveries = pgTable("webhook_deliveries", {
   deliveredAt: ts("delivered_at"),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
+
+// ───────── Session 9: mail ─────────
+export const mailOutbox = pgTable("mail_outbox", {
+  id: uuid("id").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  module: text("module"),
+  toAddrs: text("to_addrs").array().notNull(),
+  subject: text("subject").notNull(),
+  textBody: text("text_body").notNull(),
+  htmlBody: text("html_body"),
+  fromName: text("from_name"),
+  replyTo: text("reply_to"),
+  messageId: text("message_id").notNull(),
+  inReplyTo: text("in_reply_to"),
+  references: text("references").array().notNull().default([]),
+  status: text("status").$type<"queued" | "sent" | "failed">().notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: ts("next_attempt_at").notNull().defaultNow(),
+  lastError: text("last_error"),
+  sentAt: ts("sent_at"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+export const mailRoutes = pgTable("mail_routes", {
+  key: text("key").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  module: text("module").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+export const mailInbound = pgTable("mail_inbound", {
+  id: uuid("id").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  module: text("module").notNull(),
+  messageId: text("message_id").notNull(),
+  fromEmail: text("from_email").notNull(),
+  subject: text("subject"),
+  receivedAt: ts("received_at").notNull().defaultNow(),
+});

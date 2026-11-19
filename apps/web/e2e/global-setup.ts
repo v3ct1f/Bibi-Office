@@ -33,13 +33,15 @@ export default async function globalSetup() {
   const token = (sub: string) => new SignJWT({ email: `${sub}@example.com`, name: sub, email_verified: true })
     .setProtectedHeader({ alg: "RS256", kid: "e2e" }).setIssuer(ISSUER).setAudience("office-api")
     .setSubject(sub).setIssuedAt().setExpirationTime("1h").sign(privateKey);
-  writeFileSync(STATE_FILE, JSON.stringify({ alice: await token("alice"), bob: await token("bob") }));
+  const inboundSecret = randomBytes(24).toString("hex");
+  writeFileSync(STATE_FILE, JSON.stringify({ alice: await token("alice"), bob: await token("bob"), inboundSecret, api: `http://127.0.0.1:${API_PORT}` }));
 
   const env = {
     ...process.env, NODE_ENV: "test", PORT: String(API_PORT), HOST: "127.0.0.1",
     DATABASE_URL_APP: db.appUrl, OIDC_ISSUER: ISSUER, OIDC_AUDIENCE: "office-api",
     API_KEY_PEPPER: randomBytes(32).toString("hex"), SECRETS_KEY: randomBytes(32).toString("base64"),
     FILES_DRIVER: "fs", FILES_DIR: mkdtempSync(join(tmpdir(), "office-e2e-files-")),
+    MAIL_FROM: "Office <no-reply@e2e.test>", INBOUND_MAIL_DOMAIN: "in.e2e.test", INBOUND_MAIL_SECRET: inboundSecret, APP_URL: `http://127.0.0.1:${WEB_PORT}`,
   };
   const procs: ChildProcess[] = [
     spawn("node", ["--import", "tsx", "../api/src/server.ts"], { env, stdio: ["ignore", "ignore", "inherit"] }),

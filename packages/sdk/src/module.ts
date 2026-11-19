@@ -52,7 +52,37 @@ export interface ModuleContext {
   };
   /** Display names of members of this tenant (unknown ids are omitted). Read-only; no permission needed. */
   readonly people: { names(userIds: string[]): Promise<Record<string, string>> };
+  /**
+   * Outbound email, queued in this transaction and sent by the worker (retries with backoff).
+   * Needs "core:mail.send" in manifest `requires` (a module capability; also works in public routes).
+   */
+  readonly mail: {
+    send(m: OutgoingMailInput): Promise<{ messageId: string }>;
+    /** Address that routes inbound mail to this module's `inboundMail` handler; null if inbound mail isn't configured. */
+    inboundAddress(): Promise<string | null>;
+    /** Base URL of the web app, for links in emails (e.g. https://office.example.com). */
+    readonly appUrl: string;
+    /** Absolute URL of this module's public page: <appUrl>/p/<tenantSlug>/<module><path>. */
+    publicPageUrl(path: string): Promise<string>;
+  };
   readonly log: Logger;
+}
+
+export interface OutgoingMailInput {
+  to: string | string[]; subject: string; text: string; html?: string;
+  /** Display name for From (address is the platform's). */
+  fromName?: string; replyTo?: string;
+  /** Message-IDs (with or without <>), for threading. */
+  inReplyTo?: string; references?: string[];
+}
+
+/** An email received at the module's inbound address. Untrusted: validate and escape. */
+export interface InboundMail {
+  messageId: string; inReplyTo?: string | undefined; references: string[];
+  from: { email: string; name?: string | undefined };
+  to: string[]; subject: string;
+  /** Plain-text body (derived from HTML when there is no text part). Raw HTML is not passed on. */
+  text: string;
 }
 
 export interface StoredFile { id: string; title: string; filename: string; mime: string; size: number; sha256: string; module: string | null; createdAt: Date }
@@ -125,6 +155,8 @@ export interface ModuleDefinition {
   lifecycle?: Partial<Record<"enable" | "disable", (ctx: ModuleContext) => Promise<void>>>;
   /** Scheduled per-tenant jobs, keyed by name ([a-z0-9-]+). */
   jobs?: Record<string, JobSpec>;
+  /** Receives mail sent to ctx.mail.inboundAddress(). System ctx; runs once per Message-ID. */
+  inboundMail?: (ctx: ModuleContext, mail: InboundMail) => Promise<void>;
 }
 
 export interface DefineModuleInput extends Omit<ModuleDefinition, "manifest"> { manifest: ManifestInput }
