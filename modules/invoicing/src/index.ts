@@ -8,6 +8,7 @@ import {
   createDraft, deleteDraft, DraftIn, getInvoice, issue, LineIn, listInvoices, ListQuery, markOverdue, markSent, PaymentIn,
   recordPayment, remind, SETTINGS_SCHEMA, settingsOf, summary, toDto, updateDraft, voidInvoice,
 } from "./service.ts";
+import { metrics } from "./metrics.ts";
 
 const P = {
   read: "invoicing:invoice.read",
@@ -82,6 +83,7 @@ export default defineModule({
     api: { basePath: "/invoicing" },
     lifecycle: [],
   },
+  metrics,
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
   routes: [
     route({ method: "GET", path: "/invoices", permission: P.read, query: ListQuery, handler: (ctx, { query }) => listInvoices(ctx, query) }),

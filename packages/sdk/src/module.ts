@@ -145,6 +145,38 @@ export interface ActionSpec<I extends z.ZodType = z.ZodType> {
   run(ctx: ModuleContext, input: z.infer<I>): Promise<Record<string, unknown> | void>;
 }
 
+// ───────────────────────── metrics (KPI dashboard) ─────────────────────────
+export type MetricUnit = "count" | "money" | "percent" | "hours";
+export type MetricBucket = "day" | "week" | "month";
+/** Calendar range in UTC. `from` inclusive, `to` exclusive (midnight after the last day). */
+export interface MetricRange {
+  from: Date; to: Date;
+  /** Same range as YYYY-MM-DD, `toDate` inclusive (for date columns). */
+  fromDate: string; toDate: string;
+  bucket: MetricBucket;
+}
+export interface MetricValue {
+  /** null when there's nothing to measure (e.g. a rate with no closed deals). Money in minor units (cents). */
+  value: number | null;
+  /** For money: ISO code. Rows in other currencies are not converted; report how many were left out. */
+  currency?: string; excluded?: number;
+  /** Flow metrics: one point per bucket, `t` = bucket start (YYYY-MM-DD, weeks start Monday). Missing buckets are filled with 0 by the platform. */
+  series?: { t: string; v: number }[];
+}
+export interface MetricSpec {
+  label: string;
+  description?: string;
+  /** Needed to see the metric; must be declared or required by the module. */
+  permission: string;
+  unit: MetricUnit;
+  /** "flow": measured over the range (compared with the previous period, has a series). "stock": a value now (range ignored). */
+  kind: "flow" | "stock";
+  /** Lower is better (overdue amount, open tickets). Used for colours and targets. */
+  lowerIsBetter?: boolean;
+  /** Read-only. Runs in the caller's tenant transaction with a module ctx. Keep it to a few indexed queries. */
+  compute(ctx: ModuleContext, range: MetricRange): Promise<MetricValue>;
+}
+
 export interface ModuleDefinition {
   manifest: Manifest;
   /** Absolute path to SQL migrations (tables must be "<prefix>_*" with tenant_id + RLS). */
@@ -158,6 +190,8 @@ export interface ModuleDefinition {
   jobs?: Record<string, JobSpec>;
   /** Receives mail sent to ctx.mail.inboundAddress(). System ctx; runs once per Message-ID. */
   inboundMail?: (ctx: ModuleContext, mail: InboundMail) => Promise<void>;
+  /** KPIs this module publishes, keyed "<module key>.<name>" (shown on the KPI dashboard). */
+  metrics?: Record<string, MetricSpec>;
 }
 
 export interface DefineModuleInput extends Omit<ModuleDefinition, "manifest"> { manifest: ManifestInput }
@@ -183,6 +217,10 @@ export function defineModule(def: DefineModuleInput): ModuleDefinition {
     if (!/^[a-z][a-z0-9-]{0,40}$/.test(k)) errors.push(`job name ${k} invalid`);
     if (!(j.everySeconds >= 60)) errors.push(`job ${k} everySeconds must be >= 60`);
   }
+  for (const [k, m] of Object.entries(def.metrics ?? {})) {
+    if (!new RegExp(`^${manifest.key}\\.[a-z][a-z0-9_]{0,40}$`).test(k)) errors.push(`metric ${k} must be named ${manifest.key}.<name>`);
+    if (!perms.has(m.permission) && !manifest.permissions.requires.includes(m.permission)) errors.push(`metric ${k} uses undeclared permission ${m.permission}`);
+  }
   if (errors.length) throw new Error(`Module ${manifest.key}: ${errors.join("; ")}`);
   return { ...def, manifest };
 }
@@ -193,3 +231,4 @@ export const publicRoute = <B extends z.ZodType, Q extends z.ZodType, P extends 
 /** Helper to keep route typing when building the routes array. */
 export const route = <B extends z.ZodType, Q extends z.ZodType, P extends z.ZodType>(r: RouteSpec<B, Q, P>) => r as unknown as RouteSpec;
 export const action = <I extends z.ZodType>(a: ActionSpec<I>) => a as unknown as ActionSpec;
+export const metric = (m: MetricSpec) => m;

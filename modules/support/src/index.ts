@@ -5,6 +5,7 @@ import {
   addNote, checkSla, counts, createInternalTicket, getTicket, linkContact, ListQuery, listTickets, inboxInfo, NoteIn, P, PublicFormIn,
   receiveMail, reply, ReplyIn, SETTINGS_SCHEMA, settingsOf, submitPublicForm, summary, TicketIn, TicketPatch, updateTicket,
 } from "./service.ts";
+import { metrics } from "./metrics.ts";
 
 const Id = z.object({ id: z.uuid() });
 const EVENTS = ["created", "assigned", "status_changed", "replied", "customer_replied", "sla_breached"].map((e) => `support.ticket.${e}`);
@@ -45,6 +46,7 @@ export default defineModule({
     api: { basePath: "/support" },
     lifecycle: [],
   },
+  metrics,
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
   routes: [
     route({ method: "GET", path: "/tickets", permission: P.read, query: ListQuery, handler: (ctx, { query }) => listTickets(ctx, query) }),

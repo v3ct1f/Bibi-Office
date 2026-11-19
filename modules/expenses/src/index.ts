@@ -6,6 +6,7 @@ import {
   exportCsv, ExportQuery, getExpense, listCategories, listExpenses, P, readReceipt, reimburse, removeReceipt, seedCategories,
   SETTINGS_SCHEMA, settingsOf, submitExpense, summary, updateCategory, updateExpense,
 } from "./service.ts";
+import { metrics } from "./metrics.ts";
 
 const Id = z.object({ id: z.uuid() });
 const dto = (ctx: ModuleContext, id: string) => getExpense(ctx, id);
@@ -50,6 +51,7 @@ export default defineModule({
     api: { basePath: "/expenses" },
     lifecycle: ["enable"],
   },
+  metrics,
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
   lifecycle: { enable: (ctx) => seedCategories(ctx) },
   routes: [

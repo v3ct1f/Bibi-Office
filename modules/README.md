@@ -21,3 +21,4 @@ Checklist for a new module:
 | `inventory` | v1.0.0 (Session 11) |
 | `docs` | v1.0.0 (Session 12, shown as "E-sign") |
 | `ai` | v1.0.0 (Session 13, shown as "Summaries") |
+| `kpi` | v1.0.0 (Session 14, shown as "KPIs") |
