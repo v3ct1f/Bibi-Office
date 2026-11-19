@@ -24,9 +24,9 @@
 |---|---|---|
 | 1 | Architecture, stack, data model, SDK spec | ✅ done |
 | 2 | Core backend: auth, tenants, RBAC, shared data, events/outbox, audit, API | ✅ done |
-| 3 | Workflow engine + module loader (+ webhooks, `@office/sdk`) | ✅ done (37 tests green) |
-| 4 | Admin UI + design system | ⏳ next |
-| 5 | Module: Invoicing | ☐ |
+| 3 | Workflow engine + module loader (+ webhooks, `@office/sdk`) | ✅ done |
+| 4 | Admin UI + design system | ✅ done (36 api + 2 worker + 4 web unit + 8 E2E) |
+| 5 | Module: Invoicing | ⏳ next |
 | 6 | Module: CRM | ☐ |
 | 7 | Module: Expenses | ☐ |
 | 8 | Module: Scheduling | ☐ |
@@ -40,7 +40,7 @@
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
 |---|---|
-| Repo | "Bibi Office" on GitHub (not reachable yet: needs GitHub connected + Claude app installed). Code in project files `office/` with local git history until then. |
+| Repo | github.com/v3ct1f/Bibi-Office. Sessions 1-3 on `main`; from Session 4 each session is a branch + PR. |
 | Hosting / region | Cloud-agnostic containers (Docker → Helm/K8s), self-host possible. Tenant `region` field, default `eu`; `us` allowed. |
 | Temporal + Keycloak | Keep both (recommended). Revisit only if ops cost hurts. |
 | Billing | Not in core v1. Later as a module (Stripe) using `tenants.plan`. |
@@ -54,7 +54,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 3)
+## Handoff (Session 4)
+1. Done: `packages/ui` design system (tokens, light/dark, 12 components); `apps/web` admin app (OIDC PKCE, org switcher + onboarding, contacts, modules + settings form, members, roles, API keys, workflows editor + runs, webhooks + deliveries, audit log); module UI slot host; `/me/permissions` API.
+2. Verify: `scripts/local-pg.sh start`; `pnpm test`; `pnpm --filter @office/web build:e2e && TEST_DATABASE_URL=... pnpm --filter @office/web e2e`.
+3. Next (Session 5): `modules/invoicing` (package `@office/module-invoicing`): migrations, manifest per §4.5, routes, actions, events, UI (`nav.main` page, `entity.tab:company`, dashboard widget), register in `packages/modules` + `apps/web/src/modules/registry.ts`.
+4. Open: real Keycloak login not yet exercised (needs Docker host); bundle is ~500 KB, add route code-splitting when modules land.
+5. Open: generate API types from OpenAPI instead of hand-written `apps/web/src/lib/types.ts`.
+
+## Handoff (Session 3, archived)
 1. Done: `@office/sdk`, `@office/platform` (module install/enable/settings+secrets, ctx, dispatcher, workflows w/ inline + Temporal runners, webhooks w/ signing, retries, SSRF guard), `@office/modules`, API routes, worker loops, sample module fixture (`apps/api/test/fixtures/sample`).
 2. Verify: `scripts/local-pg.sh start`; `TEST_DATABASE_URL=... pnpm test` (35 api + 2 worker); `pnpm typecheck && pnpm build`.
 3. Next (Session 4): `apps/web` admin UI (React+Vite+TanStack, shadcn design system in `packages/ui`), OIDC PKCE login, tenant switcher, modules toggle/settings, members/roles, workflows builder, webhooks, audit viewer, UI slot host.

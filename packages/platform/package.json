@@ -17,11 +17,11 @@
     "@temporalio/client": "1.13.2",
     "@temporalio/workflow": "1.13.2",
     "ajv": "8.17.1",
-    "drizzle-orm": "0.44.7",
+    "drizzle-orm": "0.45.4",
     "ipaddr.js": "2.2.0",
     "json-logic-js": "2.0.5",
     "postgres": "3.4.7",
-    "undici": "7.16.0",
+    "undici": "7.30.2",
     "zod": "4.1.12"
   },
   "devDependencies": {

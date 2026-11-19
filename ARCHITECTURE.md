@@ -313,6 +313,8 @@ office/
 │  ├─ worker/         # Outbox relay, NATS consumers, Temporal workers, webhooks
 │  └─ web/            # React SPA: shell, admin UI, slot host
 ├─ packages/
+│  ├─ ui/             # design system (Session 4)
+│  ├─ sdk/ platform/ modules/   # module SDK, platform services, built-in module list (Session 3)
 │  ├─ core/           # domain: tenants, rbac, data, audit, events, workflows
 │  ├─ db/             # Drizzle schema, migrations, RLS policies
 │  ├─ sdk/            # @office/sdk: defineModule, ctx types, manifest schema
@@ -366,3 +368,15 @@ office/
 - New permissions: `core:workflows.read|manage`, `core:webhooks.manage` (admin by default).
 - API: `/modules`, `/modules/:key/{enable,disable,settings}`, `/workflow-catalog`, `/workflows[/:id[/runs]]`, `/webhooks[/:id[/deliveries[/:did/redeliver]]]`, `/m/<key>/*`.
 - Not yet: per-module DB roles (modules share `office_app` within tenant RLS; v2 hardening), Temporal path not integration-tested (needs Temporal server), inbound webhooks, email action.
+
+## 12. Frontend (Session 4, as built)
+
+- `packages/ui`: design system. Tailwind v4 tokens as CSS variables (`--bg`, `--surface`, `--fg`, `--primary`, …) with light/dark (`prefers-color-scheme` + `data-theme` override). Components: Button (cva variants), Input/Textarea/Select/Label/Field (a11y-wired), Card, PageHeader, Badge, EmptyState, Spinner, Alert, Table, Dialog + Switch (Radix).
+- `apps/web`: React 19 + Vite 6 + TanStack Router (code-based routes) + TanStack Query. Routes: `/`, `/contacts[/:id]`, `/admin/{modules,members,roles,api-keys,workflows[/:id],webhooks,audit}`, `/m/<key>/*`, `/auth/callback`, `/new-organization`.
+- Auth: OIDC Authorization Code + PKCE via `oidc-client-ts` (Keycloak client `office-web`); tokens in sessionStorage, silent refresh. E2E builds (`--mode e2e`) swap in an injected-token auth; production bundles don't contain it (checked).
+- Tenant: selected org id in localStorage, sent as `X-Tenant-Id`; header switcher; first sign-in without orgs shows "Create your organization".
+- Permissions: `GET /api/v1/me/permissions` drives nav/buttons (UI hiding only; API enforces).
+- Module UI: build-time `MODULE_UI` registry (`apps/web/src/modules/registry.ts`): `components` (names from manifest `ui.slots[].component`) and `pages` (routes from `nav.main` slots, served at `/m/<key><route>`). Slots render only for enabled modules, permitted users and registered components; each wrapped in an error boundary. Hosts in place: `nav.main`, `dashboard.widget` (home), `entity.tab:contact` (contact page).
+- Module settings form generated from manifest JSON Schema (string/number/integer/boolean/enum; `x-secret` write-only).
+- Workflow editor: event picker from `/workflow-catalog`, JSONLogic conditions, ordered steps with JSON input prefilled from each action's schema.
+- Tests: Vitest + Testing Library (slots, permissions, settings form); Playwright E2E against real API + Postgres + locally signed JWTs (JWKS served by the test harness), desktop + Pixel 7 projects; CI runs both.
