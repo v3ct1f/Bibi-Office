@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Plus, Receipt, Search } from "lucide-react";
+import { Banknote, CircleCheck, FilePen, Plus, Receipt, Search, Settings2 } from "lucide-react";
 import {
   Button, Card, EmptyState, ErrorState, Input, PageHeader, Skeleton, Table, TBody, TD, TH, THead, TR, Tabs, TabsList, TabsTrigger,
 } from "@office/ui";
 import { useModuleHost } from "@office/ui/module-ui";
-import { fmtDate, fmtMoney, StatusBadge, useDebounced, useLoad, type Invoice, type Summary } from "./shared.tsx";
+import { fmtDate, fmtMoney, StatusBadge, useDebounced, useLoad, type Config, type Invoice, type Summary } from "./shared.tsx";
 
 const FILTERS = [
   { value: "all", label: "All" }, { value: "draft", label: "Drafts" }, { value: "outstanding", label: "Outstanding" },
@@ -66,6 +66,26 @@ export function InvoiceTable({ rows, onOpen, showCustomer = true }: { rows: Invo
   );
 }
 
+const HOW = [
+  { icon: <FilePen />, title: "1. Create a draft", text: "Pick the customer, add what you are billing for. Drafts can be changed freely." },
+  { icon: <CircleCheck />, title: "2. Finalize and send", text: "Finalizing gives it a number and locks it. Print or save as PDF and send it to your customer." },
+  { icon: <Banknote />, title: "3. Record payment", text: "When the money arrives, record it. Late invoices are flagged as overdue automatically." },
+];
+
+function HowItWorks() {
+  return (
+    <div className="grid gap-3 p-5 sm:grid-cols-3">
+      {HOW.map((h) => (
+        <div key={h.title} className="grid content-start gap-1.5 rounded-md border p-4">
+          <div className="text-primary [&_svg]:size-5">{h.icon}</div>
+          <p className="font-medium">{h.title}</p>
+          <p className="text-sm text-muted-foreground">{h.text}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function InvoiceList() {
   const host = useModuleHost();
   const [filter, setFilter] = useState<string>(() => {
@@ -78,6 +98,8 @@ export function InvoiceList() {
   const [cursor, setCursor] = useState<string | null>(null);
 
   const summary = useLoad(() => host.api.get<Summary>("/summary"), [host]);
+  const config = useLoad(() => host.api.get<Config>("/config"), [host]);
+  const canSetup = host.can("core:modules.manage");
   const list = useLoad(async () => {
     const r = await host.api.get<{ data: Invoice[]; nextCursor: string | null }>("/invoices", {
       status: filter === "all" ? undefined : filter, q: dq || undefined, limit: 50,
@@ -97,10 +119,22 @@ export function InvoiceList() {
   const rows = [...(list.data ?? []), ...extra];
   const canWrite = host.can("invoicing:invoice.write");
   const newBtn = canWrite && <Button onClick={() => host.navigate("/invoices/new")}><Plus /> New invoice</Button>;
+  const settingsBtn = canSetup && <Button variant="outline" onClick={() => host.navigate("/settings")}><Settings2 /> Invoice settings</Button>;
+  const needsSetup = canSetup && config.data && !config.data.seller.name;
 
   return (
     <>
-      <PageHeader title="Invoices" description="Bill customers, track payments and follow up on overdue invoices." actions={newBtn} />
+      <PageHeader title="Invoices" description="Bill customers, track payments and follow up on overdue invoices." actions={<>{settingsBtn}{newBtn}</>} />
+      {needsSetup && (
+        <Card className="mb-4 flex flex-wrap items-center gap-4 border-primary/30 bg-primary/5 p-4" role="status">
+          <Settings2 className="size-5 text-primary" />
+          <div className="grid min-w-60 flex-1 gap-0.5">
+            <p className="font-semibold">Set up your invoice details first</p>
+            <p className="text-sm text-muted-foreground">Add your logo, business name, address and bank details once. They are printed on every invoice.</p>
+          </div>
+          <Button onClick={() => host.navigate("/settings")}>Set up invoice details</Button>
+        </Card>
+      )}
       <SummaryCards summary={summary.data} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <Tabs value={filter} onValueChange={setFilter}>
@@ -115,9 +149,13 @@ export function InvoiceList() {
         {list.loading && !list.data ? <div className="grid gap-2 p-4">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-8" />)}</div>
           : list.error ? <ErrorState error={list.error} onRetry={() => void list.reload()} />
           : !rows.length ? (
-            <EmptyState icon={<Receipt />} title={filter === "all" && !dq ? "No invoices yet" : "No matching invoices"}
-              description={filter === "all" && !dq ? "Create your first invoice to start getting paid." : undefined}
-              action={filter === "all" && !dq ? newBtn : undefined} />
+            filter === "all" && !dq ? (
+              <>
+                <EmptyState icon={<Receipt />} title="No invoices yet" description="Here is how invoicing works:" className="pb-0" />
+                <HowItWorks />
+                <div className="flex justify-center pb-6">{newBtn}</div>
+              </>
+            ) : <EmptyState icon={<Receipt />} title="No matching invoices" />
           ) : (
             <>
               <InvoiceTable rows={rows} onOpen={(i) => host.navigate(`/invoices/${i.id}`)} />

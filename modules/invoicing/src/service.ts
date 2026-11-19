@@ -5,15 +5,38 @@ import { moduleErrors as E, type ModuleContext } from "@office/sdk";
 import {
   addDays, formatNumber, invoiceTotals, lineTotals, numberPeriod, today, validateNumberFormat, type LineInput,
 } from "./money.ts";
-import { invoices, lines, payments, sequences, type BillTo } from "./schema.ts";
+import { invoices, lines, payments, sequences, type Address, type BillTo, type Seller } from "./schema.ts";
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 export interface Settings {
   currency: string; numberFormat: string; paymentTermDays: number; defaultTaxRate: number;
-  sellerName?: string; sellerAddress?: string; sellerTaxId?: string; paymentInstructions?: string;
+  logo?: string;
+  sellerName?: string; sellerEmail?: string; sellerPhone?: string; sellerWebsite?: string;
+  sellerRegistrationNumber?: string; sellerTaxId?: string;
+  sellerAddressLine1?: string; sellerAddressLine2?: string; sellerPostalCode?: string; sellerCity?: string; sellerCountry?: string;
+  /** Legacy free-text address (before structured fields); still printed when line fields are empty. */
+  sellerAddress?: string;
+  bankName?: string; iban?: string; bic?: string; paymentInstructions?: string; footer?: string;
 }
 export const DEFAULTS: Settings = { currency: "EUR", numberFormat: "INV-{YYYY}-{seq:5}", paymentTermDays: 30, defaultTaxRate: 0 };
 export const settingsOf = (ctx: ModuleContext): Settings => ({ ...DEFAULTS, ...ctx.settings.get<Partial<Settings>>() });
+
+const clean = <T extends object>(o: T): T =>
+  Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== "")) as T;
+
+/** Seller profile from settings, frozen onto the invoice when it is finalized. */
+export function sellerOf(s: Settings): Seller {
+  const address = clean<Address>({
+    line1: s.sellerAddressLine1 || (!s.sellerAddressLine2 && !s.sellerCity ? s.sellerAddress : undefined),
+    line2: s.sellerAddressLine2, postalCode: s.sellerPostalCode, city: s.sellerCity, country: s.sellerCountry,
+  });
+  return clean<Seller>({
+    name: s.sellerName, email: s.sellerEmail, phone: s.sellerPhone, website: s.sellerWebsite,
+    registrationNumber: s.sellerRegistrationNumber, taxId: s.sellerTaxId,
+    ...(Object.keys(address).length ? { address } : {}),
+    bankName: s.bankName, iban: s.iban, bic: s.bic, paymentInstructions: s.paymentInstructions, footer: s.footer,
+  });
+}
 
 // ── Input schemas ────────────────────────────────────────────────────────────
 const isoDate = z.iso.date();
@@ -23,6 +46,15 @@ export const LineSchema = z.object({
   unitPriceCents: z.number().int().min(-1e12).max(1e12),
   taxRate: z.number().min(0).max(100),
 });
+const text = (max: number) => z.string().trim().max(max).optional();
+export const AddressInput = z.object({
+  line1: text(200), line2: text(200), postalCode: text(20), city: text(100), region: text(100), country: text(100),
+});
+/** Billing details printed on the invoice; empty fields fall back to the company/contact record. */
+export const BillToInput = z.object({
+  name: text(200), contactName: text(200), email: z.union([z.email().max(200), z.literal("")]).optional(),
+  phone: text(50), taxId: text(50), address: AddressInput.optional(),
+});
 export const InvoiceInput = z.object({
   companyId: z.uuid().nullish(),
   contactId: z.uuid().nullish(),
@@ -30,6 +62,9 @@ export const InvoiceInput = z.object({
   issueDate: isoDate.optional(),
   dueDate: isoDate.optional(),
   notes: z.string().max(4000).nullish(),
+  reference: z.string().trim().max(100).nullish(),
+  serviceDate: isoDate.nullish(),
+  billTo: BillToInput.optional(),
   lines: z.array(LineSchema).max(200).default([]),
 });
 export const InvoicePatch = InvoiceInput.partial().extend({ lines: z.array(LineSchema).max(200).optional() });
@@ -61,7 +96,7 @@ export function displayStatus(r: Pick<Row, "status" | "dueDate" | "paidCents">, 
 const dto = (r: Row) => ({
   id: r.id, number: r.number, status: r.status, displayStatus: displayStatus(r),
   companyId: r.companyId, contactId: r.contactId, billTo: r.billTo, currency: r.currency,
-  issueDate: r.issueDate, dueDate: r.dueDate, notes: r.notes,
+  issueDate: r.issueDate, dueDate: r.dueDate, notes: r.notes, reference: r.reference, serviceDate: r.serviceDate, seller: r.seller,
   subtotalCents: r.subtotalCents, taxCents: r.taxCents, totalCents: r.totalCents, paidCents: r.paidCents,
   balanceCents: r.status === "void" ? 0 : r.totalCents - r.paidCents,
   source: r.source, sentAt: r.sentAt, paidAt: r.paidAt, voidedAt: r.voidedAt, voidReason: r.voidReason,
@@ -84,6 +119,31 @@ async function load(ctx: ModuleContext, id: string, lock = false): Promise<Row> 
   return r;
 }
 
+const ADDRESS_KEYS = ["line1", "line2", "postalCode", "city", "region", "country"] as const;
+/** Core company addresses are free-form JSON; keep the fields we know (plus common aliases). */
+function toAddress(a: unknown): Address {
+  if (!a || typeof a !== "object") return {};
+  const o = a as Record<string, unknown>;
+  const pick = (...k: string[]) => k.map((x) => o[x]).find((v): v is string => typeof v === "string" && !!v.trim());
+  return clean<Address>({
+    line1: pick("line1", "street", "address1"), line2: pick("line2", "address2"), postalCode: pick("postalCode", "zip", "postcode"),
+    city: pick("city", "town"), region: pick("region", "state"), country: pick("country"),
+  });
+}
+
+/** Overlay user-entered billing details on the resolved record (blank fields keep the record's value). */
+function mergeBillTo(base: BillTo, over?: z.infer<typeof BillToInput>): BillTo {
+  if (!over) return base;
+  const { address, ...rest } = over;
+  const merged = { ...base, ...clean(rest) } as BillTo;
+  if (address) {
+    const a = { ...(base.address ?? {}) } as Record<string, string | undefined>;
+    for (const k of ADDRESS_KEYS) if (address[k] !== undefined) a[k] = address[k] || undefined;
+    merged.address = clean(a) as Address;
+  }
+  return merged;
+}
+
 async function resolveCustomer(ctx: ModuleContext, companyId?: string | null, contactId?: string | null) {
   const contact = contactId ? await ctx.data.contacts.get(contactId) : null;
   const cid = companyId ?? (contact?.companyId as string | null | undefined) ?? null;
@@ -94,8 +154,9 @@ async function resolveCustomer(ctx: ModuleContext, companyId?: string | null, co
     name: (company?.name as string | undefined) ?? contactName ?? (contact?.email as string | undefined) ?? "Customer",
     ...(contactName && company ? { contactName } : {}),
     ...(contact?.email ? { email: contact.email as string } : {}),
+    ...(contact?.phone ? { phone: contact.phone as string } : {}),
     ...(company?.taxId ? { taxId: company.taxId as string } : {}),
-    ...(company?.address ? { address: company.address as Record<string, unknown> } : {}),
+    ...(company?.address ? { address: toAddress(company.address) } : {}),
   };
   return { companyId: (company?.id as string | undefined) ?? null, contactId: (contact?.id as string | undefined) ?? null, billTo };
 }
@@ -188,7 +249,8 @@ export async function createInvoice(
   ctx: ModuleContext, input: z.infer<typeof InvoiceInput>, source: { source: string; ref?: string } = { source: "manual" },
 ) {
   const s = settingsOf(ctx);
-  const customer = await resolveCustomer(ctx, input.companyId, input.contactId);
+  const resolved = await resolveCustomer(ctx, input.companyId, input.contactId);
+  const customer = { ...resolved, billTo: mergeBillTo(resolved.billTo, input.billTo) };
   const issueDate = input.issueDate ?? today();
   const dueDate = input.dueDate ?? addDays(issueDate, s.paymentTermDays);
   if (dueDate < issueDate) throw E.badRequest("Due date cannot be before the issue date");
@@ -196,7 +258,7 @@ export async function createInvoice(
   const id = uuidv7();
   const [row] = await ctx.db.insert(invoices).values({
     id, tenantId: ctx.tenantId, status: "draft", ...customer, currency: input.currency ?? s.currency,
-    issueDate, dueDate, notes: input.notes ?? null, ...totals, paidCents: 0, reminderCount: 0,
+    issueDate, dueDate, notes: input.notes ?? null, reference: input.reference ?? null, serviceDate: input.serviceDate ?? null, ...totals, paidCents: 0, reminderCount: 0,
     source: source.source, sourceRef: source.ref ?? null, createdBy: actorRef(ctx),
   }).returning();
   await writeLines(ctx, id, priced);
@@ -210,10 +272,15 @@ export async function updateInvoice(ctx: ModuleContext, id: string, patch: z.inf
   if (r.status !== "draft") throw E.conflict("Only draft invoices can be edited");
   const set: Partial<typeof invoices.$inferInsert> = { updatedAt: new Date() };
   if (patch.companyId !== undefined || patch.contactId !== undefined) {
-    Object.assign(set, await resolveCustomer(ctx,
+    const c = await resolveCustomer(ctx,
       patch.companyId !== undefined ? patch.companyId : r.companyId,
-      patch.contactId !== undefined ? patch.contactId : r.contactId));
+      patch.contactId !== undefined ? patch.contactId : r.contactId);
+    Object.assign(set, c, { billTo: mergeBillTo(c.billTo, patch.billTo) });
+  } else if (patch.billTo) {
+    set.billTo = mergeBillTo(r.billTo, patch.billTo);
   }
+  if (patch.reference !== undefined) set.reference = patch.reference || null;
+  if (patch.serviceDate !== undefined) set.serviceDate = patch.serviceDate ?? null;
   if (patch.currency) set.currency = patch.currency;
   if (patch.issueDate) set.issueDate = patch.issueDate;
   if (patch.dueDate) set.dueDate = patch.dueDate;
@@ -252,7 +319,7 @@ export async function sendInvoice(ctx: ModuleContext, id: string) {
     .onConflictDoUpdate({ target: [sequences.tenantId, sequences.period], set: { lastValue: sql`${sequences.lastValue} + 1` } })
     .returning({ v: sequences.lastValue });
   const number = formatNumber(fmt, issued, seq!.v);
-  const [row] = await ctx.db.update(invoices).set({ status: "sent", number, sentAt: new Date(), updatedAt: new Date() })
+  const [row] = await ctx.db.update(invoices).set({ status: "sent", number, seller: sellerOf(settingsOf(ctx)), sentAt: new Date(), updatedAt: new Date() })
     .where(eq(invoices.id, id)).returning();
   await ctx.audit.log("invoice.sent", { type: "invoice", id }, { number });
   await ctx.events.emit("invoicing.invoice.sent", eventPayload(row!));

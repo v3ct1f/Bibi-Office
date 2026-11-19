@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Blocks, Settings2 } from "lucide-react";
+import { ArrowRight, Blocks, Settings2 } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Badge, Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, ConfirmDialog, Dialog, DialogContent, DialogFooter,
   EmptyState, ErrorState, PageHeader, SchemaForm, Skeleton, Switch,
@@ -10,9 +11,14 @@ import { useTMutation, useTQuery } from "../../api/hooks.ts";
 import { useTenant } from "../../lib/tenant.tsx";
 
 const hasSettings = (m: ModuleInfo) => Object.keys((m.settingsSchema?.properties as object | undefined) ?? {}).length > 0;
+/** A module may ship its own settings page (ui slot "nav.settings"); else we render its JSON Schema. */
+const settingsRoute = (m: ModuleInfo) => m.ui.slots.find((s) => s.slot === "nav.settings" && s.route)?.route;
+const mainRoute = (m: ModuleInfo) => m.ui.slots.find((s) => s.slot === "nav.main" && s.route);
 
 export function ModulesPage() {
   const { api, can, tenant } = useTenant();
+  const navigate = useNavigate();
+  const go = (m: ModuleInfo, route: string) => void navigate({ to: `/t/${tenant.slug}/m/${m.key}${route}` });
   const qc = useQueryClient();
   const mods = useTQuery<ModuleInfo[]>(["modules"], "/modules");
   const manage = can("core:modules.manage");
@@ -57,9 +63,15 @@ export function ModulesPage() {
                     {m.requires.length > 0 && <p>Uses your data: {m.requires.map((r) => r.replace(/^core:/, "")).join(", ")}</p>}
                     {m.permissions.length > 0 && <p>Adds {m.permissions.length} permission{m.permissions.length === 1 ? "" : "s"} (granted to Admin on enable)</p>}
                   </CardContent>
-                  {hasSettings(m) && (
+                  {(hasSettings(m) || (m.enabled && mainRoute(m))) && (
                     <CardFooter className="mt-auto">
-                      <Button size="sm" variant="outline" disabled={!manage} onClick={() => setConfiguring(m)}><Settings2 /> Settings</Button>
+                      {hasSettings(m) && (settingsRoute(m)
+                        ? <Button size="sm" variant="outline" disabled={!manage || !m.enabled} title={m.enabled ? undefined : "Turn the app on first"}
+                            onClick={() => go(m, settingsRoute(m)!)}><Settings2 /> Settings</Button>
+                        : <Button size="sm" variant="outline" disabled={!manage} onClick={() => setConfiguring(m)}><Settings2 /> Settings</Button>)}
+                      {m.enabled && mainRoute(m) && (
+                        <Button size="sm" variant="ghost" onClick={() => go(m, mainRoute(m)!.route!)}>Open {mainRoute(m)!.label ?? m.name} <ArrowRight /></Button>
+                      )}
                       {m.secretsSet.length > 0 && <span className="text-xs text-muted-foreground">{m.secretsSet.length} secret{m.secretsSet.length === 1 ? "" : "s"} stored</span>}
                     </CardFooter>
                   )}

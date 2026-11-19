@@ -51,7 +51,16 @@ describe("invoicing module", () => {
     expect((await A().patch("/modules/invoicing/settings", { sellerName: "Acme Ltd", defaultTaxRate: 21 })).status).toBe(200);
     expect((await A().post("/modules/invoicing/enable", {})).status).toBe(200);
     const cfg = (await A().get(`${M}/config`)).body;
-    expect(cfg).toMatchObject({ currency: "EUR", paymentTermDays: 30, defaultTaxRate: 21, sellerName: "Acme Ltd", defaultDueDate: day(30) });
+    expect(cfg).toMatchObject({ currency: "EUR", paymentTermDays: 30, defaultTaxRate: 21, seller: { name: "Acme Ltd" }, defaultDueDate: day(30) });
+    // Logos must be small raster data URLs; SVG (script-capable) is refused.
+    expect((await A().patch("/modules/invoicing/settings", { logo: "data:image/svg+xml;base64,PHN2Zz4=" })).status).toBe(400);
+    expect((await A().patch("/modules/invoicing/settings", {
+      logo: "data:image/png;base64,iVBORw0KGgo=", sellerTaxId: "GB999", sellerCity: "London", iban: "GB33BUKB20201555555555", footer: "Thank you",
+    })).status).toBe(200);
+    expect((await A().get(`${M}/config`)).body).toMatchObject({
+      logo: "data:image/png;base64,iVBORw0KGgo=",
+      seller: { name: "Acme Ltd", taxId: "GB999", address: { city: "London" }, iban: "GB33BUKB20201555555555", footer: "Thank you" },
+    });
   });
 
   let inv1: string;
@@ -81,9 +90,22 @@ describe("invoicing module", () => {
     expect(p.body).toMatchObject({ subtotalCents: 150000, taxCents: 31500, totalCents: 181500 });
     expect((await A().post(`${M}/invoices/${inv1}/payments`, { amountCents: 100 })).status).toBe(409);
 
+    // Per-invoice billing details, reference and service date (drafts only).
+    const d = await A().patch(`${M}/invoices/${inv1}`, {
+      reference: "PO-42", serviceDate: day(-3),
+      billTo: { name: "Initech Europe BV", address: { line1: "Main St 1", city: "Austin" }, email: "" },
+    });
+    expect(d.body).toMatchObject({ reference: "PO-42", serviceDate: day(-3), billTo: { name: "Initech Europe BV", contactName: "Peter Gibbons", address: { line1: "Main St 1", city: "Austin" } } });
+    expect(d.body.billTo.email).toBe("peter@initech.com"); // empty input falls back to the record
+    expect(d.body.seller).toBeNull(); // drafts follow the current settings
+
     const s = await A().post(`${M}/invoices/${inv1}/send`, {});
     expect(s.status).toBe(200);
-    expect(s.body).toMatchObject({ status: "sent", displayStatus: "sent", number: `INV-${year}-00001` });
+    expect(s.body).toMatchObject({ status: "sent", displayStatus: "sent", number: `INV-${year}-00001`, seller: { name: "Acme Ltd", taxId: "GB999" } });
+    // Finalized invoices keep the seller details they were issued with.
+    await A().patch("/modules/invoicing/settings", { sellerName: "Acme Holdings" });
+    expect((await A().get(`${M}/invoices/${inv1}`)).body.seller).toMatchObject({ name: "Acme Ltd" });
+    await A().patch("/modules/invoicing/settings", { sellerName: "Acme Ltd" });
     expect((await A().post(`${M}/invoices/${inv1}/send`, {})).status).toBe(409);
     expect((await A().patch(`${M}/invoices/${inv1}`, { notes: "x" })).status).toBe(409);
     expect((await A().del(`${M}/invoices/${inv1}`)).status).toBe(409);

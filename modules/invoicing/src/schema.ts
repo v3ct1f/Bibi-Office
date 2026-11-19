@@ -4,7 +4,13 @@ import { bigint, date, integer, jsonb, numeric, pgTable, text, timestamp, uuid }
 const ts = (n: string) => timestamp(n, { withTimezone: true });
 const cents = (n: string) => bigint(n, { mode: "number" });
 
-export interface BillTo { name: string; contactName?: string; email?: string; taxId?: string; address?: Record<string, unknown> }
+export interface Address { line1?: string; line2?: string; postalCode?: string; city?: string; region?: string; country?: string }
+export interface BillTo { name: string; contactName?: string; email?: string; phone?: string; taxId?: string; address?: Address }
+/** Seller details frozen onto an invoice when it is finalized (logo excluded: it stays in settings). */
+export interface Seller {
+  name?: string; email?: string; phone?: string; website?: string; registrationNumber?: string; taxId?: string;
+  address?: Address; bankName?: string; iban?: string; bic?: string; paymentInstructions?: string; footer?: string;
+}
 
 export const invoices = pgTable("invoicing_invoices", {
   id: uuid("id").primaryKey(),
@@ -18,6 +24,9 @@ export const invoices = pgTable("invoicing_invoices", {
   issueDate: date("issue_date", { mode: "string" }).notNull(),
   dueDate: date("due_date", { mode: "string" }).notNull(),
   notes: text("notes"),
+  reference: text("reference"),
+  serviceDate: date("service_date", { mode: "string" }),
+  seller: jsonb("seller").$type<Seller>(),
   subtotalCents: cents("subtotal_cents").notNull(),
   taxCents: cents("tax_cents").notNull(),
   totalCents: cents("total_cents").notNull(),

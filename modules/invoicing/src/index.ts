@@ -4,7 +4,7 @@ import { action, defineModule, job, route } from "@office/sdk";
 import { addDays, toCents, today } from "./money.ts";
 import {
   createInvoice, deleteDraft, getInvoice, InvoiceInput, InvoicePatch, invoiceForDeal, ListQuery, listInvoices, markOverdue,
-  PaymentInput, recordPayment, remind, sendInvoice, settingsOf, summary, updateInvoice, voidInvoice,
+  PaymentInput, recordPayment, remind, sellerOf, sendInvoice, settingsOf, summary, updateInvoice, voidInvoice,
 } from "./service.ts";
 
 const READ = "invoicing:invoice.read", WRITE = "invoicing:invoice.write", SEND = "invoicing:invoice.send";
@@ -51,11 +51,13 @@ export default defineModule({
         { slot: "entity.tab:company", label: "Invoices", component: "CustomerInvoicesTab", permission: READ },
         { slot: "entity.tab:contact", label: "Invoices", component: "CustomerInvoicesTab", permission: READ },
         { slot: "dashboard.widget", label: "Invoices", component: "OutstandingWidget", permission: READ },
+        { slot: "nav.settings", label: "Invoice settings", route: "/settings" },
       ],
     },
     settings: {
       type: "object",
       properties: {
+        // Defaults
         currency: { type: "string", title: "Default currency", default: "EUR", pattern: "^[A-Z]{3}$" },
         numberFormat: {
           type: "string", title: "Number format", default: "INV-{YYYY}-{seq:5}", maxLength: 40, pattern: "\\{seq(:\\d{1,2})?\\}",
@@ -63,10 +65,27 @@ export default defineModule({
         },
         paymentTermDays: { type: "integer", title: "Payment terms (days)", default: 30, minimum: 0, maximum: 365 },
         defaultTaxRate: { type: "number", title: "Default tax rate (%)", default: 0, minimum: 0, maximum: 100 },
-        sellerName: { type: "string", title: "Your company name", maxLength: 200 },
-        sellerAddress: { type: "string", title: "Your address", maxLength: 500 },
-        sellerTaxId: { type: "string", title: "Your tax / VAT ID", maxLength: 50 },
-        paymentInstructions: { type: "string", title: "Payment instructions", maxLength: 500, description: "Shown on every invoice, e.g. IBAN and BIC." },
+        // Branding: small raster image as a data URL (the settings page resizes uploads). SVG is refused.
+        logo: { type: "string", title: "Logo", maxLength: 400000, pattern: "^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$" },
+        // Your business
+        sellerName: { type: "string", title: "Business name", maxLength: 200 },
+        sellerEmail: { type: "string", title: "Email", maxLength: 200 },
+        sellerPhone: { type: "string", title: "Phone", maxLength: 50 },
+        sellerWebsite: { type: "string", title: "Website", maxLength: 200 },
+        sellerRegistrationNumber: { type: "string", title: "Company registration no.", maxLength: 50 },
+        sellerTaxId: { type: "string", title: "VAT / tax ID", maxLength: 50 },
+        sellerAddressLine1: { type: "string", title: "Address line 1", maxLength: 200 },
+        sellerAddressLine2: { type: "string", title: "Address line 2", maxLength: 200 },
+        sellerPostalCode: { type: "string", title: "Postal code", maxLength: 20 },
+        sellerCity: { type: "string", title: "City", maxLength: 100 },
+        sellerCountry: { type: "string", title: "Country", maxLength: 100 },
+        sellerAddress: { type: "string", title: "Address (legacy, free text)", maxLength: 500 },
+        // Getting paid
+        bankName: { type: "string", title: "Bank name", maxLength: 100 },
+        iban: { type: "string", title: "IBAN / account number", maxLength: 50 },
+        bic: { type: "string", title: "BIC / SWIFT", maxLength: 20 },
+        paymentInstructions: { type: "string", title: "Payment instructions", maxLength: 500, description: "Extra text under the bank details." },
+        footer: { type: "string", title: "Footer", maxLength: 500, description: "Small print at the bottom of every invoice." },
       },
       additionalProperties: false,
     },
@@ -78,7 +97,13 @@ export default defineModule({
     route({ method: "GET", path: "/summary", permission: READ, handler: (ctx) => summary(ctx) }),
     route({
       method: "GET", path: "/config", permission: READ,
-      handler: async (ctx) => { const s = settingsOf(ctx); return { ...s, defaultDueDate: addDays(today(), s.paymentTermDays) }; },
+      handler: async (ctx) => {
+        const s = settingsOf(ctx);
+        return {
+          currency: s.currency, numberFormat: s.numberFormat, paymentTermDays: s.paymentTermDays, defaultTaxRate: s.defaultTaxRate,
+          defaultDueDate: addDays(today(), s.paymentTermDays), logo: s.logo, seller: sellerOf(s),
+        };
+      },
     }),
     route({ method: "POST", path: "/invoices", permission: WRITE, status: 201, body: InvoiceInput, handler: (ctx, { body }) => createInvoice(ctx, body) }),
     route({ method: "GET", path: "/invoices/:id", permission: READ, params: Id, handler: (ctx, { params }) => getInvoice(ctx, params.id) }),

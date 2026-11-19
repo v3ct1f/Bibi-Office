@@ -2,6 +2,7 @@ import { defineModuleUi } from "@office/ui/module-ui";
 import { InvoiceDetail } from "./InvoiceDetail.tsx";
 import { InvoiceEditor } from "./InvoiceEditor.tsx";
 import { InvoiceList } from "./InvoiceList.tsx";
+import { SettingsPage } from "./SettingsPage.tsx";
 import { CustomerInvoicesTab, OutstandingWidget } from "./widgets.tsx";
 
 export default defineModuleUi({
@@ -11,6 +12,7 @@ export default defineModuleUi({
     "/invoices/new": InvoiceEditor,
     "/invoices/:id": InvoiceDetail,
     "/invoices/:id/edit": InvoiceEditor,
+    "/settings": SettingsPage,
   },
   components: { CustomerInvoicesTab, OutstandingWidget },
 });

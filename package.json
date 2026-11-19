@@ -17,7 +17,8 @@
     "modules:install": "pnpm --filter @office/modules install-modules",
     "dev:web": "pnpm --filter @office/web dev",
     "dev:oidc": "pnpm --filter @office/api dev:oidc",
-    "e2e": "pnpm --filter @office/web e2e"
+    "e2e": "pnpm --filter @office/web e2e",
+    "dev:local": "pnpm --filter @office/api dev:local"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

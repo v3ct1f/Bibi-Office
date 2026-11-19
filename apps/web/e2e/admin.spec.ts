@@ -80,12 +80,15 @@ test("workflow builder: trigger, condition, templated action", async () => {
   await alice.getByLabel("Workflow name").fill("Follow up new contacts");
   await alice.getByLabel("Trigger event").selectOption("core.contact.created");
   await alice.getByRole("button", { name: "Add condition" }).click();
-  await alice.getByLabel("Condition 1 field").fill("payload.email");
+  await alice.getByLabel("Condition 1 field").selectOption("payload.email");
   await alice.getByLabel("Condition 1 operator").selectOption("exists");
   await alice.getByRole("button", { name: "Add action" }).click();
   await alice.getByLabel("Step 1 action").selectOption("core.create_task");
-  await alice.getByLabel("Title").fill("Follow up {{payload.firstName}}");
+  await alice.getByLabel("Title").fill("Follow up ");
+  await alice.getByRole("button", { name: "+ First name" }).click(); // inserts at the cursor of the last focused field
+  await expect(alice.getByLabel("Title")).toHaveValue("Follow up {{payload.firstName}}");
   await alice.getByLabel("Due In Days").fill("2");
+  await expect(alice.getByTestId("workflow-summary")).toHaveText("When a contact is added, and email is set, then create task.");
   await alice.getByRole("button", { name: "Create workflow" }).click();
   await expect(alice.getByText("Workflow created")).toBeVisible();
   await expect(alice.getByRole("tab", { name: "Runs" })).toBeVisible();
@@ -96,6 +99,17 @@ test("workflow builder: trigger, condition, templated action", async () => {
   await expect(alice.getByLabel("Title")).toHaveValue("Follow up {{payload.firstName}}");
   await alice.getByRole("link", { name: "Workflows" }).first().click();
   await expect(alice.getByRole("cell", { name: "Follow up new contacts", exact: true })).toBeVisible();
+  await expect(alice.getByText("A contact is added", { exact: true })).toBeVisible();
+});
+
+test("workflow recipe fills in the steps", async () => {
+  await alice.getByRole("link", { name: "New workflow" }).first().click();
+  await alice.getByRole("button", { name: /Onboard new team members/ }).click();
+  await expect(alice.getByLabel("Workflow name")).toHaveValue("Onboard new team members");
+  await expect(alice.getByLabel("Trigger event")).toHaveValue("core.member.added");
+  await expect(alice.getByLabel("Title")).toHaveValue("Onboard new team member");
+  await alice.getByRole("button", { name: "Create workflow" }).click();
+  await expect(alice.getByText("Workflow created")).toBeVisible();
 });
 
 test("settings: webhook secret and API key are shown once", async () => {

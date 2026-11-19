@@ -26,6 +26,23 @@ test("enable Invoicing from Settings → Modules", async () => {
   await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Invoices" })).toBeVisible();
 });
 
+const PNG_1PX = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+
+test("set up business details and a logo in Invoice settings", async () => {
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Invoices" }).click();
+  await expect(page.getByText("Set up your invoice details first")).toBeVisible();
+  await page.getByRole("button", { name: "Invoice settings" }).first().click();
+  await expect(page.getByRole("heading", { name: "Invoice settings" })).toBeVisible();
+  await page.getByLabel("Upload logo").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: PNG_1PX });
+  await expect(page.getByRole("img", { name: "Your logo" })).toBeVisible();
+  await page.getByLabel("Business name").fill("Ledger Co BV");
+  await page.getByLabel("VAT / tax ID").fill("NL123456789B01");
+  await page.getByLabel("City").fill("Utrecht");
+  await page.getByLabel("IBAN / account number").fill("NL91ABNA0417164300");
+  await page.getByRole("button", { name: "Save settings" }).first().click();
+  await expect(page.getByText("Invoice settings saved")).toBeVisible();
+});
+
 test("create a company, then a draft invoice with live totals", async () => {
   await page.goto(`/t/${slug}/companies`);
   await page.getByRole("button", { name: "New company" }).first().click();
@@ -50,22 +67,27 @@ test("create a company, then a draft invoice with live totals", async () => {
   await page.getByLabel("Line 2 tax rate").fill("0");
   // 59.97 + 12.59 tax + 40.00 = 112.56
   await expect(page.getByTestId("editor-total")).toContainText("112.56");
-  await page.getByRole("button", { name: "Create draft" }).click();
-  await expect(page.getByText("Draft invoice created")).toBeVisible();
+  await page.getByLabel("Customer reference / PO number").fill("PO-7781");
+  await page.getByRole("button", { name: "Save draft" }).first().click();
+  await expect(page.getByText("Draft saved. Review it, then finalize.")).toBeVisible();
   await expect(page.getByRole("heading", { name: /Draft invoice/ })).toBeVisible();
   await expect(page.getByTestId("invoice-total")).toContainText("112.56");
+  await expect(page.getByTestId("invoice-logo")).toBeVisible();
+  await expect(page.getByText("Ledger Co BV").first()).toBeVisible();
+  await expect(page.getByText("PO-7781")).toBeVisible();
+  await expect(page.getByTestId("payment-box")).toContainText("NL91ABNA0417164300");
 });
 
-test("edit the draft, send it and get a number", async () => {
-  await page.getByRole("button", { name: "Edit" }).click();
+test("edit the draft, finalize it and get a number", async () => {
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByLabel("Line 2 unit price").fill("50");
-  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.getByRole("button", { name: "Save draft" }).first().click();
   await expect(page.getByTestId("invoice-total")).toContainText("122.56");
 
-  await page.getByRole("button", { name: "Send invoice" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Send invoice" }).click();
+  await page.getByRole("button", { name: "Finalize invoice" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Finalize invoice" }).click();
   await expect(page.getByTestId("invoice-number")).toHaveText(`INV-${year}-00001`);
-  await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
 });
 
 test("record a partial then a full payment", async () => {
@@ -94,9 +116,9 @@ test("company tab, list filter and dashboard widget", async () => {
   await page.getByLabel("Line 1 description").fill("Retainer");
   await page.getByLabel("Line 1 unit price").fill("500");
   await page.getByLabel("Line 1 tax rate").fill("0");
-  await page.getByRole("button", { name: "Create draft" }).click();
-  await page.getByRole("button", { name: "Send invoice" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Send invoice" }).click();
+  await page.getByRole("button", { name: "Save draft" }).first().click();
+  await page.getByRole("button", { name: "Finalize invoice" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Finalize invoice" }).click();
   await expect(page.getByTestId("invoice-number")).toHaveText(`INV-${year}-00002`);
 
   await page.getByRole("link", { name: "Invoices" }).first().click();

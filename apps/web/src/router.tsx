@@ -22,6 +22,7 @@ import { useTenant } from "./lib/tenant.tsx";
 
 type AnyCfg = EntityConfig<{ id: string } & Record<string, unknown>>;
 const cfg = (c: unknown) => c as AnyCfg;
+const recipeSearch = (s: Record<string, unknown>): { recipe?: string } => (typeof s.recipe === "string" ? { recipe: s.recipe } : {});
 const newSearch = (s: Record<string, unknown>): { new?: boolean } => (s.new === true || s.new === "true" ? { new: true } : {});
 
 function NotFound() {
@@ -68,7 +69,7 @@ const tree = root.addChildren([
     t("/companies/$id", () => <EntityDetail cfg={cfg(companiesConfig)} />),
     t("/tasks", () => <Gate perm="core:tasks.read"><EntityList key="tasks" cfg={cfg(tasksConfig)} /></Gate>, newSearch),
     t("/workflows", () => <Gate perm="core:workflows.read"><WorkflowsPage /></Gate>),
-    t("/workflows/new", () => <Gate perm="core:workflows.manage"><WorkflowEditor key="new" /></Gate>),
+    t("/workflows/new", () => <Gate perm="core:workflows.manage"><WorkflowEditor key="new" /></Gate>, recipeSearch),
     t("/workflows/$id", () => <Gate perm="core:workflows.read"><WorkflowEditor /></Gate>),
     t("/m/$module/$", ModuleRoute),
     settings.addChildren([

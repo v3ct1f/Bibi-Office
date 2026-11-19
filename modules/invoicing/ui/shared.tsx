@@ -5,11 +5,16 @@ import { toScaled } from "../src/money.ts";
 
 // ── Types (mirror the API DTOs) ──────────────────────────────────────────────
 export type DisplayStatus = "draft" | "sent" | "partially_paid" | "overdue" | "paid" | "void";
-export interface BillTo { name: string; contactName?: string; email?: string; taxId?: string; address?: Record<string, unknown> }
+export interface Address { line1?: string; line2?: string; postalCode?: string; city?: string; region?: string; country?: string }
+export interface BillTo { name: string; contactName?: string; email?: string; phone?: string; taxId?: string; address?: Address }
+export interface Seller {
+  name?: string; email?: string; phone?: string; website?: string; registrationNumber?: string; taxId?: string;
+  address?: Address; bankName?: string; iban?: string; bic?: string; paymentInstructions?: string; footer?: string;
+}
 export interface Invoice {
   id: string; number: string | null; status: "draft" | "sent" | "paid" | "void"; displayStatus: DisplayStatus;
   companyId: string | null; contactId: string | null; billTo: BillTo; currency: string;
-  issueDate: string; dueDate: string; notes: string | null;
+  issueDate: string; dueDate: string; notes: string | null; reference: string | null; serviceDate: string | null; seller: Seller | null;
   subtotalCents: number; taxCents: number; totalCents: number; paidCents: number; balanceCents: number;
   source: string; sentAt: string | null; paidAt: string | null; voidedAt: string | null; voidReason: string | null;
   reminderCount: number; lastRemindedAt: string | null; createdAt: string;
@@ -19,8 +24,15 @@ export interface Payment { id: string; amountCents: number; paidOn: string; meth
 export type InvoiceDetail = Invoice & { lines: Line[]; payments: Payment[] };
 export interface Config {
   currency: string; numberFormat: string; paymentTermDays: number; defaultTaxRate: number; defaultDueDate: string;
-  sellerName?: string; sellerAddress?: string; sellerTaxId?: string; paymentInstructions?: string;
+  logo?: string; seller: Seller;
 }
+
+export const CURRENCIES = ["EUR", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "CAD", "AUD", "JPY"];
+
+/** Address as display lines: "line1", "line2", "1234 AB City", "Country". */
+export const addressLines = (a?: Address | null) => a
+  ? [a.line1, a.line2, [a.postalCode, a.city].filter(Boolean).join(" "), a.region, a.country].filter((x): x is string => !!x && !!x.trim())
+  : [];
 export interface Summary {
   today: string;
   currencies: { currency: string; outstandingCents: number; overdueCents: number; openCount: number; overdueCount: number; draftCount: number; paidLast30Cents: number }[];
@@ -56,7 +68,7 @@ export const fmtDate = (iso: string | null | undefined) =>
 
 const STATUS: Record<DisplayStatus, { label: string; variant: "neutral" | "default" | "warning" | "destructive" | "success" | "outline" }> = {
   draft: { label: "Draft", variant: "neutral" },
-  sent: { label: "Sent", variant: "default" },
+  sent: { label: "Awaiting payment", variant: "default" },
   partially_paid: { label: "Partially paid", variant: "warning" },
   overdue: { label: "Overdue", variant: "destructive" },
   paid: { label: "Paid", variant: "success" },
