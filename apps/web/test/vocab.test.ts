@@ -68,6 +68,9 @@ describe("Inventory vocabulary", () => {
     expect(eventLabel("hr.document.expiring")).toBe("An employee document is about to expire");
     expect(eventGroup("hr.checklist.completed")).toBe("HR");
     expect(eventFields("hr.document.expiring").map((f) => f.path)).toEqual(expect.arrayContaining(["payload.personName", "payload.expiresOn"]));
+    expect(eventLabel("docs.request.completed")).toBe("A document is signed by everyone");
+    expect(eventGroup("docs.request.declined")).toBe("Docs & e-sign");
+    expect(eventFields("docs.request.declined").map((f) => f.path)).toEqual(expect.arrayContaining(["payload.signerName", "payload.reason"]));
     expect(eventLabel("scheduling.time_off.cancelled")).toBe("Time off is cancelled");
   });
   it("names support events and their details", () => {

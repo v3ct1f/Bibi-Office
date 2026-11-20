@@ -17,7 +17,7 @@ import { WebhooksPage } from "./pages/settings/Webhooks.tsx";
 import { AuditPage } from "./pages/settings/Audit.tsx";
 import { WorkflowsPage } from "./pages/workflows/Workflows.tsx";
 import { WorkflowEditor } from "./pages/workflows/WorkflowEditor.tsx";
-import { ModulePage } from "./modules/SlotHost.tsx";
+import { ModulePage, PublicModulePage } from "./modules/SlotHost.tsx";
 import { useTenant } from "./lib/tenant.tsx";
 
 type AnyCfg = EntityConfig<{ id: string } & Record<string, unknown>>;
@@ -45,6 +45,12 @@ const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({ compon
 const index = createRoute({ getParentRoute: () => root, path: "/", component: () => <Authed><HomeRedirect /></Authed> });
 const callback = createRoute({ getParentRoute: () => root, path: "/auth/callback", component: AuthCallback });
 const onboarding = createRoute({ getParentRoute: () => root, path: "/onboarding", component: () => <Authed><Onboarding /></Authed> });
+/** Module pages without sign-in, e.g. signing links for people outside the company. */
+function PublicRoute() {
+  const p = useParams({ strict: false }) as { tenantId: string; module: string; _splat?: string };
+  return <PublicModulePage tenantId={p.tenantId} module={p.module} path={p._splat ?? ""} />;
+}
+const publicPage = createRoute({ getParentRoute: () => root, path: "/p/$tenantId/$module/$", component: PublicRoute });
 const tenant = createRoute({ getParentRoute: () => root, path: "/t/$slug", component: () => <Authed><TenantLayout /></Authed> });
 
 const t = (path: string, component: () => React.ReactNode, validateSearch?: (s: Record<string, unknown>) => object) =>
@@ -66,7 +72,7 @@ function ModuleRoute() {
 }
 
 const tree = root.addChildren([
-  index, callback, onboarding,
+  index, callback, onboarding, publicPage,
   tenant.addChildren([
     t("/", Dashboard),
     t("/contacts", () => <Gate perm="core:contacts.read"><EntityList key="contacts" cfg={cfg(contactsConfig)} /></Gate>, newSearch),

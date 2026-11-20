@@ -4,7 +4,7 @@ import { defineModule, job, route } from "@office/sdk";
 import {
   addLeave, addPay, assignChecklist, ChecklistInput, ChecklistQuery, config, createTemplate, deleteChecklist, deleteDocument, deleteLeave, deletePay,
   deleteTemplate, directory, DirectoryQuery, DocumentInput, DocumentPatch, downloadDocument, expiringDocuments, getChecklist, getProfile, LeaveInput,
-  leaveOverview, listChecklists, listDocuments, listPay, listTemplates, myTasks, onTimeOffApproved, onTimeOffCancelled, P, PayInput, personLeave,
+  leaveOverview, listChecklists, listDocuments, listPay, listTemplates, myTasks, onDocsCompleted, onTimeOffApproved, onTimeOffCancelled, P, PayInput, personLeave,
   ProfilePatch, remindExpiring, summary, TaskPatch, TemplateInput, updateDocument, updateProfile, updateTask, updateTemplate, uploadDocument,
 } from "./service.ts";
 
@@ -33,7 +33,7 @@ export default defineModule({
     // Pay: only owners and admins by default; grant hr:pay.manage to another role under Settings → Roles.
     roles: { manager: [P.READ, P.MANAGE], member: [P.READ], viewer: [P.READ] },
     entities: ["employee"],
-    events: { emits: EVENTS.map((type) => ({ type })), subscribes: ["scheduling.time_off.approved", "scheduling.time_off.cancelled"] },
+    events: { emits: EVENTS.map((type) => ({ type })), subscribes: ["scheduling.time_off.approved", "scheduling.time_off.cancelled", "docs.request.completed"] },
     workflow: { triggers: EVENTS, actions: [] },
     ui: {
       slots: [
@@ -95,6 +95,7 @@ export default defineModule({
   handlers: {
     "scheduling.time_off.approved": async (ctx, e) => { await onTimeOffApproved(ctx, e.payload as never); },
     "scheduling.time_off.cancelled": async (ctx, e) => { await onTimeOffCancelled(ctx, e.payload as { id: string }); },
+    "docs.request.completed": async (ctx, e) => { await onDocsCompleted(ctx, e.payload as never); },
   },
   jobs: {
     document_reminders: job({ label: "Remind about expiring employee documents", everyMinutes: 360, run: remindExpiring }),

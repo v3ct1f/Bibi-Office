@@ -2,8 +2,8 @@ import { Component, createContext, useContext, useMemo, type ComponentType, type
 import { Link, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, PackageX } from "lucide-react";
 import { Button, EmptyState } from "@office/ui";
-import { ModuleHostProvider, findPage, type ModuleHost, type ModuleUi, type SlotProps } from "@office/ui/module-ui";
-import { httpClient } from "../api/client.ts";
+import { ModuleHostProvider, findPage, findPublicPage, type ModuleHost, type ModuleUi, type SlotProps } from "@office/ui/module-ui";
+import { httpClient, publicClient } from "../api/client.ts";
 import { useTenant } from "../lib/tenant.tsx";
 import { MODULE_UIS } from "./registry.ts";
 
@@ -83,4 +83,24 @@ export function ModulePage({ module, path }: { module: string; path: string }) {
   if (!page) return <EmptyState icon={<PackageX />} title="Page not found" description="This feature has no page at this address." />;
   const { Component: P, params } = page;
   return <Hosted module={module}><P params={params} path={`/${path}`} /></Hosted>;
+}
+
+/** A module's public page (no sign-in): /p/<tenantId>/<module>/<path>. */
+export function PublicModulePage({ tenantId, module, path }: { tenantId: string; module: string; path: string }) {
+  const reg = useContext(ModuleUiRegistry);
+  const p = `/${path}`.replace(/\/+$/, "") || "/";
+  const hit = useMemo(() => {
+    const ui = reg.find((m) => m.key === module);
+    return ui ? findPublicPage(ui, p) : null;
+  }, [reg, module, p]);
+  const api = useMemo(() => publicClient(`/public/t/${tenantId}/m/${module}`), [tenantId, module]);
+  if (!hit || !/^[0-9a-f-]{36}$/i.test(tenantId)) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-muted/40 p-4">
+        <EmptyState icon={<PackageX />} title="This link is not valid" description="Check that you copied the whole link." />
+      </div>
+    );
+  }
+  const C = hit.Component;
+  return <ModuleBoundary module={module}><C params={hit.params} path={p} tenantId={tenantId} api={api} /></ModuleBoundary>;
 }

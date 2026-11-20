@@ -29,6 +29,8 @@ export interface LeaveEntry { id: string; year: number; kind: LeaveKind; days: n
 export interface DocumentInfo {
   id: string; userId: string; name: string; category: DocCategory; contentType: string; sizeBytes: number; expiresOn: string | null;
   expired: boolean; expiringSoon: boolean; uploadedByName: string | null; createdAt: string; personName?: string | null;
+  /** "docs": a signed document kept in Docs & e-sign; refId is its id there. */
+  source: "upload" | "docs"; refId: string | null;
 }
 export interface TemplateItem { title: string; owner: TaskOwner; dueDays: number }
 export interface Template { id: string; name: string; kind: ChecklistKind; items: TemplateItem[] }

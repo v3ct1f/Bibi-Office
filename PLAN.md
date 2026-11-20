@@ -34,7 +34,7 @@
 | 9 | Module: Support inbox (real IMAP/SMTP per company, threaded replies, notes, assignment, saved replies, Contact link + history, response-time targets) | ✅ done (149 unit/integration + 50 E2E green) |
 | 10 | Module: HR (profiles + directory, org chart, leave allowances from Schedule, documents with expiry reminders, onboarding/offboarding checklists, restricted pay) | ✅ done (160 unit/integration + 54 E2E green) |
 | 11 | Module: Inventory & Purchasing (items, stock moves with reasons, low-stock alerts, POs per supplier, receiving) | ✅ done (129 unit/integration + 44 E2E green) |
-| 12 | Module: Docs & e-sign | ☐ |
+| 12 | Module: Docs & e-sign (library with folders, PDF + template requests, boxes on pages, signing order, emailed or copied links, reminders/expiry, signed copy + certificate, Contacts + HR links, public signing page) | ✅ done (174 unit/integration + 58 E2E green) |
 | 13 | Module: AI email/meeting summaries | ☐ |
 | 14 | Module: KPI dashboard | ☐ |
 
@@ -55,7 +55,25 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 13, HR)
+## Handoff (Session 14, Docs & e-sign)
+1. Done: `modules/docs` (see its README).
+   - Library: any file up to 7 MB, folders, search, team or private visibility.
+   - Signature requests from a PDF or a text template with fill-ins. Signature, initials, name, date and text boxes are placed on the pages, with optional signing order and a message.
+   - Private signing links, emailed through the company's SMTP or copied by the sender. Reminders and expiry run in the hourly `reminders` job.
+   - The signed PDF is stamped and gets a certificate page (signers, IPs, devices, history, SHA-256 of the original).
+   - Contacts tab, and HR filing (`docs.request.completed` → HR document with `source = docs`, HR migration 0002).
+   - Platform: **public module routes** (`publicRoutes`, `/api/v1/public/t/:tenant/m/<key>/…`) and **public pages** (`publicPages`, `/p/:tenant/<key>/…`); see ARCHITECTURE 4.2.
+2. Verify:
+   - `pnpm typecheck`.
+   - `TEST_DATABASE_URL=... pnpm test`: api 112, including 8 docs tests; module-docs 6.
+   - `pnpm e2e`: 58 flows, including 4 docs.
+3. Next on the original list: AI email/meeting summaries (row 13), KPI dashboard (row 14).
+4. Open:
+   - Simple e-signature only (no PAdES/qualified certificates).
+   - Standard PDF fonts: Western European letters only.
+   - No bulk send, and no signer identity check beyond the link (e.g. an email code).
+
+## Handoff (Session 13, HR, archived)
 1. Done: `modules/hr`.
    - Profiles for workspace members: job, department, manager, employment, dates.
    - Private details (date of birth, contact details, emergency contact, hours, allowance) visible only to HR and the person. HR notes are for HR only.

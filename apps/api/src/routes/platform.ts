@@ -2,10 +2,11 @@ import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { AppError, getTenant, hasPermission, requirePermission, type RequestContext } from "@office/core";
-import type { Db, Tx } from "@office/db";
+import { and, eq } from "drizzle-orm";
+import { tenants, withTenant, type Db, type Tx } from "@office/db";
 import {
   actionCatalog, createModuleContext, disableModule, enableModule, enabledModuleKeys, listModules, loadEnabledModule,
-  updateModuleSettings, webhookService, WebhookInput, workflowService, WorkflowInput, CORE_EVENTS,
+  systemContext, updateModuleSettings, webhookService, WebhookInput, workflowService, WorkflowInput, CORE_EVENTS,
   type ModuleRegistry, type SecretBox,
 } from "@office/platform";
 
@@ -118,6 +119,37 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
             requirePermission(ctx, r.permission);
             return r.handler(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log), {
               body: req.body, query: req.query, params: req.params,
+            });
+          });
+          return reply.status(r.status ?? (out === undefined ? 204 : 200)).send(out);
+        },
+      });
+    }
+
+    // Public routes: no sign-in and no permissions; the module checks its own token. Unknown or
+    // inactive tenants and disabled modules all answer the same 404, so nothing leaks.
+    for (const r of m.publicRoutes ?? []) {
+      app.route({
+        method: r.method,
+        url: `/public/t/:tenantId/m/${key}${r.path === "/" ? "" : r.path}`,
+        config: { auth: "public", rateLimit: { max: 120, timeWindow: "1 minute", keyGenerator: (req: FastifyRequest) => req.ip } },
+        ...(r.bodyLimit ? { bodyLimit: Math.min(r.bodyLimit, 10 * 1024 * 1024) } : {}),
+        schema: {
+          tags: [`public:${key}`], security: [],
+          params: (r.params ? (r.params as z.ZodObject).extend({ tenantId: z.uuid() }) : z.object({ tenantId: z.uuid() })),
+          ...(r.body ? { body: r.body } : {}), ...(r.query ? { querystring: r.query } : {}),
+        },
+        handler: async (req, reply) => {
+          const { tenantId, ...params } = req.params as { tenantId: string } & Record<string, string>;
+          const tid = tenantId.toLowerCase();
+          const out = await withTenant(o.db, tid, async (tx) => {
+            const [t] = await tx.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.id, tid), eq(tenants.status, "active")));
+            const loaded = t ? await loadEnabledModule(tx, md, tid, key) : null;
+            if (!loaded) throw new AppError(404, "not_found", "This link is not valid");
+            const base = systemContext(tid, req.id, `public:${key}`);
+            const ctx: RequestContext = { ...base, ip: req.ip, userAgent: req.headers["user-agent"], actor: { ...base.actor, permissions: new Set<string>() } };
+            return r.handler(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log), {
+              body: req.body, query: req.query, params, client: { ip: req.ip, userAgent: req.headers["user-agent"] ?? null },
             });
           });
           return reply.status(r.status ?? (out === undefined ? 204 : 200)).send(out);

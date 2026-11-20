@@ -15,10 +15,10 @@ type Query = Record<string, string | number | boolean | undefined | null>;
 let onUnauthorized: () => void = () => {};
 export const setUnauthorizedHandler = (fn: () => void) => { onUnauthorized = fn; };
 
-export async function request<T>(method: string, path: string, o: { body?: unknown; query?: Query; tenantId?: string; signal?: AbortSignal } = {}): Promise<T> {
+export async function request<T>(method: string, path: string, o: { body?: unknown; query?: Query; tenantId?: string; signal?: AbortSignal; anonymous?: boolean } = {}): Promise<T> {
   const url = new URL(`/api/v1${path}`, config.apiUrl);
   for (const [k, v] of Object.entries(o.query ?? {})) if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
-  const token = await getAccessToken();
+  const token = o.anonymous ? null : await getAccessToken();
   const headers: Record<string, string> = { accept: "application/json" };
   if (token) headers.authorization = `Bearer ${token}`;
   if (o.tenantId) headers["x-tenant-id"] = o.tenantId;
@@ -30,7 +30,7 @@ export async function request<T>(method: string, path: string, o: { body?: unkno
     if ((e as Error).name === "AbortError") throw e;
     throw new ApiError(0, "Cannot reach the server. Check your connection.", "network");
   }
-  if (res.status === 401) onUnauthorized();
+  if (res.status === 401 && !o.anonymous) onUnauthorized();
   if (res.status === 204) return undefined as T;
   const text = await res.text();
   const data = text ? safeJson(text) : undefined;
@@ -46,6 +46,18 @@ const safeJson = (t: string) => { try { return JSON.parse(t) as unknown; } catch
 /** HttpClient bound to a base path and tenant (also handed to module UIs). */
 export function httpClient(base: string, tenantId?: string): HttpClient {
   const o = tenantId ? { tenantId } : {};
+  return {
+    get: (p, query) => request("GET", base + p, { ...o, ...(query ? { query } : {}) }),
+    post: (p, body) => request("POST", base + p, { ...o, body: body ?? {} }),
+    put: (p, body) => request("PUT", base + p, { ...o, body: body ?? {} }),
+    patch: (p, body) => request("PATCH", base + p, { ...o, body: body ?? {} }),
+    del: (p) => request("DELETE", base + p, o),
+  };
+}
+
+/** HttpClient without credentials, for public pages (signing links). */
+export function publicClient(base: string): HttpClient {
+  const o = { anonymous: true };
   return {
     get: (p, query) => request("GET", base + p, { ...o, ...(query ? { query } : {}) }),
     post: (p, body) => request("POST", base + p, { ...o, body: body ?? {} }),

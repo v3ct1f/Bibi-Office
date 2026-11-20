@@ -9,9 +9,10 @@ import expenses from "@office/module-expenses/ui";
 import inventory from "@office/module-inventory/ui";
 import support from "@office/module-support/ui";
 import hr from "@office/module-hr/ui";
+import docs from "@office/module-docs/ui";
 import scheduling from "@office/module-scheduling/ui";
 import invoicing from "@office/module-invoicing/ui";
 
-export const MODULE_UIS: ModuleUi[] = [invoicing, crm, expenses, scheduling, inventory, support, hr];
+export const MODULE_UIS: ModuleUi[] = [invoicing, crm, expenses, scheduling, inventory, support, hr, docs];
 
 export const moduleUi = (key: string, list: ModuleUi[] = MODULE_UIS) => list.find((m) => m.key === key);

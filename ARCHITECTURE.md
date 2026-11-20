@@ -173,6 +173,12 @@ export default defineModule({
 - `defineModule` throws if handlers ≠ `subscribes`, actions ≠ `workflow.actions`, or a route uses an undeclared permission.
 - Manifest rules: declared permissions start `<key>:`, emitted events start `<key>.`, triggers ⊆ emits.
 - Register built-ins in `packages/modules/src/index.ts` (`MODULES`); api, worker and installer share it.
+- **Public routes (Session 14):** `publicRoutes: [publicRoute({ method, path, body?, handler: (ctx, { params, body, client: { ip, userAgent } }) => … })]`.
+  - Mounted at `/api/v1/public/t/:tenantId/m/<key><path>` with no sign-in, rate-limited to 120 per minute per IP.
+  - They run in `withTenant` only for an active tenant with the module turned on; anything else answers the same 404, "This link is not valid".
+  - The actor is a system actor (`public:<key>`) with **no permissions**, so the handler must check its own secret (for example a signing token).
+  - Paths must match `/^\/[a-z0-9/:_-]*$/i`.
+  - The web side: `ModuleUi.publicPages: [{ path, component }]` is served at `/p/:tenantId/<key>/…` outside the signed-in shell. Components get `{ params, path, tenantId, api }`, where `api` is an anonymous client: it sends no token and a 401 doesn't sign anyone out.
 
 `ctx` (only door to the platform; scoped to tenant + granted permissions):
 - `ctx.tenant`, `ctx.actor`, `ctx.requestId`

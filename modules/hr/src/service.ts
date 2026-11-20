@@ -302,11 +302,12 @@ export const DocumentPatch = z.object({ name: z.string().trim().min(1).max(200).
 const docDto = (d: Omit<typeof documents.$inferSelect, "data">, name: (id: string | null) => string | null, today = todayIso(), soon = addDays(today, 30)) => ({
   id: d.id, userId: d.userId, name: d.name, category: d.category, contentType: d.contentType, sizeBytes: d.sizeBytes, expiresOn: d.expiresOn,
   expired: !!d.expiresOn && d.expiresOn < today, expiringSoon: !!d.expiresOn && d.expiresOn >= today && d.expiresOn <= soon,
-  uploadedByName: name(d.uploadedBy), createdAt: d.createdAt,
+  uploadedByName: name(d.uploadedBy), createdAt: d.createdAt, source: d.source, refId: d.refId,
 });
 const DOC_COLS = {
   id: documents.id, tenantId: documents.tenantId, userId: documents.userId, name: documents.name, category: documents.category, contentType: documents.contentType,
   sizeBytes: documents.sizeBytes, expiresOn: documents.expiresOn, remindedAt: documents.remindedAt, uploadedBy: documents.uploadedBy, createdAt: documents.createdAt,
+  source: documents.source, refId: documents.refId,
 };
 export async function listDocuments(ctx: ModuleContext, userId: string) {
   requireSelfOrManage(ctx, userId);
@@ -333,8 +334,19 @@ async function loadDoc(ctx: ModuleContext, id: string) {
 export async function downloadDocument(ctx: ModuleContext, id: string) {
   const d = await loadDoc(ctx, id);
   if (!canManage(ctx) && !isSelf(ctx, d.userId)) throw E.notFound("Document");
+  if (d.source === "docs") return { id, name: d.name, contentType: d.contentType, data: null, docsId: d.refId };
   const [f] = await ctx.db.select({ data: documents.data }).from(documents).where(eq(documents.id, id));
-  return { id, name: d.name, contentType: d.contentType, data: f!.data.toString("base64") };
+  return { id, name: d.name, contentType: d.contentType, data: f!.data!.toString("base64"), docsId: null };
+}
+
+/** Docs & e-sign finished a document about a team member: list it with their documents (as a link to Docs). */
+export async function onDocsCompleted(ctx: ModuleContext, e: { documentId: string; title: string; sizeBytes: number; employeeId?: string | null }) {
+  if (!e.employeeId || !(await ctx.people.get(e.employeeId))) return;
+  await ctx.db.insert(documents).values({
+    id: uuidv7(), tenantId: ctx.tenantId, userId: e.employeeId, name: `${e.title} (signed)`.slice(0, 200), category: "contract",
+    contentType: "application/pdf", sizeBytes: Math.max(1, Math.min(e.sizeBytes || 1, 10485760)), data: null, source: "docs", refId: e.documentId,
+  }).onConflictDoNothing();
+  await ctx.audit.log("document.linked", { type: "employee", id: e.employeeId }, { name: e.title, from: "docs" });
 }
 export async function updateDocument(ctx: ModuleContext, id: string, patch: z.infer<typeof DocumentPatch>) {
   const d = await loadDoc(ctx, id);

@@ -306,6 +306,7 @@ function DocumentsTab({ userId, canManage }: { userId: string; canManage: boolea
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<DocumentInfo | null>(null);
   async function open(d: DocumentInfo) {
+    if (d.source === "docs" && d.refId) { window.location.assign(`/t/${host.tenant.slug}/m/docs/docs/${d.refId}`); return; }
     try { const f = await host.api.get<{ name: string; contentType: string; data: string }>(`/documents/${d.id}`); downloadBase64(f.name, f.contentType, f.data); }
     catch (e) { toast.error(errorMessage(e)); }
   }
@@ -319,12 +320,12 @@ function DocumentsTab({ userId, canManage }: { userId: string; canManage: boolea
             <TBody>
               {docs.data.map((d) => (
                 <TR key={d.id}>
-                  <TD><button type="button" className="text-left font-medium hover:underline" onClick={() => void open(d)}>{d.name}</button><span className="block text-xs text-muted-foreground">{fmtSize(d.sizeBytes)}</span></TD>
+                  <TD><button type="button" className="text-left font-medium hover:underline" onClick={() => void open(d)}>{d.name}</button><span className="block text-xs text-muted-foreground">{d.source === "docs" ? "Signed in Docs" : fmtSize(d.sizeBytes)}</span></TD>
                   <TD>{DOC_CAT[d.category]}</TD>
                   <TD className="whitespace-nowrap">{d.expiresOn ? fmtDate(d.expiresOn) : "—"}{d.expired ? <Badge variant="destructive" className="ml-2">Expired</Badge> : d.expiringSoon ? <Badge variant="warning" className="ml-2">Expires soon</Badge> : null}</TD>
                   <TD className="whitespace-nowrap text-muted-foreground">{fmtDate(d.createdAt)}{d.uploadedByName ? ` · ${d.uploadedByName}` : ""}</TD>
                   <TD className="whitespace-nowrap text-right">
-                    <Button size="sm" variant="ghost" aria-label={`Download ${d.name}`} onClick={() => void open(d)}><Download /></Button>
+                    <Button size="sm" variant="ghost" aria-label={d.source === "docs" ? `Open ${d.name} in Docs` : `Download ${d.name}`} onClick={() => void open(d)}><Download /></Button>
                     {canManage && <Button size="sm" variant="ghost" aria-label={`Delete ${d.name}`} onClick={() => setDeleting(d)}><Trash2 /></Button>}
                   </TD>
                 </TR>

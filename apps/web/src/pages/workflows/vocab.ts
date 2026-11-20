@@ -54,6 +54,12 @@ const EVENT_LABELS: Record<string, string> = {
   "hr.document.expiring": "An employee document is about to expire",
   "hr.checklist.assigned": "An onboarding or offboarding checklist is assigned",
   "hr.checklist.completed": "A checklist is completed",
+  "docs.request.sent": "A document is sent for signature",
+  "docs.request.signed": "Someone signs a document",
+  "docs.request.completed": "A document is signed by everyone",
+  "docs.request.declined": "Someone declines to sign a document",
+  "docs.request.expired": "A signature request expires",
+  "docs.request.cancelled": "A signature request is cancelled",
   "support.ticket.created": "A support ticket comes in",
   "support.ticket.customer_replied": "A customer replies to a ticket",
   "support.ticket.replied": "Your team replies to a ticket",
@@ -61,7 +67,7 @@ const EVENT_LABELS: Record<string, string> = {
   "support.ticket.status_changed": "A ticket's status changes",
 };
 
-const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing", expenses: "Expenses", scheduling: "Schedule & time clock", inventory: "Inventory", support: "Support", hr: "HR" };
+const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing", expenses: "Expenses", scheduling: "Schedule & time clock", inventory: "Inventory", support: "Support", hr: "HR", docs: "Docs & e-sign" };
 
 const ENTITY_WORDS: Record<string, [string, string]> = {
   contact: ["A contact", "Contacts"], company: ["A company", "Companies"], document: ["A document", "Documents"], task: ["A task", "Tasks"],
@@ -148,6 +154,12 @@ const OTHER_FIELDS: Record<string, EventField[]> = {
   "hr.document.expiring": [{ path: "personName", label: "Person" }, { path: "name", label: "Document" }, { path: "category", label: "Type" }, { path: "expiresOn", label: "Expires on" }, { path: "userId", label: "Person (user ID)" }, { path: "documentId", label: "Document ID" }],
   "hr.checklist.assigned": [{ path: "name", label: "Checklist" }, { path: "kind", label: "Kind" }, { path: "startDate", label: "Start day" }, { path: "userId", label: "Person (user ID)" }, { path: "checklistId", label: "Checklist ID" }],
   "hr.checklist.completed": [{ path: "name", label: "Checklist" }, { path: "kind", label: "Kind" }, { path: "userId", label: "Person (user ID)" }, { path: "checklistId", label: "Checklist ID" }],
+  "docs.request.sent": [{ path: "title", label: "Document" }, { path: "documentId", label: "Document ID" }],
+  "docs.request.signed": [{ path: "title", label: "Document" }, { path: "signerName", label: "Signer" }, { path: "signerEmail", label: "Signer email" }, { path: "documentId", label: "Document ID" }],
+  "docs.request.completed": [{ path: "title", label: "Document" }, { path: "fileName", label: "File name" }, { path: "completedAt", label: "Completed at" }, { path: "employeeId", label: "Team member (user ID)" }, { path: "contactId", label: "Contact ID" }, { path: "documentId", label: "Document ID" }],
+  "docs.request.declined": [{ path: "title", label: "Document" }, { path: "signerName", label: "Signer" }, { path: "signerEmail", label: "Signer email" }, { path: "reason", label: "Reason" }, { path: "documentId", label: "Document ID" }],
+  "docs.request.expired": [{ path: "title", label: "Document" }, { path: "expiresOn", label: "Expired on" }, { path: "documentId", label: "Document ID" }],
+  "docs.request.cancelled": [{ path: "title", label: "Document" }, { path: "reason", label: "Reason" }, { path: "documentId", label: "Document ID" }],
   "support.ticket.created": [{ path: "number", label: "Ticket number" }, { path: "subject", label: "Subject" }, { path: "requesterEmail", label: "Customer email" }, { path: "priority", label: "Priority" }, { path: "channel", label: "Channel" }, { path: "id", label: "Ticket ID" }],
   "support.ticket.customer_replied": [{ path: "number", label: "Ticket number" }, { path: "subject", label: "Subject" }, { path: "requesterEmail", label: "Customer email" }, { path: "reopened", label: "Reopened" }, { path: "assigneeId", label: "Assignee (user ID)" }, { path: "id", label: "Ticket ID" }],
   "support.ticket.replied": [{ path: "number", label: "Ticket number" }, { path: "subject", label: "Subject" }, { path: "status", label: "New status" }, { path: "id", label: "Ticket ID" }],

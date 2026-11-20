@@ -37,14 +37,21 @@ export interface PageProps { params: Record<string, string>; path: string }
 export interface EntitySlotProps { entityType: string; entityId: string; entity: Record<string, unknown> }
 export type SlotProps = Partial<EntitySlotProps>;
 
+/**
+ * Page without sign-in (e.g. a signing link), shown at /p/<tenantId>/<moduleKey><path> outside the app shell.
+ * `api` calls the module's public routes (/api/v1/public/t/<tenantId>/m/<key><path>) without credentials.
+ */
+export interface PublicPageProps { params: Record<string, string>; path: string; tenantId: string; api: HttpClient }
+
 export interface ModuleUi {
   key: string;
   pages?: Record<string, ComponentType<PageProps>>;
+  publicPages?: Record<string, ComponentType<PublicPageProps>>;
   components?: Record<string, ComponentType<SlotProps>>;
 }
 
 export const defineModuleUi = (m: ModuleUi): ModuleUi => {
-  for (const p of Object.keys(m.pages ?? {})) {
+  for (const p of [...Object.keys(m.pages ?? {}), ...Object.keys(m.publicPages ?? {})]) {
     if (!p.startsWith("/")) throw new Error(`module ${m.key}: page route "${p}" must start with "/"`);
   }
   return m;
@@ -78,7 +85,13 @@ export function matchRoute(pattern: string, path: string): Record<string, string
 
 /** Most specific match wins (static segments beat params). */
 export function findPage(m: ModuleUi, path: string): { Component: ComponentType<PageProps>; params: Record<string, string> } | null {
-  const ranked = Object.entries(m.pages ?? {})
+  return bestMatch(m.pages ?? {}, path);
+}
+export function findPublicPage(m: ModuleUi, path: string): { Component: ComponentType<PublicPageProps>; params: Record<string, string> } | null {
+  return bestMatch(m.publicPages ?? {}, path);
+}
+function bestMatch<C>(pages: Record<string, C>, path: string): { Component: C; params: Record<string, string> } | null {
+  const ranked = Object.entries(pages)
     .map(([pat, C]) => ({ pat, C, params: matchRoute(pat, path || "/") }))
     .filter((x) => x.params)
     .sort((x, y) => (x.pat.match(/:/g)?.length ?? 0) - (y.pat.match(/:/g)?.length ?? 0));

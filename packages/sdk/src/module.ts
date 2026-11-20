@@ -59,6 +59,21 @@ export interface RouteSpec<B extends z.ZodType = z.ZodType, Q extends z.ZodType 
   handler(ctx: ModuleContext, req: { body: z.infer<B>; query: z.infer<Q>; params: z.infer<P> }): Promise<unknown>;
 }
 
+/**
+ * Route that needs no sign-in, e.g. a signing page for people outside the company.
+ * Mounted at /api/v1/public/t/<tenantId>/m/<key><path> and run inside that tenant (RLS) for an enabled module,
+ * with NO permissions: the handler must check its own secret (a token in the path or body) and reveal nothing
+ * without it. Rate limited per IP.
+ */
+export interface PublicRouteSpec<B extends z.ZodType = z.ZodType, Q extends z.ZodType = z.ZodType, P extends z.ZodType = z.ZodType> {
+  method: "GET" | "POST";
+  path: string;
+  body?: B; query?: Q; params?: P;
+  status?: number;
+  bodyLimit?: number;
+  handler(ctx: ModuleContext, req: { body: z.infer<B>; query: z.infer<Q>; params: z.infer<P>; client: { ip: string; userAgent: string | null } }): Promise<unknown>;
+}
+
 export interface ActionSpec<I extends z.ZodType = z.ZodType> {
   label: string;
   input: I;
@@ -82,6 +97,8 @@ export interface ModuleDefinition {
   /** Absolute path to SQL migrations (tables must be "<prefix>_*" with tenant_id + RLS). */
   migrationsDir?: string;
   routes?: RouteSpec[];
+  /** Routes without sign-in (see PublicRouteSpec). */
+  publicRoutes?: PublicRouteSpec[];
   handlers?: Record<string, (ctx: ModuleContext, event: EventEnvelope) => Promise<void>>;
   actions?: Record<string, ActionSpec>;
   lifecycle?: Partial<Record<"enable" | "disable", (ctx: ModuleContext) => Promise<void>>>;
@@ -107,6 +124,9 @@ export function defineModule(def: DefineModuleInput): ModuleDefinition {
       errors.push(`route ${r.method} ${r.path} uses undeclared permission ${r.permission}`);
     }
   }
+  for (const r of def.publicRoutes ?? []) {
+    if (!/^\/[a-z0-9/:_-]*$/i.test(r.path)) errors.push(`public route ${r.method} ${r.path} has an invalid path`);
+  }
   for (const [k, j] of Object.entries(def.jobs ?? {})) {
     if (!JOB_KEY_RE.test(k)) errors.push(`job key ${k} must match ${JOB_KEY_RE}`);
     if (!Number.isInteger(j.everyMinutes) || j.everyMinutes < 1 || j.everyMinutes > 7 * 24 * 60) {
@@ -119,6 +139,7 @@ export function defineModule(def: DefineModuleInput): ModuleDefinition {
 
 /** Helper to keep route typing when building the routes array. */
 export const route = <B extends z.ZodType, Q extends z.ZodType, P extends z.ZodType>(r: RouteSpec<B, Q, P>) => r as unknown as RouteSpec;
+export const publicRoute = <B extends z.ZodType, Q extends z.ZodType, P extends z.ZodType>(r: PublicRouteSpec<B, Q, P>) => r as unknown as PublicRouteSpec;
 export const action = <I extends z.ZodType>(a: ActionSpec<I>) => a as unknown as ActionSpec;
 export const job = (j: JobSpec) => j;
 
