@@ -17,6 +17,7 @@
     "@office/module-expenses": "workspace:*",
     "@office/module-inventory": "workspace:*",
     "@office/module-support": "workspace:*",
+    "@office/module-hr": "workspace:*",
     "@office/module-scheduling": "workspace:*",
     "@office/module-invoicing": "workspace:*"
   },

@@ -39,6 +39,7 @@ const EVENT_LABELS: Record<string, string> = {
   "scheduling.time_off.requested": "Someone asks for time off",
   "scheduling.time_off.approved": "Time off is approved",
   "scheduling.time_off.rejected": "Time off is rejected",
+  "scheduling.time_off.cancelled": "Time off is cancelled",
   "scheduling.swap.requested": "Someone asks to swap a shift",
   "scheduling.swap.approved": "A shift swap is approved",
   "scheduling.clock.in": "Someone clocks in",
@@ -48,6 +49,11 @@ const EVENT_LABELS: Record<string, string> = {
   "inventory.order.created": "A purchase order is created",
   "inventory.order.sent": "A purchase order is sent",
   "inventory.order.received": "A purchase order is received",
+  "hr.employee.updated": "An employee profile changes",
+  "hr.pay.changed": "Someone's pay changes",
+  "hr.document.expiring": "An employee document is about to expire",
+  "hr.checklist.assigned": "An onboarding or offboarding checklist is assigned",
+  "hr.checklist.completed": "A checklist is completed",
   "support.ticket.created": "A support ticket comes in",
   "support.ticket.customer_replied": "A customer replies to a ticket",
   "support.ticket.replied": "Your team replies to a ticket",
@@ -55,7 +61,7 @@ const EVENT_LABELS: Record<string, string> = {
   "support.ticket.status_changed": "A ticket's status changes",
 };
 
-const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing", expenses: "Expenses", scheduling: "Schedule & time clock", inventory: "Inventory", support: "Support" };
+const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing", expenses: "Expenses", scheduling: "Schedule & time clock", inventory: "Inventory", support: "Support", hr: "HR" };
 
 const ENTITY_WORDS: Record<string, [string, string]> = {
   contact: ["A contact", "Contacts"], company: ["A company", "Companies"], document: ["A document", "Documents"], task: ["A task", "Tasks"],
@@ -129,6 +135,7 @@ const OTHER_FIELDS: Record<string, EventField[]> = {
   "scheduling.shifts.published": [{ path: "weekStart", label: "Week starting" }, { path: "count", label: "Number of shifts" }, { path: "employeeIds", label: "Employee IDs" }],
   "scheduling.time_off.requested": [{ path: "id", label: "Request ID" }, ...[{ path: "employeeId", label: "Employee ID" }, { path: "kind", label: "Kind of time off" }, { path: "startDate", label: "First day" }, { path: "endDate", label: "Last day" }]],
   "scheduling.time_off.approved": [{ path: "id", label: "Request ID" }, ...[{ path: "employeeId", label: "Employee ID" }, { path: "kind", label: "Kind of time off" }, { path: "startDate", label: "First day" }, { path: "endDate", label: "Last day" }], { path: "comment", label: "Manager's comment" }],
+  "scheduling.time_off.cancelled": [{ path: "id", label: "Request ID" }, { path: "employeeId", label: "Employee ID" }, { path: "kind", label: "Kind of time off" }, { path: "startDate", label: "First day" }, { path: "endDate", label: "Last day" }, { path: "wasApproved", label: "Was approved" }],
   "scheduling.time_off.rejected": [{ path: "id", label: "Request ID" }, ...[{ path: "employeeId", label: "Employee ID" }, { path: "kind", label: "Kind of time off" }, { path: "startDate", label: "First day" }, { path: "endDate", label: "Last day" }], { path: "comment", label: "Manager's comment" }],
   "scheduling.swap.requested": [{ path: "id", label: "Swap ID" }, { path: "fromEmployeeId", label: "Asked by (employee ID)" }, { path: "toEmployeeId", label: "Asked to (employee ID)" }, { path: "day", label: "Shift day" }],
   "scheduling.swap.approved": [{ path: "id", label: "Swap ID" }, { path: "fromEmployeeId", label: "Gave away (employee ID)" }, { path: "toEmployeeId", label: "Took over (employee ID)" }],
@@ -136,6 +143,11 @@ const OTHER_FIELDS: Record<string, EventField[]> = {
   "inventory.stock.low": [{ path: "name", label: "Item" }, { path: "stock", label: "Stock" }, { path: "minStock", label: "Minimum stock" }, { path: "unit", label: "Unit" }, { path: "supplierId", label: "Supplier (company ID)" }, { path: "itemId", label: "Item ID" }],
   "inventory.order.created": [{ path: "number", label: "Order number" }, { path: "supplierId", label: "Supplier (company ID)" }, { path: "id", label: "Order ID" }],
   "inventory.order.sent": [{ path: "number", label: "Order number" }, { path: "supplierId", label: "Supplier (company ID)" }, { path: "id", label: "Order ID" }],
+  "hr.employee.updated": [{ path: "userId", label: "Person (user ID)" }, { path: "changes", label: "Changed fields" }],
+  "hr.pay.changed": [{ path: "userId", label: "Person (user ID)" }, { path: "effectiveFrom", label: "Effective from" }],
+  "hr.document.expiring": [{ path: "personName", label: "Person" }, { path: "name", label: "Document" }, { path: "category", label: "Type" }, { path: "expiresOn", label: "Expires on" }, { path: "userId", label: "Person (user ID)" }, { path: "documentId", label: "Document ID" }],
+  "hr.checklist.assigned": [{ path: "name", label: "Checklist" }, { path: "kind", label: "Kind" }, { path: "startDate", label: "Start day" }, { path: "userId", label: "Person (user ID)" }, { path: "checklistId", label: "Checklist ID" }],
+  "hr.checklist.completed": [{ path: "name", label: "Checklist" }, { path: "kind", label: "Kind" }, { path: "userId", label: "Person (user ID)" }, { path: "checklistId", label: "Checklist ID" }],
   "support.ticket.created": [{ path: "number", label: "Ticket number" }, { path: "subject", label: "Subject" }, { path: "requesterEmail", label: "Customer email" }, { path: "priority", label: "Priority" }, { path: "channel", label: "Channel" }, { path: "id", label: "Ticket ID" }],
   "support.ticket.customer_replied": [{ path: "number", label: "Ticket number" }, { path: "subject", label: "Subject" }, { path: "requesterEmail", label: "Customer email" }, { path: "reopened", label: "Reopened" }, { path: "assigneeId", label: "Assignee (user ID)" }, { path: "id", label: "Ticket ID" }],
   "support.ticket.replied": [{ path: "number", label: "Ticket number" }, { path: "subject", label: "Subject" }, { path: "status", label: "New status" }, { path: "id", label: "Ticket ID" }],

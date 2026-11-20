@@ -64,6 +64,12 @@ describe("Scheduling vocabulary", () => {
 });
 
 describe("Inventory vocabulary", () => {
+  it("names HR events and their details", () => {
+    expect(eventLabel("hr.document.expiring")).toBe("An employee document is about to expire");
+    expect(eventGroup("hr.checklist.completed")).toBe("HR");
+    expect(eventFields("hr.document.expiring").map((f) => f.path)).toEqual(expect.arrayContaining(["payload.personName", "payload.expiresOn"]));
+    expect(eventLabel("scheduling.time_off.cancelled")).toBe("Time off is cancelled");
+  });
   it("names support events and their details", () => {
     expect(eventLabel("support.ticket.created")).toBe("A support ticket comes in");
     expect(eventGroup("support.ticket.customer_replied")).toBe("Support");

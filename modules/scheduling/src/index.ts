@@ -12,7 +12,7 @@ import { nowIn } from "./time.ts";
 
 const Id = z.object({ id: z.uuid() });
 const EVENTS = [
-  "scheduling.shifts.published", "scheduling.time_off.requested", "scheduling.time_off.approved", "scheduling.time_off.rejected",
+  "scheduling.shifts.published", "scheduling.time_off.requested", "scheduling.time_off.approved", "scheduling.time_off.rejected", "scheduling.time_off.cancelled",
   "scheduling.swap.requested", "scheduling.swap.approved", "scheduling.clock.in", "scheduling.clock.out",
 ];
 

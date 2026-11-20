@@ -32,7 +32,7 @@
 | 7 | Module: Invoices & Expenses (receipt OCR, approvals, CSV) | ✅ done (105 unit/integration + 32 E2E green) |
 | 8 | Module: Staff Scheduling & Time Clock (shifts, publish/copy week, time off, swaps, clock, hours CSV) | ✅ done (120 unit/integration + 38 E2E green) |
 | 9 | Module: Support inbox (real IMAP/SMTP per company, threaded replies, notes, assignment, saved replies, Contact link + history, response-time targets) | ✅ done (149 unit/integration + 50 E2E green) |
-| 10 | Module: HR | ☐ |
+| 10 | Module: HR (profiles + directory, org chart, leave allowances from Schedule, documents with expiry reminders, onboarding/offboarding checklists, restricted pay) | ✅ done (160 unit/integration + 54 E2E green) |
 | 11 | Module: Inventory & Purchasing (items, stock moves with reasons, low-stock alerts, POs per supplier, receiving) | ✅ done (129 unit/integration + 44 E2E green) |
 | 12 | Module: Docs & e-sign | ☐ |
 | 13 | Module: AI email/meeting summaries | ☐ |
@@ -55,7 +55,29 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 12, Support inbox)
+## Handoff (Session 13, HR)
+1. Done: `modules/hr`.
+   - Profiles for workspace members: job, department, manager, employment, dates.
+   - Private details (date of birth, contact details, emergency contact, hours, allowance) visible only to HR and the person. HR notes are for HR only.
+   - Directory and org chart; reporting loops are refused.
+   - Leave ledger. Approved and cancelled Schedule time off flows in through events (working days, split per year), plus manual carry-over, adjustments and leave.
+   - Documents (PDF, images, docx, at most 7 MB, content checked) with expiry reminders (`hr.document.expiring`).
+   - Checklist templates. Tasks are owned by the person, their manager or HR, with relative due days.
+   - Pay history: `hr:pay.manage` is for admins and owners only. Events never carry amounts.
+   - Dashboard widget: away today, birthdays and anniversaries, my tasks, expiring documents.
+   - Scheduling now emits `scheduling.time_off.cancelled`.
+2. Verify:
+   - `pnpm typecheck`.
+   - `TEST_DATABASE_URL=... pnpm test`: api 104, including 8 hr tests; module-hr 2.
+   - `pnpm e2e`: 54 flows, including 4 hr.
+3. Next on the original list: Docs & e-sign (row 12), AI summaries, KPI dashboard.
+4. Open:
+   - Public holidays and part-time working patterns in leave counting (today: Monday to Friday).
+   - Back-filling time off approved before HR was turned on.
+   - Labour cost in Hours, using pay.
+   - Employees without a workspace login.
+
+## Handoff (Session 12, archived)
 1. Done: `modules/support`.
    - Each company connects its own mailbox (IMAP + SMTP; passwords sealed). A job fetches new mail every minute into tickets. Auto-replies, own mail and duplicates are skipped.
    - Threading uses In-Reply-To/References, then `[#n]` plus the same sender. Quoted history is trimmed. Attachments up to 10 MB are kept.

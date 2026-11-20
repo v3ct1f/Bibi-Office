@@ -306,6 +306,7 @@ export async function cancelTimeOff(ctx: ModuleContext, id: string) {
   if (!t) throw E.notFound("Time-off request");
   if (t.status !== "pending" && !(t.status === "approved" && t.startDate > today)) throw E.conflict("Only pending or upcoming time off can be cancelled");
   await ctx.db.update(timeOff).set({ status: "cancelled" }).where(eq(timeOff.id, id));
+  await ctx.events.emit("scheduling.time_off.cancelled", { id, employeeId: t.employeeId, kind: t.kind, startDate: t.startDate, endDate: t.endDate, wasApproved: t.status === "approved" });
   const { name } = await peopleMap(ctx);
   return timeOffDto({ ...t, status: "cancelled" }, name);
 }
