@@ -71,6 +71,9 @@ describe("Inventory vocabulary", () => {
     expect(eventLabel("docs.request.completed")).toBe("A document is signed by everyone");
     expect(eventGroup("docs.request.declined")).toBe("Docs & e-sign");
     expect(eventFields("docs.request.declined").map((f) => f.path)).toEqual(expect.arrayContaining(["payload.signerName", "payload.reason"]));
+    expect(eventLabel("ai.summary.created")).toBe("An AI summary is made");
+    expect(eventGroup("ai.action_items.tasks_created")).toBe("AI summaries");
+    expect(eventFields("ai.summary.created").map((f) => f.path)).toEqual(expect.arrayContaining(["payload.actionItemCount", "payload.dealId"]));
     expect(eventLabel("scheduling.time_off.cancelled")).toBe("Time off is cancelled");
   });
   it("names support events and their details", () => {

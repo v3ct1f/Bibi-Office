@@ -157,6 +157,7 @@ export function DealDetail({ params }: PageProps) {
           </ol>
         </Card>
 
+        <div className="grid content-start gap-4">
         <Card className="grid content-start gap-4 p-5 text-sm">
           <h2 className="font-semibold">Details</h2>
           <dl className="grid gap-3">
@@ -170,6 +171,8 @@ export function DealDetail({ params }: PageProps) {
           </dl>
           {d.notes && <div><p className="text-xs text-muted-foreground">Notes</p><p className="whitespace-pre-wrap">{d.notes}</p></div>}
         </Card>
+        {host.Slot && <host.Slot name="entity.sidebar:deal" entityType="deal" entityId={d.id} entity={{ title: d.title, contactId: d.contactId }} />}
+        </div>
       </div>
 
       <LostDialog open={dialog === "lost"} onOpenChange={(o) => !o && setDialog(null)} title={d.title} onConfirm={(reason) => move(first("lost").id, reason)} />

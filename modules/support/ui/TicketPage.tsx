@@ -101,6 +101,10 @@ export function TicketPage({ params }: PageProps) {
               </div>
             )}
           </Card>
+          {host.Slot && <host.Slot name="entity.sidebar:ticket" entityType="ticket" entityId={id} entity={{
+            ref: d.ref, subject: d.subject, contactId: d.contact?.id ?? null,
+            messages: d.messages.map((m) => ({ kind: m.kind, from: m.kind === "inbound" ? (m.fromName || m.fromEmail || "") : (m.authorName ?? ""), at: m.createdAt, body: m.body })),
+          }} />}
           {c.canManage && <Button variant="ghost" className="justify-start text-destructive" onClick={() => setDeleting(true)}><Trash2 /> Delete ticket</Button>}
         </aside>
       </div>

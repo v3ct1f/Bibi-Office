@@ -60,6 +60,8 @@ const EVENT_LABELS: Record<string, string> = {
   "docs.request.declined": "Someone declines to sign a document",
   "docs.request.expired": "A signature request expires",
   "docs.request.cancelled": "A signature request is cancelled",
+  "ai.summary.created": "An AI summary is made",
+  "ai.action_items.tasks_created": "Action items from a summary become tasks",
   "support.ticket.created": "A support ticket comes in",
   "support.ticket.customer_replied": "A customer replies to a ticket",
   "support.ticket.replied": "Your team replies to a ticket",
@@ -67,7 +69,7 @@ const EVENT_LABELS: Record<string, string> = {
   "support.ticket.status_changed": "A ticket's status changes",
 };
 
-const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing", expenses: "Expenses", scheduling: "Schedule & time clock", inventory: "Inventory", support: "Support", hr: "HR", docs: "Docs & e-sign" };
+const GROUP_NAMES: Record<string, string> = { crm: "Deals (CRM)", invoicing: "Invoicing", expenses: "Expenses", scheduling: "Schedule & time clock", inventory: "Inventory", support: "Support", hr: "HR", docs: "Docs & e-sign", ai: "AI summaries" };
 
 const ENTITY_WORDS: Record<string, [string, string]> = {
   contact: ["A contact", "Contacts"], company: ["A company", "Companies"], document: ["A document", "Documents"], task: ["A task", "Tasks"],
@@ -160,6 +162,8 @@ const OTHER_FIELDS: Record<string, EventField[]> = {
   "docs.request.declined": [{ path: "title", label: "Document" }, { path: "signerName", label: "Signer" }, { path: "signerEmail", label: "Signer email" }, { path: "reason", label: "Reason" }, { path: "documentId", label: "Document ID" }],
   "docs.request.expired": [{ path: "title", label: "Document" }, { path: "expiresOn", label: "Expired on" }, { path: "documentId", label: "Document ID" }],
   "docs.request.cancelled": [{ path: "title", label: "Document" }, { path: "reason", label: "Reason" }, { path: "documentId", label: "Document ID" }],
+  "ai.summary.created": [{ path: "title", label: "Summary" }, { path: "kind", label: "Kind (meeting or ticket)" }, { path: "actionItemCount", label: "Number of action items" }, { path: "contactId", label: "Contact ID" }, { path: "dealId", label: "Deal ID" }, { path: "ticketId", label: "Ticket ID" }, { path: "summaryId", label: "Summary ID" }],
+  "ai.action_items.tasks_created": [{ path: "title", label: "Summary" }, { path: "count", label: "Number of tasks" }, { path: "summaryId", label: "Summary ID" }],
   "support.ticket.created": [{ path: "number", label: "Ticket number" }, { path: "subject", label: "Subject" }, { path: "requesterEmail", label: "Customer email" }, { path: "priority", label: "Priority" }, { path: "channel", label: "Channel" }, { path: "id", label: "Ticket ID" }],
   "support.ticket.customer_replied": [{ path: "number", label: "Ticket number" }, { path: "subject", label: "Subject" }, { path: "requesterEmail", label: "Customer email" }, { path: "reopened", label: "Reopened" }, { path: "assigneeId", label: "Assignee (user ID)" }, { path: "id", label: "Ticket ID" }],
   "support.ticket.replied": [{ path: "number", label: "Ticket number" }, { path: "subject", label: "Subject" }, { path: "status", label: "New status" }, { path: "id", label: "Ticket ID" }],

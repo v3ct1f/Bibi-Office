@@ -2,7 +2,7 @@ import { Component, createContext, useContext, useMemo, type ComponentType, type
 import { Link, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, PackageX } from "lucide-react";
 import { Button, EmptyState } from "@office/ui";
-import { ModuleHostProvider, findPage, findPublicPage, type ModuleHost, type ModuleUi, type SlotProps } from "@office/ui/module-ui";
+import { ModuleHostProvider, findPage, findPublicPage, type EntitySlotOutletProps, type ModuleHost, type ModuleUi, type SlotProps } from "@office/ui/module-ui";
 import { httpClient, publicClient } from "../api/client.ts";
 import { useTenant } from "../lib/tenant.tsx";
 import { MODULE_UIS } from "./registry.ts";
@@ -33,7 +33,7 @@ export function useModuleHost(moduleKey: string): ModuleHost {
     return {
       moduleKey, tenant: { id: tenant.id, slug: tenant.slug, name: tenant.name }, can,
       api: httpClient(`/m/${moduleKey}`, tenant.id), core: httpClient("", tenant.id),
-      href, navigate: (p: string) => void navigate({ to: href(p) }),
+      href, navigate: (p: string) => void navigate({ to: href(p) }), Slot: EntitySlotOutlet,
     };
   }, [moduleKey, tenant, can, navigate]);
 }
@@ -65,6 +65,11 @@ export function SlotComponent({ entry, props }: { entry: SlotEntry; props?: Slot
 export function SlotOutlet({ slot, props, wrap }: { slot: string; props?: SlotProps; wrap?: (node: ReactNode, e: SlotEntry) => ReactNode }) {
   const entries = useSlotEntries(slot).filter((e) => e.Component);
   return <>{entries.map((e) => <div key={`${e.module}:${e.label}`}>{wrap ? wrap(<SlotComponent entry={e} props={props ?? {}} />, e) : <SlotComponent entry={e} props={props ?? {}} />}</div>)}</>;
+}
+
+/** Other modules' components inside a module page (ModuleHost.Slot), e.g. an AI panel on a support ticket. */
+function EntitySlotOutlet({ name, entityType, entityId, entity }: EntitySlotOutletProps) {
+  return <SlotOutlet slot={name} props={{ entityType, entityId, entity: entity ?? {} }} />;
 }
 
 /** Full page owned by a module: /t/<slug>/m/<module>/<path>. */

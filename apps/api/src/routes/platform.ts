@@ -17,6 +17,8 @@ const AUTH = { auth: "authenticated" } as const;
 const Id = z.object({ id: z.uuid() });
 const ModKey = z.object({ key: z.string().regex(/^[a-z][a-z0-9-]{1,40}$/) });
 const tenantHeader = z.object({ "x-tenant-id": z.uuid().optional() }).loose();
+/** Wraps a ModuleError that asked to keep the request's writes, so the transaction commits before it is thrown. */
+const KEPT_ERROR = Symbol("keptModuleError");
 
 export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (app0, o) => {
   const app = app0.withTypeProvider<ZodTypeProvider>();
@@ -117,10 +119,17 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
             const loaded = await loadEnabledModule(tx, md, ctx.tenantId, key);
             if (!loaded) throw new AppError(403, "module_disabled", `${m.manifest.name} is turned off for this company. An owner or admin can add it under Add features.`);
             requirePermission(ctx, r.permission);
-            return r.handler(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log), {
-              body: req.body, query: req.query, params: req.params,
-            });
+            try {
+              return await r.handler(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log), {
+                body: req.body, query: req.query, params: req.params,
+              });
+            } catch (e) {
+              // ModuleError with keepChanges: commit what was written, then answer with the error.
+              if ((e as { keepChanges?: unknown } | null)?.keepChanges === true) return { [KEPT_ERROR]: e };
+              throw e;
+            }
           });
+          if (out && typeof out === "object" && KEPT_ERROR in out) throw (out as { [KEPT_ERROR]: unknown })[KEPT_ERROR];
           return reply.status(r.status ?? (out === undefined ? 204 : 200)).send(out);
         },
       });

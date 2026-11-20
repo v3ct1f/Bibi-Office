@@ -180,6 +180,8 @@ export default defineModule({
   - Paths must match `/^\/[a-z0-9/:_-]*$/i`.
   - The web side: `ModuleUi.publicPages: [{ path, component }]` is served at `/p/:tenantId/<key>/…` outside the signed-in shell. Components get `{ params, path, tenantId, api }`, where `api` is an anonymous client: it sends no token and a 401 doesn't sign anyone out.
 
+- **Errors that keep changes (Session 15):** `throw new ModuleError(status, code, message, { keepChanges: true })` commits the request's transaction, then answers with the error. Use it when something billed or irreversible already happened (for example the AI module logging tokens for a failed Claude call). Without it, any error rolls the transaction back.
+
 `ctx` (only door to the platform; scoped to tenant + granted permissions):
 - `ctx.tenant`, `ctx.actor`, `ctx.requestId`
 - `ctx.db` — Drizzle tx, RLS-bound, module tables + granted core tables only
@@ -201,6 +203,8 @@ export default defineModule({
 
 ### 4.4 UI slots
 `nav.main`, `nav.settings`, `page` (route), `entity.tab:<type>` (e.g. tab on contact), `entity.action:<type>`, `entity.sidebar:<type>`, `dashboard.widget`, `global.create` (+ New menu), `command.palette`.
+
+**Slots inside module pages (Session 15):** `ModuleHost.Slot` renders other enabled modules' slot components: `<host.Slot name="entity.sidebar:ticket" entityType="ticket" entityId={id} entity={{…}} />`. Names must match `entity.(tab|action|sidebar):<type>`. `entity` passes plain data the page already has (Support passes the ticket's subject, contact and messages; CRM the deal's title and contact), so modules still never import each other. Renders nothing when no enabled module fills the slot. `ctx.ai` below is not built; the AI module calls Claude itself.
 
 ### 4.5 Example manifest
 

@@ -44,5 +44,11 @@ const defaults: Record<string, string> = {
 const portArg = process.argv.indexOf("--port");
 if (portArg > 0 && process.argv[portArg + 1]) defaults.PORT = process.argv[portArg + 1]!;
 for (const [k, v] of Object.entries(defaults)) process.env[k] ??= v;
+// --fake-ai: AI summaries answer from a local stand-in for the Anthropic API (no key or credit needed).
+if (process.argv.includes("--fake-ai")) {
+  const { startFakeClaude } = await import("../../../modules/ai/tests/fake-claude.ts");
+  process.env.AI_API_BASE_URL = (await startFakeClaude()).url;
+  console.log(`AI summaries use a fake Claude at ${process.env.AI_API_BASE_URL} (any API key works)`);
+}
 console.log(`dev database ${name} ready; starting API on http://localhost:${process.env.PORT}`);
 await import("../src/server.ts");

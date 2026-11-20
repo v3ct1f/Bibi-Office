@@ -145,7 +145,12 @@ export const job = (j: JobSpec) => j;
 
 /** Error a module throws to answer with a 4xx (modules may not import @office/core). */
 export class ModuleError extends Error {
-  constructor(public statusCode: number, public code: string, message: string) { super(message); }
+  /** keepChanges: save what the request already wrote (e.g. a usage record for a paid call that failed) before answering with the error. */
+  readonly keepChanges: boolean;
+  constructor(public statusCode: number, public code: string, message: string, opts?: { keepChanges?: boolean }) {
+    super(message);
+    this.keepChanges = opts?.keepChanges ?? false;
+  }
 }
 export const moduleErrors = {
   badRequest: (m: string) => new ModuleError(400, "bad_request", m),

@@ -35,7 +35,7 @@
 | 10 | Module: HR (profiles + directory, org chart, leave allowances from Schedule, documents with expiry reminders, onboarding/offboarding checklists, restricted pay) | ✅ done (160 unit/integration + 54 E2E green) |
 | 11 | Module: Inventory & Purchasing (items, stock moves with reasons, low-stock alerts, POs per supplier, receiving) | ✅ done (129 unit/integration + 44 E2E green) |
 | 12 | Module: Docs & e-sign (library with folders, PDF + template requests, boxes on pages, signing order, emailed or copied links, reminders/expiry, signed copy + certificate, Contacts + HR links, public signing page) | ✅ done (174 unit/integration + 58 E2E green) |
-| 13 | Module: AI email/meeting summaries | ☐ |
+| 13 | Module: AI email/meeting summaries (Claude with the company's own key; pasted notes or uploaded transcripts; action items → Tasks; follow-up email draft; support ticket recap + suggested reply; Contacts + Deals links; usage and monthly limit) | ✅ done (188 unit/integration + 62 E2E green) |
 | 14 | Module: KPI dashboard | ☐ |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
@@ -55,7 +55,24 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 14, Docs & e-sign)
+## Handoff (Session 15, AI summaries)
+1. Done: `modules/ai` (see its README).
+   - Meeting summaries from pasted notes or uploaded transcripts (VTT, SRT, text, Word): summary, key points, decisions, action items with owner and due date, open questions, follow-up email.
+   - Action items become Tasks; owners are matched to team members by name.
+   - Support ticket panel (recap + suggested reply), a Contacts tab and a Deals side panel.
+   - Claude via `@anthropic-ai/sdk` 1.6.0 with structured JSON output; the company's own key is a module secret; model, language and monthly token limit in settings; usage page with a cost estimate.
+   - Platform: `ModuleError` `keepChanges` (commit, then answer with the error) and `host.Slot` (module pages render other modules' `entity.*` slots); see ARCHITECTURE 4.2 and 4.4.
+2. Verify:
+   - `pnpm typecheck`.
+   - `TEST_DATABASE_URL=... pnpm test`: api 119, including 7 ai tests; module-ai 7.
+   - `pnpm e2e`: 62 flows, including 4 ai. The tests and `pnpm --filter @office/api dev:local --fake-ai` use a fake Claude server, so no key or credit is needed.
+3. Next on the original list: KPI dashboard (row 14).
+4. Open:
+   - No audio recording or speech-to-text: notes and transcripts only.
+   - No email-thread summaries outside Support tickets.
+   - The `ctx.ai` helper in ARCHITECTURE 4.2 is still not built; this module calls Claude itself.
+
+## Handoff (Session 14, Docs & e-sign, archived)
 1. Done: `modules/docs` (see its README).
    - Library: any file up to 7 MB, folders, search, team or private visibility.
    - Signature requests from a PDF or a text template with fill-ins. Signature, initials, name, date and text boxes are placed on the pages, with optional signing order and a message.

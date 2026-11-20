@@ -107,8 +107,8 @@ export function FeaturesPage() {
                       <Button size="sm" variant="ghost" onClick={() => go(m, mainRoute(m)!.route!)}>Open {mainRoute(m)!.label ?? m.name} <ArrowRight /></Button>
                     )}
                     {manage && hasSettings(m) && (settingsRoute(m)
-                      ? m.enabled && <Button size="sm" variant="ghost" onClick={() => go(m, settingsRoute(m)!)}><Settings2 /> Settings</Button>
-                      : <Button size="sm" variant="ghost" onClick={() => setConfiguring(m)}><Settings2 /> Settings</Button>)}
+                      ? m.enabled && <Button size="sm" variant="ghost" aria-label={`${m.name} settings`} onClick={() => go(m, settingsRoute(m)!)}><Settings2 /> Settings</Button>
+                      : <Button size="sm" variant="ghost" aria-label={`${m.name} settings`} onClick={() => setConfiguring(m)}><Settings2 /> Settings</Button>)}
                   </CardFooter>
                 </Card>
               );

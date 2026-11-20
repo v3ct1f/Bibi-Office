@@ -31,7 +31,13 @@ export interface ModuleHost {
   navigate(path: string): void;
   /** Href for a module-relative path (for <a>). */
   href(path: string): string;
+  /**
+   * Shows other modules' components for an entity slot inside this module's page, e.g. a panel on a ticket:
+   * <host.Slot name="entity.sidebar:ticket" entityType="ticket" entityId={id} entity={{...}} />. Renders nothing when no module fills it.
+   */
+  Slot?: ComponentType<EntitySlotOutletProps>;
 }
+export interface EntitySlotOutletProps { name: string; entityType: string; entityId: string; entity?: Record<string, unknown> }
 
 export interface PageProps { params: Record<string, string>; path: string }
 export interface EntitySlotProps { entityType: string; entityId: string; entity: Record<string, unknown> }
