@@ -17,7 +17,8 @@ import type { RequestContext } from "./context.ts";
 export interface PlatformAdmin { userId: string; email: string }
 type Meta = { requestId: string; ip?: string | undefined };
 
-const ctxFor = (tenantId: string, admin: PlatformAdmin, meta: Meta): RequestContext => ({
+/** The request context for the program owner acting on one business (audited as platform:<email>). */
+export const platformContext = (tenantId: string, admin: PlatformAdmin, meta: Meta): RequestContext => ({
   tenantId, requestId: meta.requestId, ip: meta.ip,
   actor: { type: "system", id: `platform:${admin.email}`, permissions: new Set() },
 });
@@ -62,7 +63,7 @@ export async function listBusinesses(db: Db) {
       };
     });
     out.push({
-      id: t.id, name: t.name, slug: t.slug, region: t.region, status: t.status, createdAt: t.createdAt,
+      id: t.id, name: t.name, slug: t.slug, region: t.region, status: t.status, createdAt: t.createdAt, allowedFeatures: t.allowedModules,
       members: counts.find((c) => c.t === t.id)?.n ?? 0, ...extra,
     });
   }
@@ -80,7 +81,7 @@ export async function createBusiness(
     const [t] = await tx.insert(tenants).values({ id: tenantId, slug: input.slug, name: input.name, region: input.region ?? "eu" }).returning();
     await seedSystemRoles(tx, tenantId);
     const inv = await ownerInvite(tx, tenantId, input.ownerEmail.trim().toLowerCase(), admin);
-    const ctx = ctxFor(tenantId, admin, meta);
+    const ctx = platformContext(tenantId, admin, meta);
     await audit(tx, ctx, "tenant.created", { type: "tenant", id: tenantId }, { slug: input.slug, name: input.name, by: "platform", ownerEmail: inv.email });
     await emitEvent(tx, ctx, "core.tenant.created", { id: tenantId, slug: input.slug });
     return { tenant: t!, invite: inv };
@@ -93,7 +94,7 @@ export async function inviteBusinessOwner(db: Db, admin: PlatformAdmin, tenantId
     const [t] = await tx.select().from(tenants).where(and(eq(tenants.id, tenantId), ne(tenants.status, "deleted")));
     if (!t) throw notFound("Business");
     const inv = await ownerInvite(tx, tenantId, email.trim().toLowerCase(), admin);
-    await audit(tx, ctxFor(tenantId, admin, meta), "invitation.created", { type: "invitation", id: inv.id }, { email: inv.email, roles: ["owner"], by: "platform" });
+    await audit(tx, platformContext(tenantId, admin, meta), "invitation.created", { type: "invitation", id: inv.id }, { email: inv.email, roles: ["owner"], by: "platform" });
     return { tenant: t, invite: inv };
   });
 }
@@ -104,7 +105,7 @@ export async function setBusinessStatus(db: Db, admin: PlatformAdmin, tenantId: 
     const [t] = await tx.update(tenants).set({ status })
       .where(and(eq(tenants.id, tenantId), ne(tenants.status, "deleted"))).returning();
     if (!t) throw notFound("Business");
-    await audit(tx, ctxFor(tenantId, admin, meta), status === "suspended" ? "tenant.paused" : "tenant.resumed", { type: "tenant", id: tenantId });
+    await audit(tx, platformContext(tenantId, admin, meta), status === "suspended" ? "tenant.paused" : "tenant.resumed", { type: "tenant", id: tenantId });
     return { id: t.id, status: t.status };
   });
 }

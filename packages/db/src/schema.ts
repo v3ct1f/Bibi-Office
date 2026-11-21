@@ -20,6 +20,8 @@ export const tenants = pgTable("tenants", {
   slug: text("slug").notNull(),
   name: text("name").notNull(),
   plan: text("plan").notNull().default("free"),
+  /** Features the program owner allows this business to turn on; null = all. */
+  allowedModules: text("allowed_modules").array(),
   region: text("region").notNull().default("eu"),
   status: text("status").$type<"active" | "suspended" | "deleted">().notNull().default("active"),
   settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),

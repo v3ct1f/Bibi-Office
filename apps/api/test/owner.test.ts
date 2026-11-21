@@ -2,16 +2,21 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
 import { runDueJobs } from "@office/platform";
 import kpi from "@office/module-kpi";
+import { defineModule } from "@office/sdk";
 import { setup } from "./harness.ts";
 
 /** The program owner (boss@example.com in the harness) sets up businesses and pauses them, but can't see inside. */
+/** A tiny feature that needs KPI, to check dependencies. */
+const addon = defineModule({
+  manifest: { key: "addon", name: "Add-on", version: "1.0.0", office: "^1.0", dependsOn: ["kpi"], permissions: { declares: [{ key: "addon:a.read", label: "Read" }] } },
+});
 let h: Awaited<ReturnType<typeof setup>>;
 let relay: postgres.Sql;
 let boss: string, olivia: string, sam: string, stranger: string;
 const tokenOf = (link: string) => link.split("/").pop()!;
 
 beforeAll(async () => {
-  h = await setup([kpi]);
+  h = await setup([kpi, addon]);
   relay = postgres(h.tdb.relayUrl, { onnotice: () => {} });
   [boss, olivia, sam, stranger] = await Promise.all([
     h.token("boss"), h.token("olivia"), h.token("sam"), h.token("stranger"),
@@ -109,6 +114,48 @@ describe("program owner", () => {
 
   it("rejects a taken web address", async () => {
     expect((await h.client(boss).post("/platform/businesses", { name: "Again", slug: "bakery", ownerEmail: "a@example.com" })).status).toBe(409);
+  });
+});
+
+describe("features per business", () => {
+  it("the program owner chooses what a business can turn on", async () => {
+    const r = await h.client(boss).post("/platform/businesses", { name: "Florist", slug: "florist", ownerEmail: "fay@example.com" });
+    const id = r.body.business.id as string;
+    const fay = await h.token("fay");
+    expect((await h.client(fay).post("/invitations/accept", { tenantId: id, token: tokenOf(r.body.invitation.link) })).status).toBe(200);
+    const own = h.client(fay, id);
+    const B = () => h.client(boss);
+
+    expect((await B().get("/platform/features")).body.items.map((f: { key: string }) => f.key).sort()).toEqual(["addon", "kpi"]);
+    expect((await h.client(fay).get("/platform/features")).status).toBe(403);
+    expect((await h.client(fay).put(`/platform/businesses/${id}/features`, { features: [] })).status).toBe(403);
+    // By default everything is included.
+    expect((await own.get("/modules")).body.every((m: { allowed: boolean }) => m.allowed)).toBe(true);
+    await own.post("/modules/kpi/enable", {});
+    await own.post("/modules/addon/enable", {});
+
+    // Choosing only the add-on also includes what it needs.
+    expect((await B().put(`/platform/businesses/${id}/features`, { features: ["addon"] })).body).toEqual({ features: ["addon", "kpi"], turnedOff: [] });
+    expect((await B().put(`/platform/businesses/${id}/features`, { features: ["nope"] })).status).toBe(400);
+
+    // Taking KPI away turns off the add-on first, then KPI; data is kept, and they can't turn it back on.
+    expect((await B().put(`/platform/businesses/${id}/features`, { features: [] })).body).toEqual({ features: [], turnedOff: ["addon", "kpi"] });
+    const mods = (await own.get("/modules")).body as { key: string; enabled: boolean; allowed: boolean }[];
+    expect(mods.map(({ key, enabled, allowed }) => ({ key, enabled, allowed })).sort((a, b) => a.key.localeCompare(b.key)))
+      .toEqual([{ key: "addon", enabled: false, allowed: false }, { key: "kpi", enabled: false, allowed: false }]);
+    const denied = await own.post("/modules/kpi/enable", {});
+    expect(denied.status).toBe(403);
+    expect(denied.body.code).toBe("feature_not_included");
+
+    const list = (await B().get("/platform/businesses")).body.items.find((b: { id: string }) => b.id === id);
+    expect(list).toMatchObject({ allowedFeatures: [], features: [] });
+
+    // Back to everything.
+    expect((await B().put(`/platform/businesses/${id}/features`, { features: null })).body).toEqual({ features: null, turnedOff: [] });
+    expect((await own.post("/modules/kpi/enable", {})).status).toBe(200);
+    const audit = await h.asOwner(id, (tx) => tx`select action, actor_id from audit_log where action = 'tenant.features_set'`);
+    expect(audit).toHaveLength(3); // the rejected "nope" save left no trace
+    expect(audit[0]!.actor_id).toBe("platform:boss@example.com");
   });
 });
 

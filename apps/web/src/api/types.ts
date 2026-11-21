@@ -21,6 +21,8 @@ export interface Role { id: string; key: string; name: string; system: boolean; 
 
 export interface ModuleInfo {
   key: string; name: string; version: string; description: string; dependsOn: string[]; enabled: boolean;
+  /** false = the program owner hasn't included this feature for the business. */
+  allowed: boolean;
   icon: string | null; category: string; roles: string[];
   enabledAt: string | null; enabledBy: { id: string; name: string } | null;
   disabledAt: string | null; disabledBy: { id: string; name: string } | null;

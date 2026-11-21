@@ -38,6 +38,7 @@
 | 13 | Module: AI email/meeting summaries (Claude with the company's own key; pasted notes or uploaded transcripts; action items → Tasks; follow-up email draft; support ticket recap + suggested reply; Contacts + Deals links; usage and monthly limit) | ✅ done (188 unit/integration + 62 E2E green) |
 | 14 | Module: KPI dashboard (shared boards, live numbers from every feature via the new metrics contract, week/month/quarter/year, compare with the period before or last year, targets, trend charts, hand-typed numbers, weekly email per board, dashboard widget) | ✅ done (202 unit/integration + 66 E2E green) |
 | 20 | Program owner: businesses created, listed, paused and reactivated by the program owner; self sign-up switch | ✅ done (217 unit/integration + 69 E2E green) |
+| 21 | Features per business, chosen by the program owner | ✅ done (218 unit/integration + 70 E2E green) |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
@@ -55,6 +56,13 @@
 - Each module in `/modules/<name>` with its own README.
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
+
+## Session 21, features per business
+- Program admin → a business's **⋯ → Choose features**: "All features" (default, includes features added later) or a list. Ticking a feature also ticks what it needs. Saving turns off features the business was using that are no longer included (data kept) and says which.
+- The business sees those features as "Not included, ask the program owner" on Add features; turning one on answers 403 `feature_not_included`.
+- API: `GET /platform/features`, `PUT /platform/businesses/:id/features {features: string[] | null}`; `/modules` items have `allowed`; business list has `allowedFeatures`. Migration 0008 `tenants.allowed_modules` (null = all). Audited as `tenant.features_set`.
+- Tests: api 143; 218 unit/integration in total; 70 E2E.
+- Next: billing can build on this (a price per set of features).
 
 ## Session 20, program owner and businesses
 - The person running Office (the program owner) sets up each business; each business gets its own workspace, data and owner. Program owners are listed in `PLATFORM_ADMIN_EMAILS` (signed in with a verified email). `SELF_SIGNUP=false` (default) means only program owners create businesses; `true` keeps the old "anyone can create a workspace".

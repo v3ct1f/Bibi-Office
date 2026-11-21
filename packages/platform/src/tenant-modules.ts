@@ -1,9 +1,9 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import {
-  audit, badRequest, conflict, emitEvent, ensureSystemRoles, notFound, type RequestContext,
+  AppError, audit, badRequest, conflict, emitEvent, ensureSystemRoles, notFound, type RequestContext,
 } from "@office/core";
-import { memberships, rolePermissions, tenantModules, users, type Tx } from "@office/db";
+import { memberships, rolePermissions, tenantModules, tenants, users, type Tx } from "@office/db";
 import type { ModuleDefinition } from "@office/sdk";
 import type { ModuleRegistry } from "./registry.ts";
 import type { SecretBox } from "./crypto.ts";
@@ -23,8 +23,54 @@ const secretKeys = (m: ModuleDefinition): string[] => {
 
 export interface ModuleDeps { registry: ModuleRegistry; secrets: SecretBox }
 
-export async function listModules(tx: Tx, d: ModuleDeps) {
+/** The features this business may turn on (set by the program owner); null = all of them. */
+export async function allowedModuleKeys(tx: Tx, tenantId: string): Promise<Set<string> | null> {
+  const [t] = await tx.select({ a: tenants.allowedModules }).from(tenants).where(eq(tenants.id, tenantId));
+  return t?.a ? new Set(t.a) : null;
+}
+
+/** Adds every feature the chosen ones depend on, so an allowed feature can always be turned on. */
+export function withDependencies(registry: ModuleRegistry, keys: string[]): string[] {
+  const out = new Set<string>();
+  const add = (k: string) => {
+    if (out.has(k)) return;
+    const def = registry.get(k);
+    if (!def) throw badRequest(`Unknown feature: ${k}`);
+    out.add(k);
+    def.manifest.dependsOn.forEach(add);
+  };
+  keys.forEach(add);
+  return [...out].sort();
+}
+
+/**
+ * Program owner: choose which features a business may use (null = all). Features that are on but no longer
+ * allowed are turned off (dependents first); their data is kept. Returns the keys that were turned off.
+ */
+export async function setAllowedModules(tx: Tx, ctx: RequestContext, d: ModuleDeps, keys: string[] | null) {
+  const allowed = keys === null ? null : withDependencies(d.registry, keys);
+  await tx.update(tenants).set({ allowedModules: allowed, updatedAt: new Date() }).where(eq(tenants.id, ctx.tenantId));
+  const turnedOff: string[] = [];
+  if (allowed) {
+    const ok = new Set(allowed);
+    let enabled = await enabledModuleKeys(tx);
+    // Repeat until stable: a feature can only be turned off after the features that need it.
+    for (let pass = 0; pass < 20; pass++) {
+      const todo = [...enabled].filter((k) => !ok.has(k) && d.registry.get(k));
+      const free = todo.filter((k) => !d.registry.dependents(k).some((m) => enabled.has(m.manifest.key)));
+      if (!free.length) break;
+      for (const k of free) { await disableModule(tx, ctx, d, k); turnedOff.push(k); }
+      enabled = await enabledModuleKeys(tx);
+    }
+    // Something still on that isn't allowed only because an allowed feature needs it can't happen (deps were added).
+  }
+  await audit(tx, ctx, "tenant.features_set", { type: "tenant", id: ctx.tenantId }, { allowed, turnedOff });
+  return { allowed, turnedOff };
+}
+
+export async function listModules(tx: Tx, d: ModuleDeps, tenantId: string) {
   const rows = await tx.select().from(tenantModules);
+  const allowed = await allowedModuleKeys(tx, tenantId);
   // Names for "Added by" / "Removed by" (only people who are members of this tenant).
   const userIds = [...new Set(rows.flatMap((r) => [r.enabledBy, r.disabledBy]).filter((x): x is string => !!x))];
   const people = userIds.length
@@ -41,7 +87,7 @@ export async function listModules(tx: Tx, d: ModuleDeps) {
     return {
       key: m.manifest.key, name: m.manifest.name, version: m.manifest.version, description: m.manifest.description,
       icon: m.manifest.icon ?? null, category: m.manifest.category, roles: roleAccess(m),
-      dependsOn: m.manifest.dependsOn, enabled, settings: r?.settings ?? {},
+      dependsOn: m.manifest.dependsOn, enabled, allowed: !allowed || allowed.has(m.manifest.key), settings: r?.settings ?? {},
       enabledAt: r?.enabledAt ?? null, enabledBy: who(r?.enabledBy ?? null),
       disabledAt: enabled ? null : r?.disabledAt ?? null, disabledBy: enabled ? null : who(r?.disabledBy ?? null),
       secretsSet: r?.secrets ? secretKeys(m) : [], permissions: m.manifest.permissions.declares,
@@ -74,6 +120,10 @@ export async function enabledModuleKeys(tx: Tx): Promise<Set<string>> {
 export async function enableModule(tx: Tx, ctx: RequestContext, d: ModuleDeps, key: string) {
   const def = d.registry.get(key);
   if (!def) throw notFound("Module");
+  const allowed = await allowedModuleKeys(tx, ctx.tenantId);
+  if (allowed && !allowed.has(key)) {
+    throw new AppError(403, "feature_not_included", `${def.manifest.name} isn't included for this business. Ask the program owner to add it.`);
+  }
   const enabled = await enabledModuleKeys(tx);
   const missing = def.manifest.dependsOn.filter((k) => !enabled.has(k));
   if (missing.length) throw conflict(`Enable required modules first: ${missing.join(", ")}`);

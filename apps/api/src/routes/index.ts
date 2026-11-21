@@ -26,6 +26,7 @@ const tenantHeader = z.object({ "x-tenant-id": z.uuid().optional() }).loose();
 
 export const registerRoutes: FastifyPluginAsync<{
   db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null; platformAdmins: string[]; selfSignup: boolean;
+  modules: import("@office/platform").ModuleDeps;
 }> = async (app0, o) => {
   const app = app0.withTypeProvider<ZodTypeProvider>();
   const { db, inTenant } = o;
@@ -67,7 +68,7 @@ export const registerRoutes: FastifyPluginAsync<{
     (req) => inTenant(req, null, async (_tx, ctx) => getTenant(db, ctx.tenantId)));
 
   // ───── Program owner (all businesses; never their data) ─────
-  await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, platformAdmin });
+  await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, platformAdmin, modules: o.modules });
 
   // ───── Members ─────
   app.get("/members", { config: AUTH, schema: { tags: ["members"], headers: tenantHeader } },

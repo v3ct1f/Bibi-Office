@@ -46,7 +46,7 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
 
   // ───── Modules (admin) ─────
   app.get("/modules", { config: AUTH, schema: { tags: ["modules"], headers: tenantHeader } },
-    (req) => inTenant(req, "core:modules.read", (tx) => listModules(tx, md)));
+    (req) => inTenant(req, "core:modules.read", (tx, ctx) => listModules(tx, md, ctx.tenantId)));
   app.post("/modules/:key/enable", { config: AUTH, schema: { tags: ["modules"], headers: tenantHeader, params: ModKey } },
     (req) => inTenant(req, "core:modules.manage", (tx, ctx) => enableModule(tx, ctx, md, req.params.key)));
   app.post("/modules/:key/disable", { config: AUTH, schema: { tags: ["modules"], headers: tenantHeader, params: ModKey } },

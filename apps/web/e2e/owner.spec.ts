@@ -70,3 +70,22 @@ test("pausing closes the business for its people; reactivating opens it", async 
   await boss.getByRole("dialog").getByRole("button", { name: "Reactivate" }).click();
   await expect(row).toContainText("Active");
 });
+
+test("the program owner chooses which features a business can use", async ({ browser }) => {
+  await boss.getByRole("button", { name: "Actions for Corner Bakery" }).click();
+  await boss.getByRole("menuitem", { name: "Choose features" }).click();
+  const d = boss.getByRole("dialog");
+  await d.getByRole("checkbox", { name: "All features" }).click();
+  await d.getByRole("checkbox", { name: "Inventory & Purchasing" }).click();
+  await d.getByRole("button", { name: "Save features" }).click();
+  await expect(d).toBeHidden();
+  const row = boss.getByRole("table", { name: "Businesses" }).getByRole("row", { name: /Corner Bakery/ });
+  await expect(row).toContainText("9 of 10 included");
+
+  const { ctx, page } = await newUser(browser, "olga@example.com", "Olga Owner", "/t/corner-bakery/features");
+  const card = page.getByTestId("feature-inventory");
+  await expect(card).toContainText("Not included");
+  await expect(card.getByRole("button", { name: /Add/ })).toHaveCount(0);
+  await expect(page.getByTestId("feature-crm").getByRole("button", { name: "Add CRM" })).toBeVisible();
+  await ctx.close();
+});

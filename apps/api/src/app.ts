@@ -113,7 +113,7 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   const inTenant = makeTenantRunner(d.db);
   await app.register(registerRoutes, {
     prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER, mailer: d.mailer ?? null,
-    platformAdmins: (d.platformAdmins ?? []).map((e) => e.toLowerCase()), selfSignup: d.selfSignup ?? false,
+    platformAdmins: (d.platformAdmins ?? []).map((e) => e.toLowerCase()), selfSignup: d.selfSignup ?? false, modules: d.platform,
     appUrl: (d.config.APP_URL ?? d.config.CORS_ORIGINS[0] ?? "http://localhost:5173").replace(/\/+$/, ""),
   });
   await app.register(registerPlatformRoutes, {

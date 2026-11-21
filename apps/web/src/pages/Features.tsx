@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Blocks, Check, Plus, Settings2 } from "lucide-react";
+import { ArrowRight, Blocks, Check, Lock, Plus, Settings2 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -84,6 +84,7 @@ export function FeaturesPage() {
                       <CardTitle className="flex flex-wrap items-center gap-2">
                         {m.name}
                         {m.enabled && <Badge variant="success"><Check className="size-3" /> Added</Badge>}
+                        {!m.allowed && <Badge variant="neutral"><Lock className="size-3" /> Not included</Badge>}
                       </CardTitle>
                       <CardDescription>{m.description || "No description."}</CardDescription>
                     </div>
@@ -94,11 +95,12 @@ export function FeaturesPage() {
                     {m.dependsOn.length > 0 && (
                       <p>Needs: {m.dependsOn.map((d) => <Badge key={d} variant={enabledKeys.has(d) ? "success" : "warning"} className="mr-1">{nameOf(d)}</Badge>)}</p>
                     )}
+                    {!m.allowed && <p>Not included for this business. Ask the program owner if you need it.</p>}
                     {m.enabled && m.enabledAt && <p>Added {fmtDate(m.enabledAt)}{m.enabledBy ? ` by ${m.enabledBy.name}` : ""}</p>}
                     {!m.enabled && m.disabledAt && <p>Removed {fmtDate(m.disabledAt)}{m.disabledBy ? ` by ${m.disabledBy.name}` : ""}. Its data is kept and comes back when you add it again.</p>}
                   </CardContent>
                   <CardFooter className="mt-auto flex-wrap gap-2">
-                    {manage && (m.enabled
+                    {manage && m.allowed && (m.enabled
                       ? <Button size="sm" variant="outline" aria-label={`Remove ${m.name}`} disabled={toggle.isPending} onClick={() => setRemoving(m)}>Remove</Button>
                       : <Button size="sm" aria-label={`Add ${m.name}`} loading={toggle.isPending && toggle.variables?.key === m.key}
                           disabled={toggle.isPending || missing.length > 0} title={missing.length ? `Add ${missing.map(nameOf).join(", ")} first` : undefined}
