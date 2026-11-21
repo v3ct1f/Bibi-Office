@@ -26,8 +26,7 @@ beforeAll(async () => {
   tA = (await h.client(owner).post("/tenants", { slug: "bar", name: "Bar" })).body.id;
   tB = (await h.client(bob).post("/tenants", { slug: "shop", name: "Shop" })).body.id;
   for (const [t, role] of [[mia, "manager"], [max, "member"], [lee, "member"]] as const) {
-    const me = (await h.client(t).get("/me")).body;
-    await O().post("/members", { email: me.email, roles: [role] });
+    await h.join(tA, owner, t, [role]);
   }
 });
 afterAll(async () => { await h.teardown(); });

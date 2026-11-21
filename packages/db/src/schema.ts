@@ -61,6 +61,20 @@ export const apiKeys = pgTable("api_keys", {
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 
+export const invitations = pgTable("invitations", {
+  id: uuid("id").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  email: text("email").notNull(),
+  roles: text("roles").array().notNull().default([]),
+  tokenHash: bytea("token_hash").notNull(),
+  invitedBy: uuid("invited_by"),
+  expiresAt: ts("expires_at").notNull(),
+  acceptedAt: ts("accepted_at"),
+  acceptedBy: uuid("accepted_by"),
+  revokedAt: ts("revoked_at"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
 export const modules = pgTable("modules", {
   key: text("key").primaryKey(),
   version: text("version").notNull(),

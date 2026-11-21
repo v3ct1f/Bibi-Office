@@ -32,7 +32,7 @@ beforeAll(async () => {
   [alice, carol] = await Promise.all([h.token("alice"), h.token("carol")]);
   tA = (await h.client(alice).post("/tenants", { slug: "acme", name: "Acme" })).body.id;
   await h.client(carol).get("/me");
-  await C().post("/members", { email: "carol@example.com", roles: ["member"] });
+  await h.join(tA, alice, carol, ["member"]);
 });
 afterAll(() => h.teardown());
 

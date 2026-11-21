@@ -170,20 +170,6 @@ export async function listMembers(tx: Tx, ctx: RequestContext) {
   return rows.map((r) => ({ ...r, roles: mr.filter((x) => x.membershipId === r.id).map((x) => x.key) }));
 }
 
-/** Adds an existing user (has signed in once). Email invitations: later session. */
-export async function addMember(tx: Tx, ctx: RequestContext, input: { email: string; roles: string[] }) {
-  const [u] = await tx.select().from(users).where(sql`lower(${users.email}) = ${input.email.toLowerCase()}`);
-  if (!u) throw notFound("User (must sign in once before being added)");
-  const id = uuidv7();
-  const ins = await tx.insert(memberships).values({ id, tenantId: ctx.tenantId, userId: u.id })
-    .onConflictDoNothing().returning({ id: memberships.id });
-  if (!ins.length) throw conflict("Already a member");
-  await setMemberRoles(tx, ctx, id, input.roles, { skipAudit: true });
-  await audit(tx, ctx, "member.added", { type: "membership", id }, { userId: u.id, roles: input.roles });
-  await emitEvent(tx, ctx, "core.member.added", { membershipId: id, userId: u.id, roles: input.roles });
-  return { id, userId: u.id, email: u.email, roles: input.roles };
-}
-
 export async function setMemberRoles(
   tx: Tx, ctx: RequestContext, membershipId: string, roleKeys: string[], o: { skipAudit?: boolean } = {},
 ) {
@@ -214,7 +200,7 @@ export async function removeMember(tx: Tx, ctx: RequestContext, membershipId: st
   await emitEvent(tx, ctx, "core.member.removed", { membershipId, userId: r[0]!.userId });
 }
 
-async function rolePerms(tx: Tx, roleIds: string[]): Promise<string[]> {
+export async function rolePerms(tx: Tx, roleIds: string[]): Promise<string[]> {
   if (!roleIds.length) return [];
   const rows = await tx.selectDistinct({ p: rolePermissions.permission }).from(rolePermissions).where(inArray(rolePermissions.roleId, roleIds));
   return rows.map((r) => r.p);
@@ -226,7 +212,7 @@ async function memberPerms(tx: Tx, membershipId: string): Promise<string[]> {
 }
 
 /** Throws unless the actor holds every one of these permissions (so admins can't grant themselves, or strip from owners, more than they have). */
-function assertHolds(ctx: RequestContext, perms: Iterable<string>, what: string) {
+export function assertHolds(ctx: RequestContext, perms: Iterable<string>, what: string) {
   const missing = [...perms].filter((p) => !hasPermission(ctx.actor.permissions, p));
   if (missing.length) throw forbidden(`You can't ${what}: it involves access you don't have yourself (${missing.slice(0, 3).join(", ")}${missing.length > 3 ? ", …" : ""})`);
 }

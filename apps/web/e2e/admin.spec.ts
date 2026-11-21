@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { inviteAndJoin } from "./invite.ts";
 
 async function signIn(page: Page, email: string, name: string) {
   await page.goto("/");
@@ -132,7 +133,7 @@ test("settings: webhook secret and API key are shown once", async () => {
   await expect(alice.getByRole("cell", { name: "Accounting sync", exact: true })).toBeVisible();
 });
 
-test("roles + members: custom role, add Bob", async () => {
+test("roles + members: custom role, invite Bob", async ({ browser }) => {
   await alice.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Roles" }).click();
   await alice.getByRole("button", { name: "New role" }).click();
   await alice.getByLabel("Name").fill("Sales");
@@ -143,11 +144,7 @@ test("roles + members: custom role, add Bob", async () => {
   await expect(alice.getByText("Role saved")).toBeVisible();
 
   await alice.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Members" }).click();
-  await alice.getByRole("button", { name: "Add member" }).click();
-  await alice.getByLabel("Email").fill("bob@example.com");
-  await alice.getByRole("checkbox", { name: "Member" }).click(); // untick default
-  await alice.getByRole("checkbox", { name: "Sales" }).click();
-  await alice.getByRole("button", { name: "Add member" }).last().click();
+  await inviteAndJoin(alice, browser, "bob@example.com", "Bob Builder", { untick: ["Member"], tick: ["Sales"] });
   await expect(alice.getByRole("cell", { name: /Bob Builder/ })).toBeVisible();
 });
 

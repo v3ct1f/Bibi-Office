@@ -137,8 +137,7 @@ describe("RLS (database level)", () => {
 describe("RBAC", () => {
   it("viewer can read but not write; owner must remain", async () => {
     const c = h.client(alice, tA);
-    const m = await c.post("/members", { email: "carol@example.com", roles: ["viewer"] });
-    expect(m.status).toBe(201);
+    await h.join(tA, alice, carol, ["viewer"]);
     const carolC = h.client(carol, tA);
     expect((await carolC.get("/contacts")).status).toBe(200);
     expect((await carolC.post("/contacts", { firstName: "Nope" })).status).toBe(403);
@@ -162,8 +161,7 @@ describe("RBAC", () => {
     const c = h.client(alice, tA);
     const dave = await h.token("dave");
     await h.client(dave).get("/me");
-    const added = await c.post("/members", { email: "dave@example.com", roles: ["admin"] });
-    expect(added.status).toBe(201);
+    const added = { body: { id: await h.join(tA, alice, dave, ["admin"]) } };
     const d = h.client(dave, tA);
     // A role with everything, or with the one core permission admins lack, can't be made by an admin.
     expect((await d.put("/roles/god", { name: "God", permissions: ["*"] })).status).toBe(403);
@@ -226,6 +224,86 @@ describe("API keys", () => {
     expect((await kc.get("/contacts")).status).toBe(200);
     expect((await c.del(`/members/${carolM.id}`)).status).toBe(204);
     expect((await kc.get("/contacts")).status).toBe(401);
+  });
+});
+
+describe("invitations", () => {
+  const tokenOfLink = (link: string) => link.split("/").pop()!;
+  it("only the invited address can accept, once, with the roles given", async () => {
+    const c = h.client(alice, tA);
+    const [erin, frank] = await Promise.all([h.token("erin"), h.token("frank")]);
+    // Viewers can't invite; inviting needs a known role.
+    const viewer = await h.token("vera");
+    await h.join(tA, alice, viewer, ["viewer"]);
+    expect((await h.client(viewer, tA).post("/invitations", { email: "erin@example.com", roles: ["viewer"] })).status).toBe(403);
+    expect((await c.post("/invitations", { email: "erin@example.com", roles: ["nope"] })).status).toBe(400);
+
+    const inv = await c.post("/invitations", { email: "Erin@Example.com", roles: ["member"] });
+    expect(inv.status).toBe(201);
+    expect(inv.body).toMatchObject({ email: "erin@example.com", roles: ["member"], emailed: false });
+    expect(inv.body.link).toMatch(new RegExp(`/invite/${tA}/[A-Za-z0-9_-]{43}$`));
+    expect(inv.body.token).toBeUndefined();
+    const list = await c.get("/invitations");
+    expect(list.body).toHaveLength(1);
+    expect(JSON.stringify(list.body)).not.toContain(tokenOfLink(inv.body.link));
+    const ref = { tenantId: tA, token: tokenOfLink(inv.body.link) };
+
+    // Someone else holding the link sees it isn't for them and can't accept.
+    const v = await h.client(frank).post("/invitations/view", ref);
+    expect(v.body).toMatchObject({ tenant: { name: "Acme" }, email: "erin@example.com", emailMatches: false, status: "open", roles: ["Member"] });
+    expect((await h.client(frank).post("/invitations/accept", ref)).status).toBe(403);
+    expect((await h.client(frank, tA).get("/contacts")).status).toBe(404);
+    // The wrong company or a made-up token find nothing.
+    expect((await h.client(erin).post("/invitations/view", { ...ref, tenantId: tB })).status).toBe(404);
+    expect((await h.client(erin).post("/invitations/view", { ...ref, token: "x".repeat(43) })).status).toBe(404);
+
+    const ok = await h.client(erin).post("/invitations/accept", ref);
+    expect(ok.status).toBe(200);
+    expect(ok.body).toEqual({ tenantId: tA, slug: "acme" });
+    expect((await h.client(erin, tA).post("/contacts", { firstName: "Hi" })).status).toBe(201);
+    expect((await h.client(erin).post("/invitations/accept", ref)).status).toBe(200); // a second click is fine
+    expect((await c.get("/invitations")).body).toHaveLength(0);
+    expect((await c.post("/invitations", { email: "erin@example.com", roles: ["viewer"] })).status).toBe(409);
+  });
+
+  it("can be withdrawn, replaced, expire, and lapse when the inviter loses access", async () => {
+    const c = h.client(alice, tA);
+    const gus = await h.token("gus");
+    const first = await c.post("/invitations", { email: "gus@example.com", roles: ["viewer"] });
+    const second = await c.post("/invitations", { email: "gus@example.com", roles: ["member"] });
+    const ref1 = { tenantId: tA, token: tokenOfLink(first.body.link) }, ref2 = { tenantId: tA, token: tokenOfLink(second.body.link) };
+    expect((await h.client(gus).post("/invitations/view", ref1)).body.status).toBe("withdrawn");
+    expect((await h.client(gus).post("/invitations/accept", ref1)).status).toBe(409);
+    expect((await c.del(`/invitations/${second.body.id}`)).status).toBe(204);
+    expect((await h.client(gus).post("/invitations/accept", ref2)).status).toBe(409);
+
+    const third = await c.post("/invitations", { email: "gus@example.com", roles: ["member"] });
+    await h.asOwner(tA, (tx) => tx`update invitations set expires_at = now() - interval '1 minute' where id = ${third.body.id}`);
+    expect((await h.client(gus).post("/invitations/accept", { tenantId: tA, token: tokenOfLink(third.body.link) })).body.title).toMatch(/expired/);
+
+    // An admin invites, then is demoted before the person accepts: the invitation no longer works.
+    const hal = await h.token("hal");
+    const halM = await h.join(tA, alice, hal, ["admin"]);
+    expect((await h.client(hal, tA).post("/invitations", { email: "gus@example.com", roles: ["owner"] })).status).toBe(403);
+    const fourth = await h.client(hal, tA).post("/invitations", { email: "gus@example.com", roles: ["member"] });
+    expect(fourth.status).toBe(201);
+    await c.put(`/members/${halM}/roles`, { roles: ["viewer"] });
+    expect((await h.client(gus).post("/invitations/accept", { tenantId: tA, token: tokenOfLink(fourth.body.link) })).body.title).toMatch(/no longer valid/);
+  });
+
+  it("are emailed when platform email is set up", async () => {
+    const sent: { to: string; subject: string; text: string }[] = [];
+    const h2 = await setup([], { mailer: { send: async (m) => { sent.push(m); } } });
+    try {
+      const own = await h2.token("ivy");
+      const t = (await h2.client(own).post("/tenants", { slug: "ivy-co", name: "Ivy & Co" })).body.id;
+      const r = await h2.client(own, t).post("/invitations", { email: "jo@example.com", roles: ["member"] });
+      expect(r.body.emailed).toBe(true);
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toMatchObject({ to: "jo@example.com", subject: "Join Ivy & Co" });
+      expect(sent[0]!.text).toContain(r.body.link);
+      expect(sent[0]!.text).toContain("ivy has invited you");
+    } finally { await h2.teardown(); }
   });
 });
 

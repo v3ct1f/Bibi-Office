@@ -17,8 +17,8 @@ beforeAll(async () => {
   tB = (await h.client(bob).post("/tenants", { slug: "shop-b", name: "Shop B" })).body.id;
   await h.client(mia).get("/me");
   await h.client(max).get("/me");
-  await A().post("/members", { email: "mia@example.com", roles: ["manager"] });
-  await A().post("/members", { email: "max@example.com", roles: ["member"] });
+  await h.join(tA, alice, mia, ["manager"]);
+  await h.join(tA, alice, max, ["member"]);
 });
 afterAll(async () => { await h.teardown(); });
 

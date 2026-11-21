@@ -3,11 +3,13 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { and, desc, eq, lt } from "drizzle-orm";
 import {
-  ENTITIES, entityService, createTenant, listUserTenants, getTenant, listMembers, addMember, setMemberRoles,
+  ENTITIES, entityService, createTenant, listUserTenants, getTenant, listMembers, setMemberRoles, notFound,
+  createInvitation, listInvitations, revokeInvitation, viewInvitation, acceptInvitation, INVITATION_DAYS,
   removeMember, listRoles, upsertRole, deleteRole, createApiKey, listApiKeys, revokeApiKey, verifyAuditChain,
   forbidden, CORE_PERMISSIONS, type EntityKey, type RequestContext,
 } from "@office/core";
-import { auditLog, type Db, type Tx } from "@office/db";
+import { auditLog, tenants, users, withTenant, type Db, type Tx } from "@office/db";
+import { invitationEmail, type Mailer } from "../mail.ts";
 
 type InTenant = <T>(req: import("fastify").FastifyRequest, perm: string | null,
   fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T>;
@@ -21,7 +23,7 @@ const Page = z.object({
 });
 const tenantHeader = z.object({ "x-tenant-id": z.uuid().optional() }).loose();
 
-export const registerRoutes: FastifyPluginAsync<{ db: Db; inTenant: InTenant; pepper: string }> = async (app0, o) => {
+export const registerRoutes: FastifyPluginAsync<{ db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null }> = async (app0, o) => {
   const app = app0.withTypeProvider<ZodTypeProvider>();
   const { db, inTenant } = o;
 
@@ -56,10 +58,59 @@ export const registerRoutes: FastifyPluginAsync<{ db: Db; inTenant: InTenant; pe
   app.get("/members", { config: AUTH, schema: { tags: ["members"], headers: tenantHeader } },
     (req) => inTenant(req, "core:members.read", (tx, ctx) => listMembers(tx, ctx)));
 
-  app.post("/members", {
+  // ───── Invitations: people join only by accepting a link sent to their own email address ─────
+  app.get("/invitations", { config: AUTH, schema: { tags: ["members"], headers: tenantHeader } },
+    (req) => inTenant(req, "core:members.manage", (tx) => listInvitations(tx)));
+
+  app.post("/invitations", {
     config: AUTH,
-    schema: { tags: ["members"], headers: tenantHeader, body: z.object({ email: z.email(), roles: z.array(z.string()).min(1).max(20) }).strict() },
-  }, async (req, reply) => reply.status(201).send(await inTenant(req, "core:members.manage", (tx, ctx) => addMember(tx, ctx, req.body))));
+    schema: { tags: ["members"], headers: tenantHeader, body: z.object({ email: z.email().max(320), roles: z.array(z.string().max(41)).min(1).max(20) }).strict() },
+  }, async (req, reply) => {
+    if (req.principal?.kind !== "user") throw forbidden("Only people can invite people");
+    const { inv, tenantName, inviter } = await inTenant(req, "core:members.manage", async (tx, ctx) => {
+      const t = (await getTenant(db, ctx.tenantId))!;
+      const me = req.principal as { email: string };
+      const [u] = await tx.select({ name: users.name }).from(users).where(eq(users.id, ctx.actor.userId!));
+      return { inv: await createInvitation(tx, ctx, req.body), tenantName: t.name, inviter: u?.name || me.email };
+    });
+    const link = `${o.appUrl}/invite/${req.headers["x-tenant-id"]}/${inv.token}`;
+    let emailed = false, emailError: string | null = null;
+    if (o.mailer) {
+      try {
+        await o.mailer.send({ to: inv.email, ...invitationEmail({ tenantName, inviterName: inviter, link, days: INVITATION_DAYS }) });
+        emailed = true;
+      } catch (e) {
+        req.log.warn({ err: e }, "invitation email failed");
+        emailError = "The email could not be sent. Copy the link and send it yourself.";
+      }
+    }
+    const { token: _t, ...rest } = inv;
+    return reply.status(201).send({ ...rest, link, emailed, emailError });
+  });
+
+  app.delete("/invitations/:id", { config: AUTH, schema: { tags: ["members"], headers: tenantHeader, params: Id } }, async (req, reply) => {
+    await inTenant(req, "core:members.manage", (tx, ctx) => revokeInvitation(tx, ctx, req.params.id));
+    return reply.status(204).send();
+  });
+
+  // The invited person, signed in but not (yet) a member: look at and accept an invitation.
+  // The token travels in the body, not the URL, so it doesn't end up in request logs.
+  const InviteRef = z.object({ tenantId: z.uuid(), token: z.string().max(64) }).strict();
+  const inInviteTenant = async <T>(req: import("fastify").FastifyRequest, tenantId: string, fn: (tx: Tx, user: { userId: string; email: string }) => Promise<T>) => {
+    const p = req.principal!;
+    if (p.kind !== "user") throw forbidden("Sign in as a person to accept an invitation");
+    const tid = tenantId.toLowerCase();
+    return withTenant(db, tid, async (tx) => {
+      const [t] = await tx.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.id, tid), eq(tenants.status, "active")));
+      if (!t) throw notFound("Invitation");
+      return fn(tx, { userId: p.userId, email: p.email });
+    });
+  };
+  app.post("/invitations/view", { config: AUTH, schema: { tags: ["members"], body: InviteRef } },
+    (req) => inInviteTenant(req, req.body.tenantId, (tx, user) => viewInvitation(tx, req.body.tenantId.toLowerCase(), req.body.token, user)));
+  app.post("/invitations/accept", { config: AUTH, schema: { tags: ["members"], body: InviteRef } },
+    (req) => inInviteTenant(req, req.body.tenantId, (tx, user) => acceptInvitation(tx, req.body.tenantId.toLowerCase(), req.body.token, user,
+      { requestId: req.id, ip: req.ip, userAgent: req.headers["user-agent"] })));
 
   app.put("/members/:id/roles", {
     config: AUTH,

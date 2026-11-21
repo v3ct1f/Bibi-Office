@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { inviteAndJoin } from "./invite.ts";
 
 async function signIn(page: Page, email: string, name: string) {
   await page.goto("/");
@@ -48,15 +49,13 @@ test.beforeAll(async ({ browser }) => {
   slug = new URL(olga.url()).pathname.split("/")[2]!;
 });
 
-test("owner adds the feature and an employee", async () => {
+test("owner adds the feature and an employee", async ({ browser }) => {
   await nav(olga).getByRole("link", { name: "Add features" }).click();
   await olga.getByRole("button", { name: "Add Invoices & Expenses" }).click();
   await expect(nav(olga).getByRole("link", { name: "Expenses" })).toBeVisible();
 
   await olga.goto(`/t/${slug}/settings/members`);
-  await olga.getByRole("button", { name: "Add member" }).click();
-  await olga.getByLabel("Email").fill("max@example.com");
-  await olga.getByRole("button", { name: "Add member" }).last().click();
+  await inviteAndJoin(olga, browser, "max@example.com", "Max Waiter");
   await expect(olga.getByRole("cell", { name: /Max Waiter/ })).toBeVisible();
 });
 

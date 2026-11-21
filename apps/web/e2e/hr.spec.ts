@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { inviteAndJoin } from "./invite.ts";
 
 async function signIn(page: Page, address: string, name: string) {
   await page.goto("/");
@@ -40,15 +41,13 @@ async function openProfile(p: Page, name: string) {
   await expect(p.getByRole("heading", { name: new RegExp(name) })).toBeVisible();
 }
 
-test("owner adds HR and fills in a profile", async () => {
+test("owner adds HR and fills in a profile", async ({ browser }) => {
   await nav(olga).getByRole("link", { name: "Add features" }).click();
   await olga.getByRole("button", { name: "Add HR" }).click();
   await expect(nav(olga).getByRole("link", { name: "People" })).toBeVisible();
 
   await olga.goto(`/t/${slug}/settings/members`);
-  await olga.getByRole("button", { name: "Add member" }).click();
-  await olga.getByLabel("Email").fill("max.hr@example.com");
-  await olga.getByRole("button", { name: "Add member" }).last().click();
+  await inviteAndJoin(olga, browser, "max.hr@example.com", "Max Baker");
   await expect(olga.getByRole("cell", { name: /Max Baker/ })).toBeVisible();
 
   await openProfile(olga, "Max Baker");

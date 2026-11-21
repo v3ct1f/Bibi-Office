@@ -55,11 +55,17 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 18, invitations
+- People join a company only by accepting an invitation sent to their own address: Settings → Members → **Invite people** (email + roles) gives a link, emailed when `MAIL_SMTP_URL` and `MAIL_FROM` are set, otherwise shown to copy. The link opens `/invite/<tenant>/<token>`; the person signs in with the invited address and clicks **Accept and join**.
+- Rules: 7 days; one open invitation per address (a new one replaces it); withdraw from the members page; the inviter must still hold every permission of the roles when it is accepted; only the token's SHA-256 is stored, and the token goes in request bodies, not URLs. `POST /members` (direct add) is gone.
+- API: `GET/POST /invitations`, `DELETE /invitations/:id`, `POST /invitations/view`, `POST /invitations/accept`. Table `invitations` (migration 0005, RLS).
+- Tests: api 134 (core 26, incl. 3 invitation tests); 209 unit/integration in total; 66 E2E (6 flows now invite and accept through the UI, helper `e2e/invite.ts`). API tests add people with `h.join(...)`.
+
 ## Session 17, security review (after the original list)
 - Fixed: role and member changes now need every permission involved (admins could make a `*` role or demote owners); API keys follow their creator's current access; failed sign-ins limited per IP; concurrent document signing.
 - Checked, no change needed: tenant isolation (RLS + tenant runner), SSRF guard for webhooks and HTTP actions, mail-host checks, secret sealing, file type checks, no raw HTML in the UI, public signing tokens.
 - Open, not fixed:
-  - An admin can add any person who has signed in once, by email, without their consent. Email invitations would fix this.
+  - ~~An admin can add any person who has signed in once, by email, without their consent.~~ Fixed by invitations (below).
   - Workflows run their actions with full access, so anyone with `core:workflows.manage` (admins by default) can do anything a workflow action can do.
   - The failed sign-in counter is per API instance; use Redis once there is more than one.
 - Tests: api 131 (4 new), 206 unit/integration in total; 66 E2E.

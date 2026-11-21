@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { inviteAndJoin } from "./invite.ts";
 import { email, startMailServers } from "../../../modules/support/tests/mail-servers.ts";
 
 async function signIn(page: Page, address: string, name: string) {
@@ -46,15 +47,13 @@ test.beforeAll(async ({ browser }) => {
 });
 test.afterAll(async () => { await mail?.stop(); });
 
-test("owner adds the feature and connects the mailbox", async () => {
+test("owner adds the feature and connects the mailbox", async ({ browser }) => {
   await nav(olga).getByRole("link", { name: "Add features" }).click();
   await olga.getByRole("button", { name: "Add Support inbox" }).click();
   await expect(nav(olga).getByRole("link", { name: "Support" })).toBeVisible();
 
   await olga.goto(`/t/${slug}/settings/members`);
-  await olga.getByRole("button", { name: "Add member" }).click();
-  await olga.getByLabel("Email").fill("tom.support@example.com");
-  await olga.getByRole("button", { name: "Add member" }).last().click();
+  await inviteAndJoin(olga, browser, "tom.support@example.com", "Tom Support");
   await expect(olga.getByRole("cell", { name: /Tom Support/ })).toBeVisible();
 
   await nav(olga).getByRole("link", { name: "Support" }).click();

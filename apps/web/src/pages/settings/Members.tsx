@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
-import { MoreHorizontal, UserPlus, Users } from "lucide-react";
+import { MailCheck, MoreHorizontal, UserPlus, Users } from "lucide-react";
 import {
-  Badge, Button, Card, Checkbox, ConfirmDialog, Dialog, DialogContent, DialogFooter, DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  Badge, Button, Card, Checkbox, ConfirmDialog, CopyField, Dialog, DialogContent, DialogFooter, DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger, EmptyState, ErrorState, Field, Input, Label, PageHeader, Skeleton, Table, TBody, TD, TH, THead, TR,
 } from "@office/ui";
 import type { Member, Role } from "../../api/types.ts";
+
+interface Invitation { id: string; email: string; roles: string[]; expiresAt: string; createdAt: string; expired: boolean; invitedByName: string | null }
+interface Invited { email: string; link: string; emailed: boolean; emailError: string | null }
 import { useTMutation, useTQuery } from "../../api/hooks.ts";
 import { useTenant } from "../../lib/tenant.tsx";
 import { fmtDate, initials } from "../../lib/format.ts";
@@ -46,9 +49,13 @@ export function MembersPage() {
   const [removing, setRemoving] = useState<Member | null>(null);
   useEffect(() => { if (editing) setEditRoles(editing.roles); }, [editing]);
 
-  const add = useTMutation(() => api.post("/members", { email: email.trim(), roles: newRoles }), {
-    invalidate: [["members"]], success: "Member added", onSuccess: () => { setAdding(false); setEmail(""); setNewRoles(["member"]); },
+  const invitations = useTQuery<Invitation[]>(["invitations"], "/invitations", undefined, { enabled: manage });
+  const [invited, setInvited] = useState<Invited | null>(null);
+  const closeInvite = () => { setAdding(false); setInvited(null); setEmail(""); setNewRoles(["member"]); };
+  const add = useTMutation(() => api.post<Invited>("/invitations", { email: email.trim(), roles: newRoles }), {
+    invalidate: [["invitations"]], onSuccess: (r) => setInvited(r),
   });
+  const withdraw = useTMutation((i: Invitation) => api.del(`/invitations/${i.id}`), { invalidate: [["invitations"]], success: "Invitation withdrawn" });
   const setRolesM = useTMutation((m: Member) => api.put(`/members/${m.id}/roles`, { roles: editRoles }), { invalidate: [["members"]], success: "Roles updated", onSuccess: () => setEditing(null) });
   const remove = useTMutation((m: Member) => api.del(`/members/${m.id}`), { invalidate: [["members"]], success: "Member removed" });
   const roleName = (k: string) => roles.data?.find((r) => r.key === k)?.name ?? k;
@@ -56,7 +63,7 @@ export function MembersPage() {
   return (
     <>
       <PageHeader title="Members" description="People who can sign in to this workspace."
-        actions={manage && <Button onClick={() => setAdding(true)}><UserPlus /> Add member</Button>} />
+        actions={manage && <Button onClick={() => setAdding(true)}><UserPlus /> Invite people</Button>} />
       <Card>
         {members.isPending ? <div className="grid gap-2 p-4"><Skeleton className="h-10" /><Skeleton className="h-10" /></div>
           : members.isError ? <ErrorState error={members.error} onRetry={() => members.refetch()} />
@@ -96,18 +103,52 @@ export function MembersPage() {
           )}
       </Card>
 
-      <Dialog open={adding} onOpenChange={setAdding}>
-        <DialogContent title="Add member" description="They must have signed in to Office once. Email invitations are coming later.">
+      {manage && !!invitations.data?.length && (
+        <Card className="mt-4">
+          <h2 className="border-b px-4 py-3 text-sm font-semibold">Waiting to accept</h2>
+          <ul aria-label="Open invitations" className="divide-y">
+            {invitations.data.map((i) => (
+              <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{i.email}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {i.roles.map(roleName).join(", ")}{i.invitedByName ? ` · invited by ${i.invitedByName}` : ""} · {i.expired ? "expired" : `link works until ${fmtDate(i.expiresAt)}`}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {i.expired && <Badge variant="warning">Expired</Badge>}
+                  <Button variant="ghost" size="sm" aria-label={`Withdraw the invitation for ${i.email}`} loading={withdraw.isPending && withdraw.variables?.id === i.id} onClick={() => withdraw.mutate(i)}>Withdraw</Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      <Dialog open={adding} onOpenChange={(o) => (o ? setAdding(true) : closeInvite())}>
+        {invited ? (
+          <DialogContent title={invited.emailed ? "Invitation sent" : "Send this link"}>
+            {invited.emailed
+              ? <p className="flex items-start gap-2 text-sm"><MailCheck className="mt-0.5 size-4 shrink-0 text-success" />We emailed an invitation to {invited.email}. They join when they open it and sign in with that address.</p>
+              : invited.emailError ? <p role="alert" className="text-sm text-destructive">{invited.emailError}</p>
+              : <p role="status" className="text-sm">Email isn't set up for Office, so send this link to <strong>{invited.email}</strong> yourself. They join by opening it and signing in with that address.</p>}
+            <CopyField value={invited.link} label="Copy invitation link" />
+            <p className="text-xs text-muted-foreground">Anyone can open the link, but only {invited.email} can accept it. It works for 7 days.</p>
+            <DialogFooter><Button onClick={closeInvite}>Done</Button></DialogFooter>
+          </DialogContent>
+        ) : (
+        <DialogContent title="Invite someone" description="They get a link to join this workspace, and accept it by signing in with this email address.">
           <form className="grid gap-5" onSubmit={(e) => { e.preventDefault(); add.mutate(); }}>
             <Field label="Email" required>{(a) => <Input {...a} type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />}</Field>
             {roles.data ? <RolePicker roles={roles.data} value={newRoles} onChange={setNewRoles} canGrantOwner={isOwner} />
               : <Field label="Role">{(a) => <Input {...a} value={newRoles.join(",")} onChange={(e) => setNewRoles(e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} />}</Field>}
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAdding(false)}>Cancel</Button>
-              <Button type="submit" loading={add.isPending} disabled={!email || !newRoles.length}>Add member</Button>
+              <Button variant="outline" onClick={closeInvite}>Cancel</Button>
+              <Button type="submit" loading={add.isPending} disabled={!email || !newRoles.length}>Invite</Button>
             </DialogFooter>
           </form>
         </DialogContent>
+        )}
       </Dialog>
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>

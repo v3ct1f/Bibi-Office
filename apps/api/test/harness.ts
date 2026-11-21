@@ -8,7 +8,7 @@ import { buildApp } from "../src/app.ts";
 export const ISSUER = "https://idp.test/realms/office";
 export const AUDIENCE = "office-api";
 
-export async function setup(modules: ModuleDefinition[] = [], opts: { authFailuresPerMin?: number } = {}) {
+export async function setup(modules: ModuleDefinition[] = [], opts: { authFailuresPerMin?: number; mailer?: import("../src/mail.ts").Mailer } = {}) {
   const tdb = await createTestDatabase();
   const registry = new ModuleRegistry(modules);
   if (modules.length) await installModules(tdb.ownerUrl, registry, () => {});
@@ -54,8 +54,19 @@ export async function setup(modules: ModuleDefinition[] = [], opts: { authFailur
   const asOwner = <T>(tenantId: string, fn: (tx: import("postgres").TransactionSql) => Promise<T>) =>
     owner.sql.begin(async (tx) => { await tx`select set_config('app.tenant_id', ${tenantId}, true)`; return fn(tx); }) as Promise<T>;
 
+  /** Invites the person signed in with userToken and accepts as them; returns their membership id. */
+  const join = async (tenantId: string, inviterToken: string, userToken: string, roles: string[]) => {
+    const me = (await client(userToken).get("/me")).body as { email: string; userId: string };
+    const inv = await client(inviterToken, tenantId).post("/invitations", { email: me.email, roles });
+    if (inv.status !== 201) throw new Error(`invite failed: ${JSON.stringify(inv.body)}`);
+    const acc = await client(userToken).post("/invitations/accept", { tenantId, token: (inv.body.link as string).split("/").pop() });
+    if (acc.status !== 200) throw new Error(`accept failed: ${JSON.stringify(acc.body)}`);
+    const members = (await client(inviterToken, tenantId).get("/members")).body as { id: string; userId: string }[];
+    return members.find((m) => m.userId === me.userId)!.id;
+  };
+
   return {
-    app, token, client, asOwner, ownerSql: owner.sql, appSql: app_.sql, db: app_.db, registry, secrets, tdb,
+    app, token, client, join, asOwner, ownerSql: owner.sql, appSql: app_.sql, db: app_.db, registry, secrets, tdb,
     /** Pending outbox events for a tenant as envelopes (what the relay would publish). */
     async events(tenantId: string, type?: string) {
       const rows = await asOwner(tenantId, (tx) => tx`select * from outbox order by id`);

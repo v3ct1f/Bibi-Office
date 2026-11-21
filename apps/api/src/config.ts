@@ -12,6 +12,11 @@ const Env = z.object({
   CORS_ORIGINS: z.string().default("").transform((s) => s.split(",").map((x) => x.trim()).filter(Boolean)),
   RATE_LIMIT_PER_MIN: z.coerce.number().int().default(600),
   TRUST_PROXY: z.stringbool().default(false),
+  /** Address of the web app, for links in emails (invitations). Defaults to the first CORS origin. */
+  APP_URL: z.url().optional(),
+  /** Platform email for invitations, e.g. smtps://user:pass@smtp.example.com:465. Without it, invite links are shown to copy. */
+  MAIL_SMTP_URL: z.string().optional(),
+  MAIL_FROM: z.string().optional(),
 });
 export type Config = z.infer<typeof Env>;
 

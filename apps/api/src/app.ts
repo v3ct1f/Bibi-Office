@@ -18,10 +18,13 @@ import { registerRoutes } from "./routes/index.ts";
 import { registerPlatformRoutes } from "./routes/platform.ts";
 import type { ModuleRegistry, SecretBox } from "@office/platform";
 import type { Config } from "./config.ts";
+import type { Mailer } from "./mail.ts";
 
 export interface AppDeps {
   db: Db;
-  config: Pick<Config, "OIDC_ISSUER" | "OIDC_AUDIENCE" | "API_KEY_PEPPER" | "CORS_ORIGINS" | "RATE_LIMIT_PER_MIN" | "TRUST_PROXY" | "NODE_ENV">;
+  config: Pick<Config, "OIDC_ISSUER" | "OIDC_AUDIENCE" | "API_KEY_PEPPER" | "CORS_ORIGINS" | "RATE_LIMIT_PER_MIN" | "TRUST_PROXY" | "NODE_ENV"> & Partial<Pick<Config, "APP_URL">>;
+  /** Sends invitation emails; null or missing = show the link to copy instead. */
+  mailer?: Mailer | null;
   jwks?: JWTVerifyGetKey;      // injectable for tests
   platform: { registry: ModuleRegistry; secrets: SecretBox };
   logger?: boolean | object;
@@ -104,7 +107,10 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   });
 
   const inTenant = makeTenantRunner(d.db);
-  await app.register(registerRoutes, { prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER });
+  await app.register(registerRoutes, {
+    prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER, mailer: d.mailer ?? null,
+    appUrl: (d.config.APP_URL ?? d.config.CORS_ORIGINS[0] ?? "http://localhost:5173").replace(/\/+$/, ""),
+  });
   await app.register(registerPlatformRoutes, {
     prefix: "/api/v1", db: d.db, inTenant, registry: d.platform.registry, secrets: d.platform.secrets,
     requireHttps: d.config.NODE_ENV === "production",

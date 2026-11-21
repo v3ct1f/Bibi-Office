@@ -37,7 +37,7 @@ beforeAll(async () => {
   tA = (await h.client(alice).post("/tenants", { slug: "acme", name: "Acme" })).body.id;
   tB = (await h.client(bob).post("/tenants", { slug: "globex", name: "Globex" })).body.id;
   await h.client(carol).get("/me");
-  await A().post("/members", { email: "carol@example.com", roles: ["member"] });
+  await h.join(tA, alice, carol, ["member"]);
   company = (await A().post("/companies", { name: "Initech", taxId: "NL123" })).body;
   contact = (await A().post("/contacts", { firstName: "Peter", lastName: "Gibbons", email: "peter@initech.com", companyId: company.id })).body;
 });

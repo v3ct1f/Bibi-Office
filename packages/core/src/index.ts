@@ -5,3 +5,4 @@ export * from "./events.ts";
 export * from "./audit.ts";
 export * from "./identity.ts";
 export * from "./entities.ts";
+export * from "./invitations.ts";

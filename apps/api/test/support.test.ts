@@ -31,8 +31,7 @@ beforeAll(async () => {
   tA = (await h.client(owner).post("/tenants", { slug: "shop", name: "Shop" })).body.id;
   tB = (await h.client(bob).post("/tenants", { slug: "other", name: "Other" })).body.id;
   for (const [t, role] of [[mia, "manager"], [max, "member"], [vic, "viewer"]] as const) {
-    const me = (await h.client(t).get("/me")).body;
-    await Own().post("/members", { email: me.email, roles: [role] });
+    await h.join(tA, owner, t, [role]);
   }
   maxId = (await h.client(max).get("/me")).body.userId;
   miaId = (await h.client(mia).get("/me")).body.userId;

@@ -19,6 +19,7 @@ import { WorkflowsPage } from "./pages/workflows/Workflows.tsx";
 import { WorkflowEditor } from "./pages/workflows/WorkflowEditor.tsx";
 import { ModulePage, PublicModulePage } from "./modules/SlotHost.tsx";
 import { useTenant } from "./lib/tenant.tsx";
+import { InvitePage } from "./pages/Invite.tsx";
 
 type AnyCfg = EntityConfig<{ id: string } & Record<string, unknown>>;
 const cfg = (c: unknown) => c as AnyCfg;
@@ -50,6 +51,7 @@ function PublicRoute() {
   const p = useParams({ strict: false }) as { tenantId: string; module: string; _splat?: string };
   return <PublicModulePage tenantId={p.tenantId} module={p.module} path={p._splat ?? ""} />;
 }
+const invite = createRoute({ getParentRoute: () => root, path: "/invite/$tenantId/$token", component: () => <Authed><InvitePage /></Authed> });
 const publicPage = createRoute({ getParentRoute: () => root, path: "/p/$tenantId/$module/$", component: PublicRoute });
 const tenant = createRoute({ getParentRoute: () => root, path: "/t/$slug", component: () => <Authed><TenantLayout /></Authed> });
 
@@ -72,7 +74,7 @@ function ModuleRoute() {
 }
 
 const tree = root.addChildren([
-  index, callback, onboarding, publicPage,
+  index, callback, onboarding, invite, publicPage,
   tenant.addChildren([
     t("/", Dashboard),
     t("/contacts", () => <Gate perm="core:contacts.read"><EntityList key="contacts" cfg={cfg(contactsConfig)} /></Gate>, newSearch),

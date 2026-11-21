@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { inviteAndJoin } from "./invite.ts";
 
 async function signIn(page: Page, email: string, name: string) {
   await page.goto("/");
@@ -38,17 +39,14 @@ test.beforeAll(async ({ browser }) => {
   slug = new URL(olga.url()).pathname.split("/")[2]!;
 });
 
-test("owner adds the feature and two staff members", async () => {
+test("owner adds the feature and two staff members", async ({ browser }) => {
   await nav(olga).getByRole("link", { name: "Add features" }).click();
   await olga.getByRole("button", { name: "Add Staff Scheduling & Time Clock" }).click();
   for (const label of ["Schedule", "Time clock", "Time off & swaps", "Hours"]) await expect(nav(olga).getByRole("link", { name: label })).toBeVisible();
 
   await olga.goto(`/t/${slug}/settings/members`);
-  for (const email of ["sam.waiter@example.com", "lee.cook@example.com"]) {
-    await olga.getByRole("button", { name: "Add member" }).click();
-    await olga.getByLabel("Email").fill(email);
-    await olga.getByRole("button", { name: "Add member" }).last().click();
-  }
+  await inviteAndJoin(olga, browser, "sam.waiter@example.com", "Sam Waiter");
+  await inviteAndJoin(olga, browser, "lee.cook@example.com", "Lee Cook");
   await expect(olga.getByRole("cell", { name: /Lee Cook/ })).toBeVisible();
 });
 
