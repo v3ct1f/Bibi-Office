@@ -36,7 +36,7 @@ export async function dispatchEvent(d: DispatchDeps, e: EventEnvelope): Promise<
         if (!loaded) return;
         const ctx = systemContext(e.tenantId, `event:${e.id}`, `module:${key}`, causation);
         ctx.actor = { type: "module", id: key, permissions: new Set(["*"]) };
-        await m.handlers![e.type]!(createModuleContext(tx, ctx, loaded.def, loaded.state), e);
+        await m.handlers![e.type]!(createModuleContext(tx, ctx, loaded.def, loaded.state, undefined, d), e);
         handlers.push(key);
       });
     } catch (err) { errors.push(err); }

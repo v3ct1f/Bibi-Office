@@ -182,6 +182,16 @@ export default defineModule({
 
 - **Errors that keep changes (Session 15):** `throw new ModuleError(status, code, message, { keepChanges: true })` commits the request's transaction, then answers with the error. Use it when something billed or irreversible already happened (for example the AI module logging tokens for a failed Claude call). Without it, any error rolls the transaction back.
 
+- **Metrics (Session 16):** a module publishes numbers with `metrics: [metric({ key: "<module>.<name>", label, description, group, unit, kind: "total" | "snapshot", better, permission, link?, compute(ctx, range) })]`.
+  - `defineModule` checks the key prefix (`METRIC_KEY_RE`) and that the permission is declared or required by the module.
+  - `range` is a `MetricRange` `{ from, to, start, end, timeZone, current }`: dates for date columns, ISO timestamps for timestamp columns (pass the strings to SQL, not `Date` objects). `metricRange(from, to, tz)` in `@office/sdk` builds one; days start at midnight in `tz`.
+  - `compute` returns a number, `{ value, currency }` or `null` (unknown, for example a snapshot asked for a past period).
+  - Readers need `core:metrics.read` in `requires`. `ctx.metrics.list({ as?, all? })` lists what the reader may see (`all` also lists the rest, for labels); `ctx.metrics.get(key, range, { as? })` computes one. `as: userId` uses that member's permissions (the KPI digest).
+  - Each metric runs as the owning module, in its own savepoint, one at a time; an error gives `{ value: null, error }` and is logged, so one broken number never breaks a board.
+  - Core metrics: `core.contacts_new`, `core.tasks_overdue`, `core.members`.
+- **`ctx.people.can(userId, permission)`** (Session 16): whether a member has a permission in this tenant.
+- `createModuleContext(tx, base, def, state, log?, deps?)`: API routes, jobs, the dispatcher and workflow actions pass `deps` (`{ registry, secrets }`) so `ctx.metrics` can reach other modules.
+
 `ctx` (only door to the platform; scoped to tenant + granted permissions):
 - `ctx.tenant`, `ctx.actor`, `ctx.requestId`
 - `ctx.db` — Drizzle tx, RLS-bound, module tables + granted core tables only
@@ -192,7 +202,7 @@ export default defineModule({
 - `ctx.settings.get()` / `ctx.secrets.get(key)`
 - `ctx.files.put|get|presign`
 - `ctx.ai.complete|summarize` (metered per tenant)
-- `ctx.log`, `ctx.metrics`
+- `ctx.log`, `ctx.metrics` (list/get, see above), `ctx.people.can`
 
 ### 4.3 Rules
 - Event names: `<module>.<entity>.<verb_past>` (`invoicing.invoice.paid`), versioned payload `{v:1,...}`; breaking change = new version.

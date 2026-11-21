@@ -11,3 +11,4 @@ export * from "./workflows/actions.ts";
 export * from "./workflows/engine.ts";
 export * from "./workflows/runners.ts";
 export * from "./jobs.ts";
+export * from "./metrics.ts";

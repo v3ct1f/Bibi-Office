@@ -36,7 +36,7 @@
 | 11 | Module: Inventory & Purchasing (items, stock moves with reasons, low-stock alerts, POs per supplier, receiving) | ✅ done (129 unit/integration + 44 E2E green) |
 | 12 | Module: Docs & e-sign (library with folders, PDF + template requests, boxes on pages, signing order, emailed or copied links, reminders/expiry, signed copy + certificate, Contacts + HR links, public signing page) | ✅ done (174 unit/integration + 58 E2E green) |
 | 13 | Module: AI email/meeting summaries (Claude with the company's own key; pasted notes or uploaded transcripts; action items → Tasks; follow-up email draft; support ticket recap + suggested reply; Contacts + Deals links; usage and monthly limit) | ✅ done (188 unit/integration + 62 E2E green) |
-| 14 | Module: KPI dashboard | ☐ |
+| 14 | Module: KPI dashboard (shared boards, live numbers from every feature via the new metrics contract, week/month/quarter/year, compare with the period before or last year, targets, trend charts, hand-typed numbers, weekly email per board, dashboard widget) | ✅ done (202 unit/integration + 66 E2E green) |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
@@ -55,7 +55,22 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Handoff (Session 15, AI summaries)
+## Handoff (Session 16, KPI dashboard)
+1. Done: `modules/kpi` (see its README).
+   - Shared boards with tiles: value, comparison, target status and a trend chart; week/month/quarter/year with stepping; same-number-of-days comparison for running periods.
+   - Hand-typed numbers (added up or latest value), targets per number and period length, weekly email per board (only the numbers each reader may see), dashboard widget.
+   - Platform: the metrics contract (`metrics` in `defineModule`, `ctx.metrics.list/get`, core metrics), `ctx.people.can`, period helpers in `@office/sdk`; every earlier module now publishes its numbers in `src/metrics.ts`. See ARCHITECTURE 4.2.
+2. Verify:
+   - `pnpm typecheck`.
+   - `TEST_DATABASE_URL=... pnpm test`: api 127, including 8 kpi tests; module-kpi 6.
+   - `pnpm e2e`: 66 flows, including 4 kpi.
+3. Next: the original list (rows 1–14) is finished. Pick new work with the owner.
+4. Open:
+   - Money numbers use each feature's default currency only; no conversion.
+   - Inventory "Items low on stock" has no history (current period only).
+   - Boards are company-wide; no personal boards and no per-board sharing.
+
+## Handoff (Session 15, AI summaries, archived)
 1. Done: `modules/ai` (see its README).
    - Meeting summaries from pasted notes or uploaded transcripts (VTT, SRT, text, Word): summary, key points, decisions, action items with owner and due date, open questions, follow-up email.
    - Action items become Tasks; owners are matched to team members by name.

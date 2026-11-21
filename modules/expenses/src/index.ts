@@ -1,3 +1,4 @@
+import { metrics } from "./metrics.ts";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { defineModule, job, route } from "@office/sdk";
@@ -52,6 +53,7 @@ export default defineModule({
     api: { basePath: "/expenses" },
   },
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
+  metrics,
   routes: [
     route({
       method: "GET", path: "/config", permission: P.READ,

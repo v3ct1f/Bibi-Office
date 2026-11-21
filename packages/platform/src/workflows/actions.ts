@@ -97,5 +97,5 @@ export async function executeAction(env: ActionEnv, key: string, rawInput: unkno
   const loaded = await loadEnabledModule(env.tx, env.deps, env.ctx.tenantId, found.module.manifest.key);
   if (!loaded) throw new Error(`Module ${found.module.manifest.key} is not enabled`);
   const input = found.spec.input.parse(rawInput);
-  return (await found.spec.run(createModuleContext(env.tx, env.ctx, loaded.def, loaded.state), input)) ?? {};
+  return (await found.spec.run(createModuleContext(env.tx, env.ctx, loaded.def, loaded.state, undefined, env.deps), input)) ?? {};
 }

@@ -39,14 +39,63 @@ export interface ModuleContext {
   readonly db: Tx;
   readonly data: { contacts: EntityRepo; companies: EntityRepo; documents: EntityRepo; tasks: EntityRepo };
   /** Active members of the tenant. Needs "core:members.read" in the manifest's `requires` (not in the caller's grants). */
-  readonly people: { list(): Promise<Person[]>; get(userId: string): Promise<Person | null> };
+  readonly people: {
+    list(): Promise<Person[]>; get(userId: string): Promise<Person | null>;
+    /** Whether an active member holds a permission (e.g. before emailing them something). */
+    can(userId: string, permission: string): Promise<boolean>;
+  };
   readonly events: { emit(type: string, payload: Record<string, unknown>, version?: number): Promise<string> };
   readonly authz: { can(permission: string): boolean; require(permission: string): void };
   readonly audit: { log(action: string, entity?: { type: string; id: string }, diff?: unknown): Promise<void> };
   readonly settings: { get<T = Record<string, unknown>>(): T };
   readonly secrets: { get(key: string): string | undefined };
+  /**
+   * Numbers other modules offer (see MetricSpec). Needs "core:metrics.read" in the manifest's `requires`.
+   * Only metrics of enabled modules that the caller (or `as`, a member's user id) may read are listed or computed.
+   */
+  readonly metrics: {
+    /** `all`: every metric of enabled modules, readable or not (names only, e.g. to label a tile someone can't see). */
+    list(opts?: { as?: string; all?: boolean }): Promise<MetricInfo[]>;
+    get(key: string, range: MetricRange, opts?: { as?: string }): Promise<MetricResult>;
+  };
   readonly log: Logger;
 }
+
+// ───────── Metrics (KPIs) ─────────
+export const METRIC_UNITS = ["money", "count", "hours", "minutes", "days", "percent"] as const;
+export type MetricUnit = (typeof METRIC_UNITS)[number];
+export const METRIC_GROUPS = ["money", "sales", "team", "operations", "support", "other"] as const;
+export type MetricGroup = (typeof METRIC_GROUPS)[number];
+
+/**
+ * A period to compute a metric for: dates `from` (inclusive) to `to` (exclusive) in the company's time zone,
+ * and the same bounds as instants (`start`, `end`: ISO strings, ready for SQL) for timestamp columns.
+ * `current` is true when the period includes now.
+ */
+export interface MetricRange { from: string; to: string; start: string; end: string; timeZone: string; current: boolean }
+export interface MetricValue { value: number | null; currency?: string | undefined }
+/** null value = can't be computed for this period (e.g. a live count asked for a past month). */
+export interface MetricResult extends MetricValue { error?: string }
+
+/**
+ * A number a module offers to dashboards, computed live from its own tables.
+ * Keys are "<module>.<name>". The reader needs `permission`.
+ */
+export interface MetricSpec {
+  label: string;
+  description: string;
+  group: MetricGroup;
+  unit: MetricUnit;
+  /** "total": adds up over the period (revenue). "snapshot": the value at the end of the period (unpaid invoices). */
+  kind: "total" | "snapshot";
+  /** Whether a higher number is good news. */
+  better: "up" | "down";
+  permission: string;
+  /** Page of this module that shows the detail, relative to the module (e.g. "/invoices"). */
+  link?: string;
+  compute(ctx: ModuleContext, range: MetricRange): Promise<MetricValue | number | null>;
+}
+export interface MetricInfo extends Omit<MetricSpec, "compute" | "permission" | "link"> { key: string; module: string; link: string | null }
 
 export interface RouteSpec<B extends z.ZodType = z.ZodType, Q extends z.ZodType = z.ZodType, P extends z.ZodType = z.ZodType> {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -104,6 +153,8 @@ export interface ModuleDefinition {
   lifecycle?: Partial<Record<"enable" | "disable", (ctx: ModuleContext) => Promise<void>>>;
   /** Scheduled jobs keyed by job key (e.g. "mark_overdue"). */
   jobs?: Record<string, JobSpec>;
+  /** Numbers for dashboards, keyed "<module>.<name>" (see MetricSpec). */
+  metrics?: Record<string, MetricSpec>;
 }
 
 export interface DefineModuleInput extends Omit<ModuleDefinition, "manifest"> { manifest: ManifestInput }
@@ -133,6 +184,10 @@ export function defineModule(def: DefineModuleInput): ModuleDefinition {
       errors.push(`job ${k} everyMinutes must be an integer between 1 and 10080`);
     }
   }
+  for (const [k, m] of Object.entries(def.metrics ?? {})) {
+    if (!METRIC_KEY_RE.test(k) || !k.startsWith(`${manifest.key}.`)) errors.push(`metric ${k} must look like "${manifest.key}.<name>"`);
+    if (!perms.has(m.permission) && !manifest.permissions.requires.includes(m.permission)) errors.push(`metric ${k} uses undeclared permission ${m.permission}`);
+  }
   if (errors.length) throw new Error(`Module ${manifest.key}: ${errors.join("; ")}`);
   return { ...def, manifest };
 }
@@ -142,6 +197,8 @@ export const route = <B extends z.ZodType, Q extends z.ZodType, P extends z.ZodT
 export const publicRoute = <B extends z.ZodType, Q extends z.ZodType, P extends z.ZodType>(r: PublicRouteSpec<B, Q, P>) => r as unknown as PublicRouteSpec;
 export const action = <I extends z.ZodType>(a: ActionSpec<I>) => a as unknown as ActionSpec;
 export const job = (j: JobSpec) => j;
+export const metric = (m: MetricSpec) => m;
+export const METRIC_KEY_RE = /^[a-z][a-z0-9-]*\.[a-z][a-z0-9_]{0,60}$/;
 
 /** Error a module throws to answer with a 4xx (modules may not import @office/core). */
 export class ModuleError extends Error {

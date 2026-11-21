@@ -1,8 +1,10 @@
 import {
-  audit, emitEvent, entityService, forbidden, hasPermission, badRequest, listMembers, type EntityKey, type RequestContext,
+  audit, emitEvent, entityService, forbidden, hasPermission, badRequest, listMembers, resolveMembership, type EntityKey, type RequestContext,
 } from "@office/core";
 import type { Tx } from "@office/db";
 import type { EntityRepo, Logger, ModuleContext, ModuleDefinition, Person } from "@office/sdk";
+import { metricsFor } from "./metrics.ts";
+import type { ModuleDeps } from "./tenant-modules.ts";
 
 export interface ModuleState { settings: Record<string, unknown>; secrets: Record<string, string> }
 
@@ -17,7 +19,7 @@ const consoleLogger = (module: string): Logger => {
  * `requires` AND in the caller's grants (user/API key, or system for handlers/workflows).
  */
 export function createModuleContext(
-  tx: Tx, base: RequestContext, def: ModuleDefinition, state: ModuleState, log?: Logger,
+  tx: Tx, base: RequestContext, def: ModuleDefinition, state: ModuleState, log?: Logger, deps?: ModuleDeps,
 ): ModuleContext {
   const m = def.manifest;
   const requires = new Set(m.permissions.requires);
@@ -56,6 +58,11 @@ export function createModuleContext(
     people: {
       list: async () => [...await people()],
       get: async (userId: string) => (await people()).find((p) => p.userId === userId) ?? null,
+      can: async (userId: string, permission: string) => {
+        if (!requires.has("core:members.read")) throw forbidden(`Module ${m.key} did not declare core:members.read in permissions.requires`);
+        const r = await resolveMembership(tx, base.tenantId, userId);
+        return !!r && hasPermission(r.permissions, permission);
+      },
     },
     events: {
       async emit(type: string, payload: Record<string, unknown>, version = 1) {
@@ -73,6 +80,7 @@ export function createModuleContext(
     },
     settings: { get: <T,>() => structuredClone(state.settings) as T },
     secrets: { get: (k: string) => state.secrets[k] },
+    metrics: metricsFor(tx, base, def, deps),
     log: log ?? consoleLogger(m.key),
   });
 }

@@ -1,3 +1,4 @@
+import { metrics } from "./metrics.ts";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { action, defineModule, route } from "@office/sdk";
@@ -63,6 +64,7 @@ export default defineModule({
     api: { basePath: "/crm" },
   },
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
+  metrics,
   lifecycle: {
     enable: async (ctx) => { await ensureDefaultPipeline(ctx); },
   },

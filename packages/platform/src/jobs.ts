@@ -53,7 +53,7 @@ export async function runDueJobs(relay: postgres.Sql, d: JobDeps, limit = 20): P
         if (!loaded) return false;
         const base = systemContext(r.tenant_id, `job:${r.module_key}.${r.job_key}:${Date.now()}`, `module:${r.module_key}`);
         base.actor = { type: "module", id: r.module_key, permissions: new Set(["*"]) };
-        await loaded.def.jobs![r.job_key]!.run(createModuleContext(tx, base, loaded.def, loaded.state));
+        await loaded.def.jobs![r.job_key]!.run(createModuleContext(tx, base, loaded.def, loaded.state, undefined, d));
         return true;
       });
       if (did) ran++;

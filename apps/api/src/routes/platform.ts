@@ -120,7 +120,7 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
             if (!loaded) throw new AppError(403, "module_disabled", `${m.manifest.name} is turned off for this company. An owner or admin can add it under Add features.`);
             requirePermission(ctx, r.permission);
             try {
-              return await r.handler(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log), {
+              return await r.handler(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log, md), {
                 body: req.body, query: req.query, params: req.params,
               });
             } catch (e) {
@@ -157,7 +157,7 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
             if (!loaded) throw new AppError(404, "not_found", "This link is not valid");
             const base = systemContext(tid, req.id, `public:${key}`);
             const ctx: RequestContext = { ...base, ip: req.ip, userAgent: req.headers["user-agent"], actor: { ...base.actor, permissions: new Set<string>() } };
-            return r.handler(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log), {
+            return r.handler(createModuleContext(tx, ctx, loaded.def, loaded.state, req.log, md), {
               body: req.body, query: req.query, params, client: { ip: req.ip, userAgent: req.headers["user-agent"] ?? null },
             });
           });
