@@ -1,7 +1,7 @@
 import type { FastifyRequest } from "fastify";
 import { and, eq } from "drizzle-orm";
 import {
-  forbidden, badRequest, notFound, requirePermission, resolveMembership, type RequestContext,
+  forbidden, badRequest, hasPermission, notFound, requirePermission, resolveMembership, unauthorized, type RequestContext,
 } from "@office/core";
 import { tenants, withTenant, type Db, type Tx } from "@office/db";
 
@@ -35,7 +35,12 @@ export function makeTenantRunner(db: Db) {
       let ctx: RequestContext;
       const meta = { tenantId, requestId: req.id, ip: req.ip, userAgent: req.headers["user-agent"] };
       if (p.kind === "api_key") {
-        ctx = { ...meta, actor: { type: "api_key", id: p.keyId, permissions: p.scopes } };
+        // A key never holds more than its creator has *now*: scopes the creator lost are dropped, and the
+        // key stops working once its creator leaves the company.
+        const owner = p.createdBy ? await resolveMembership(tx, tenantId, p.createdBy) : null;
+        if (!owner) throw unauthorized("API key is no longer valid: the person who created it is not a member any more");
+        const permissions = new Set([...p.scopes].filter((s) => hasPermission(owner.permissions, s)));
+        ctx = { ...meta, actor: { type: "api_key", id: p.keyId, permissions } };
       } else {
         const m = await resolveMembership(tx, tenantId, p.userId);
         if (!m) throw notFound("Tenant"); // don't reveal existence to non-members

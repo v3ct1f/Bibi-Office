@@ -55,6 +55,15 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 17, security review (after the original list)
+- Fixed: role and member changes now need every permission involved (admins could make a `*` role or demote owners); API keys follow their creator's current access; failed sign-ins limited per IP; concurrent document signing.
+- Checked, no change needed: tenant isolation (RLS + tenant runner), SSRF guard for webhooks and HTTP actions, mail-host checks, secret sealing, file type checks, no raw HTML in the UI, public signing tokens.
+- Open, not fixed:
+  - An admin can add any person who has signed in once, by email, without their consent. Email invitations would fix this.
+  - Workflows run their actions with full access, so anyone with `core:workflows.manage` (admins by default) can do anything a workflow action can do.
+  - The failed sign-in counter is per API instance; use Redis once there is more than one.
+- Tests: api 131 (4 new), 206 unit/integration in total; 66 E2E.
+
 ## Handoff (Session 16, KPI dashboard)
 1. Done: `modules/kpi` (see its README).
    - Shared boards with tiles: value, comparison, target status and a trend chart; week/month/quarter/year with stepping; same-number-of-days comparison for running periods.

@@ -5,7 +5,7 @@ import type { Db } from "@office/db";
 
 export type Principal =
   | { kind: "user"; userId: string; email: string }
-  | { kind: "api_key"; keyId: string; tenantId: string; scopes: ReadonlySet<string> };
+  | { kind: "api_key"; keyId: string; tenantId: string; createdBy: string | null; scopes: ReadonlySet<string> };
 
 export interface AuthDeps { db: Db; issuer: string; audience: string; pepper: string; jwks?: JWTVerifyGetKey }
 
@@ -18,7 +18,7 @@ export function createAuthenticator(d: AuthDeps) {
     const token = h.slice(7).trim();
     if (token.startsWith("ok_")) {
       const k = await verifyApiKey(d.db, d.pepper, token);
-      return { kind: "api_key", keyId: k.id, tenantId: k.tenantId, scopes: k.scopes };
+      return { kind: "api_key", keyId: k.id, tenantId: k.tenantId, createdBy: k.createdBy, scopes: k.scopes };
     }
     let payload;
     try {

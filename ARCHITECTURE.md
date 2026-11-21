@@ -298,7 +298,10 @@ export default defineModule({
 
 - Tenant isolation: RLS (FORCE, applies to table owner too) on every tenant table; app role without BYPASSRLS; intra-tenant FKs are composite `(tenant_id, id)` so rows can't point at another tenant; tests assert cross-tenant reads/writes fail.
 - Deny by default: every `/api` route must declare `config.auth` or the server refuses to start; permission checked per route or in the core service.
-- OIDC + MFA via Keycloak; API keys `ok_<id>_<secret>` (256-bit), stored as HMAC-SHA256(pepper), scoped, expiring, revocable; a key can't hold more than its creator.
+- OIDC + MFA via Keycloak; API keys `ok_<id>_<secret>` (256-bit), stored as HMAC-SHA256(pepper), scoped, expiring, revocable; a key can't hold more than its creator, checked at creation and again on every request (scopes the creator has lost are dropped, and the key stops working when the creator leaves the tenant).
+- No privilege escalation (Session 17): creating, editing or deleting a role, giving roles, changing a member's roles and removing a member all require the actor to hold every permission involved (old and new). So an admin can't make a `*` role, hand out `core:tenant.manage`, or demote or remove an owner.
+- Failed sign-ins are also limited per IP (default 120 a minute, then 429 for the rest of the minute), because the general rate limit is per credential and random fake tokens would each get a fresh bucket. In-memory, per API instance.
+- Row locks for public actions: docs signing and declining lock the document row first, so concurrent signers can't leave a request uncompleted.
 - Secrets encrypted with envelope encryption (KMS); never returned by API.
 - Webhooks: HMAC-SHA256 signature + timestamp, replay window 5 min; outbound SSRF guard (block private ranges).
 - Tenant mailboxes (Support module): IMAP/SMTP hosts are tenant input, so `modules/support/src/mail.ts` resolves each host and refuses private/loopback/link-local addresses and unencrypted connections in production (relaxed outside production or with `SUPPORT_ALLOW_PRIVATE_MAIL_HOSTS=true`). Mail passwords are `x-secret` module settings (sealed, never returned).

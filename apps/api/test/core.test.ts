@@ -157,6 +157,33 @@ describe("RBAC", () => {
     expect((await c.put("/roles/owner", { name: "x", permissions: [] })).status).toBe(403);
     expect((await c.del("/roles/viewer")).status).toBe(403);
   });
+
+  it("admins can't give themselves more than they have, or demote owners", async () => {
+    const c = h.client(alice, tA);
+    const dave = await h.token("dave");
+    await h.client(dave).get("/me");
+    const added = await c.post("/members", { email: "dave@example.com", roles: ["admin"] });
+    expect(added.status).toBe(201);
+    const d = h.client(dave, tA);
+    // A role with everything, or with the one core permission admins lack, can't be made by an admin.
+    expect((await d.put("/roles/god", { name: "God", permissions: ["*"] })).status).toBe(403);
+    expect((await d.put("/roles/boss", { name: "Boss", permissions: ["core:tenant.manage"] })).status).toBe(403);
+    expect((await d.put("/roles/helper", { name: "Helper", permissions: ["core:contacts.read"] })).status).toBe(200);
+    // An owner-made role with more than admin can't be handed out, edited or deleted by an admin.
+    expect((await c.put("/roles/boss", { name: "Boss", permissions: ["core:tenant.manage"] })).status).toBe(200);
+    expect((await d.put(`/members/${added.body.id}/roles`, { roles: ["admin", "boss"] })).status).toBe(403);
+    expect((await d.put("/roles/boss", { name: "Boss", permissions: [] })).status).toBe(403);
+    expect((await d.del("/roles/boss")).status).toBe(403);
+    // Owners can't be demoted or removed by an admin.
+    const aliceM = ((await c.get("/members")).body as { id: string; email: string }[]).find((x) => x.email === "alice@example.com")!;
+    expect((await d.put(`/members/${aliceM.id}/roles`, { roles: ["admin"] })).status).toBe(403);
+    expect((await d.del(`/members/${aliceM.id}`)).status).toBe(403);
+    // Admins still manage ordinary members.
+    const carolM = ((await c.get("/members")).body as { id: string; email: string }[]).find((x) => x.email === "carol@example.com")!;
+    expect((await d.put(`/members/${carolM.id}/roles`, { roles: ["viewer", "helper"] })).status).toBe(204);
+    expect((await d.put(`/members/${carolM.id}/roles`, { roles: ["viewer"] })).status).toBe(204);
+    expect((await c.del(`/members/${added.body.id}`)).status).toBe(204);
+  });
 });
 
 describe("API keys", () => {
@@ -184,6 +211,32 @@ describe("API keys", () => {
     await c.put(`/members/${carolM.id}/roles`, { roles: ["integrator"] });
     const r = await h.client(carol, tA).post("/api-keys", { name: "k", scopes: ["core:contacts.write"] });
     expect(r.status).toBe(403);
+  });
+
+  it("a key loses what its creator loses, and stops when the creator leaves", async () => {
+    const c = h.client(alice, tA);
+    const k = await h.client(carol, tA).post("/api-keys", { name: "k2", scopes: ["core:contacts.read"] });
+    expect(k.status).toBe(201);
+    const kc = h.client(k.body.token);
+    expect((await kc.get("/contacts")).status).toBe(200);
+    const carolM = ((await c.get("/members")).body as { id: string; email: string }[]).find((x) => x.email === "carol@example.com")!;
+    await c.put(`/members/${carolM.id}/roles`, { roles: [] });
+    expect((await kc.get("/contacts")).status).toBe(403);
+    await c.put(`/members/${carolM.id}/roles`, { roles: ["viewer"] });
+    expect((await kc.get("/contacts")).status).toBe(200);
+    expect((await c.del(`/members/${carolM.id}`)).status).toBe(204);
+    expect((await kc.get("/contacts")).status).toBe(401);
+  });
+});
+
+describe("failed sign-ins", () => {
+  it("are limited per IP, even with a different fake token each time", async () => {
+    const h2 = await setup([], { authFailuresPerMin: 3 });
+    try {
+      for (let i = 0; i < 3; i++) expect((await h2.client(`fake-${i}`).get("/me")).status).toBe(401);
+      expect((await h2.client("fake-4").get("/me")).status).toBe(429);
+      expect((await h2.client(await h2.token("zoe")).get("/me")).status).toBe(429);
+    } finally { await h2.teardown(); }
   });
 });
 

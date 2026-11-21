@@ -10,6 +10,7 @@ import {
 import type { JWTVerifyGetKey } from "jose";
 import { sql } from "drizzle-orm";
 import { uuidv7, type Db } from "@office/db";
+import { AppError } from "@office/core";
 import { createAuthenticator } from "./plugins/auth.ts";
 import { registerErrorHandler } from "./plugins/errors.ts";
 import { makeTenantRunner } from "./tenant.ts";
@@ -24,6 +25,8 @@ export interface AppDeps {
   jwks?: JWTVerifyGetKey;      // injectable for tests
   platform: { registry: ModuleRegistry; secrets: SecretBox };
   logger?: boolean | object;
+  /** Failed sign-ins allowed per IP per minute (default 120). */
+  authFailuresPerMin?: number;
 }
 
 export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
@@ -71,8 +74,26 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
     db: d.db, issuer: d.config.OIDC_ISSUER, audience: d.config.OIDC_AUDIENCE, pepper: d.config.API_KEY_PEPPER,
     ...(d.jwks ? { jwks: d.jwks } : {}),
   });
+  // The general rate limit is per credential, so random fake tokens would each get a fresh bucket.
+  // Failed sign-ins are therefore also counted per IP, and an IP with too many is turned away for a minute.
+  const failures = new Map<string, { n: number; until: number }>();
+  const MAX_FAILURES = d.authFailuresPerMin ?? 120;
   app.addHook("preHandler", async (req) => {
-    if (req.routeOptions.config?.auth === "authenticated") req.principal = await authenticate(req);
+    if (req.routeOptions.config?.auth !== "authenticated") return;
+    const now = Date.now();
+    const f = failures.get(req.ip);
+    if (f && f.until > now && f.n >= MAX_FAILURES) throw new AppError(429, "too_many_failures", "Too many failed sign-in attempts. Try again in a minute.");
+    try {
+      req.principal = await authenticate(req);
+    } catch (e) {
+      if ((e as { status?: number }).status === 401) {
+        if (failures.size > 50_000) for (const [k, v] of failures) if (v.until <= now) failures.delete(k);
+        const cur = f && f.until > now ? f : { n: 0, until: now + 60_000 };
+        cur.n += 1;
+        failures.set(req.ip, cur);
+      }
+      throw e;
+    }
   });
   app.addHook("onSend", async (req, reply) => { reply.header("x-request-id", req.id); });
 

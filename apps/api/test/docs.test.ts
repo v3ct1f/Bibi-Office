@@ -157,6 +157,19 @@ describe("docs module", () => {
     expect((await Max().get(`${M}/summary`)).body.completedThisMonth).toBe(1);
   });
 
+  it("two signers signing at the same moment both count, and the request completes once", async () => {
+    const d = await draft(Max(), "Two at once");
+    await Max().put(`${M}/documents/${d.id}/setup`, {
+      signers: [{ name: "Ana", email: "ana@client.test" }, { name: "Ben", email: "ben@client.test" }], fields: [sig(0), { ...sig(1), y: 0.5 }],
+    });
+    const r = await Max().post(`${M}/documents/${d.id}/send`, APP);
+    const [t1, t2] = (r.body.signers as { link: string }[]).map((s) => tokenOf(s.link)) as [string, string];
+    const sign = (t: string, name: string) => pub("POST", `/sign/${t}`, { agree: true, signature: { kind: "typed", text: name } });
+    const res = await Promise.all([sign(t1, "Ana"), sign(t2, "Ben"), sign(t1, "Ana again")]);
+    expect(res.map((x) => x.status).sort()).toEqual([200, 200, 409]);
+    expect((await Max().get(`${M}/documents/${d.id}`)).body.status).toBe("completed");
+  });
+
   it("emails signers one after another, and team members sign from the app", async () => {
     expect((await Max().patch("/modules/docs/settings", { smtpHost: "127.0.0.1" })).status).toBe(403);
     const s = mail.settings;

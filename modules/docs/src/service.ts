@@ -618,8 +618,15 @@ function png(dataUrl: string): Buffer {
   return b;
 }
 
+/** Locks the document row, then reads it fresh, so two signers (or a double click) can't race past each other. */
+async function byTokenLocked(ctx: ModuleContext, token: string) {
+  const first = await byToken(ctx, token);
+  await ctx.db.select({ id: documents.id }).from(documents).where(eq(documents.id, first.d.id)).for("update");
+  return byToken(ctx, token);
+}
+
 export async function publicSign(ctx: ModuleContext, token: string, input: z.infer<typeof SignInput>, client: Client) {
-  const { s, d, all } = await byToken(ctx, token);
+  const { s, d, all } = await byTokenLocked(ctx, token);
   if (d.status !== "sent") throw E.conflict(`This document is ${d.status} and can't be signed`);
   if (isExpired(d)) throw E.conflict("This signing request has expired. Ask the sender for a new one.");
   if (s.status !== "pending") throw E.conflict("You've already answered this request");
@@ -704,7 +711,7 @@ async function complete(ctx: ModuleContext, id: string) {
 
 export const DeclineInput = z.object({ reason: z.string().trim().min(1, "Tell the sender why").max(1000) }).strict();
 export async function publicDecline(ctx: ModuleContext, token: string, reason: string, client: Client) {
-  const { s, d } = await byToken(ctx, token);
+  const { s, d } = await byTokenLocked(ctx, token);
   if (d.status !== "sent" || isExpired(d)) throw E.conflict("This request is no longer open");
   if (s.status !== "pending") throw E.conflict("You've already answered this request");
   const now = new Date();

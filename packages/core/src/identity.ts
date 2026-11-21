@@ -140,7 +140,7 @@ export async function verifyApiKey(db: Db, pepper: string, token: string) {
   db.update(apiKeys).set({ lastUsedAt: new Date() })
     .where(and(eq(apiKeys.id, id), sql`coalesce(${apiKeys.lastUsedAt}, 'epoch') < now() - interval '1 minute'`))
     .catch(() => {});
-  return { id: k.id, tenantId: k.tenantId, scopes: new Set(k.scopes) };
+  return { id: k.id, tenantId: k.tenantId, createdBy: k.createdBy, scopes: new Set(k.scopes) };
 }
 
 export async function listApiKeys(tx: Tx, ctx: RequestContext) {
@@ -193,6 +193,9 @@ export async function setMemberRoles(
   const found = roleKeys.length ? await tx.select().from(roles).where(inArray(roles.key, roleKeys)) : [];
   if (found.length !== new Set(roleKeys).size) throw badRequest("Unknown role");
   if (found.some((r) => r.key === "owner") && !ctx.actor.permissions.has("*")) throw forbidden("Only owners can grant owner");
+  // No escalation: you can only hand out, or take away, access you hold yourself.
+  assertHolds(ctx, await rolePerms(tx, found.map((r) => r.id)), "give these roles");
+  assertHolds(ctx, await memberPerms(tx, membershipId), "change the roles of this member");
   await tx.delete(memberRoles).where(eq(memberRoles.membershipId, membershipId));
   if (found.length) {
     await tx.insert(memberRoles).values(found.map((r) => ({ tenantId: ctx.tenantId, membershipId, roleId: r.id })));
@@ -202,12 +205,30 @@ export async function setMemberRoles(
 }
 
 export async function removeMember(tx: Tx, ctx: RequestContext, membershipId: string) {
+  assertHolds(ctx, await memberPerms(tx, membershipId), "remove this member");
   const r = await tx.delete(memberships)
     .where(and(eq(memberships.id, membershipId), eq(memberships.tenantId, ctx.tenantId))).returning();
   if (!r.length) throw notFound("Member");
   await assertOwnerRemains(tx);
   await audit(tx, ctx, "member.removed", { type: "membership", id: membershipId }, { userId: r[0]!.userId });
   await emitEvent(tx, ctx, "core.member.removed", { membershipId, userId: r[0]!.userId });
+}
+
+async function rolePerms(tx: Tx, roleIds: string[]): Promise<string[]> {
+  if (!roleIds.length) return [];
+  const rows = await tx.selectDistinct({ p: rolePermissions.permission }).from(rolePermissions).where(inArray(rolePermissions.roleId, roleIds));
+  return rows.map((r) => r.p);
+}
+
+async function memberPerms(tx: Tx, membershipId: string): Promise<string[]> {
+  const rows = await tx.select({ id: memberRoles.roleId }).from(memberRoles).where(eq(memberRoles.membershipId, membershipId));
+  return rolePerms(tx, rows.map((r) => r.id));
+}
+
+/** Throws unless the actor holds every one of these permissions (so admins can't grant themselves, or strip from owners, more than they have). */
+function assertHolds(ctx: RequestContext, perms: Iterable<string>, what: string) {
+  const missing = [...perms].filter((p) => !hasPermission(ctx.actor.permissions, p));
+  if (missing.length) throw forbidden(`You can't ${what}: it involves access you don't have yourself (${missing.slice(0, 3).join(", ")}${missing.length > 3 ? ", …" : ""})`);
 }
 
 async function assertOwnerRemains(tx: Tx) {
@@ -230,6 +251,8 @@ export async function upsertRole(
 ) {
   const [existing] = await tx.select().from(roles).where(eq(roles.key, input.key));
   if (existing?.system) throw forbidden("System roles are managed by the platform");
+  assertHolds(ctx, input.permissions, "grant these permissions");
+  if (existing) assertHolds(ctx, await rolePerms(tx, [existing.id]), "change this role");
   const id = existing?.id ?? uuidv7();
   if (existing) await tx.update(roles).set({ name: input.name }).where(eq(roles.id, id));
   else await tx.insert(roles).values({ id, tenantId: ctx.tenantId, key: input.key, name: input.name });
@@ -244,6 +267,7 @@ export async function deleteRole(tx: Tx, ctx: RequestContext, key: string) {
   const [r] = await tx.select().from(roles).where(eq(roles.key, key));
   if (!r) throw notFound("Role");
   if (r.system) throw forbidden("System roles cannot be deleted");
+  assertHolds(ctx, await rolePerms(tx, [r.id]), "delete this role");
   await tx.delete(roles).where(eq(roles.id, r.id));
   await audit(tx, ctx, "role.deleted", { type: "role", id: r.id }, { key });
 }
