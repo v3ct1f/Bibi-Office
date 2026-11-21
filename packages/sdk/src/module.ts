@@ -125,6 +125,8 @@ export interface PublicRouteSpec<B extends z.ZodType = z.ZodType, Q extends z.Zo
 
 export interface ActionSpec<I extends z.ZodType = z.ZodType> {
   label: string;
+  /** Needed to put this action in a workflow; the workflow runs with the access of the person who last saved it. */
+  permission: string;
   input: I;
   run(ctx: ModuleContext, input: z.infer<I>): Promise<Record<string, unknown> | void>;
 }
@@ -174,6 +176,9 @@ export function defineModule(def: DefineModuleInput): ModuleDefinition {
     if (!perms.has(r.permission) && !manifest.permissions.requires.includes(r.permission)) {
       errors.push(`route ${r.method} ${r.path} uses undeclared permission ${r.permission}`);
     }
+  }
+  for (const [k, a] of Object.entries(def.actions ?? {})) {
+    if (!perms.has(a.permission) && !manifest.permissions.requires.includes(a.permission)) errors.push(`action ${k} uses undeclared permission ${a.permission}`);
   }
   for (const r of def.publicRoutes ?? []) {
     if (!/^\/[a-z0-9/:_-]*$/i.test(r.path)) errors.push(`public route ${r.method} ${r.path} has an invalid path`);

@@ -34,6 +34,8 @@ export interface WorkflowAction { key: string; input: Record<string, unknown> }
 export interface Workflow {
   id: string; name: string; enabled: boolean; trigger: { event: string }; conditions: unknown;
   actions: WorkflowAction[]; version: number; createdAt: string; updatedAt: string;
+  /** Whose access the workflow runs with (the person who last saved it); null if they left. */
+  runAs: string | null; runAsName: string | null;
 }
 export interface WorkflowInput { name: string; enabled: boolean; trigger: { event: string }; conditions: unknown; actions: WorkflowAction[] }
 export interface StepResult { key: string; status: "succeeded" | "failed" | "skipped"; output?: unknown; error?: string; at: string }

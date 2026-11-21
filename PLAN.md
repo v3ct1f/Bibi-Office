@@ -55,6 +55,11 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 19, workflows run as a person
+- A workflow runs with the current access of the person who last saved it (migration 0006 `workflows.run_as`), not with full access. Module actions must declare `permission`; saving a workflow needs every step's permission; each step is re-checked when it runs; if the person left, runs fail until someone saves it again. The workflow page says whose access it runs with.
+- Tests: api 135 (platform 17, incl. run-as and the SDK check); 210 unit/integration in total; 66 E2E.
+- Still open from the security review: the failed sign-in counter is per API instance (move to Redis with more than one).
+
 ## Session 18, invitations
 - People join a company only by accepting an invitation sent to their own address: Settings → Members → **Invite people** (email + roles) gives a link, emailed when `MAIL_SMTP_URL` and `MAIL_FROM` are set, otherwise shown to copy. The link opens `/invite/<tenant>/<token>`; the person signs in with the invited address and clicks **Accept and join**.
 - Rules: 7 days; one open invitation per address (a new one replaces it); withdraw from the members page; the inviter must still hold every permission of the roles when it is accepted; only the token's SHA-256 is stored, and the token goes in request bodies, not URLs. `POST /members` (direct add) is gone.
@@ -66,7 +71,7 @@
 - Checked, no change needed: tenant isolation (RLS + tenant runner), SSRF guard for webhooks and HTTP actions, mail-host checks, secret sealing, file type checks, no raw HTML in the UI, public signing tokens.
 - Open, not fixed:
   - ~~An admin can add any person who has signed in once, by email, without their consent.~~ Fixed by invitations (below).
-  - Workflows run their actions with full access, so anyone with `core:workflows.manage` (admins by default) can do anything a workflow action can do.
+  - ~~Workflows run their actions with full access.~~ Fixed in Session 19.
   - The failed sign-in counter is per API instance; use Redis once there is more than one.
 - Tests: api 131 (4 new), 206 unit/integration in total; 66 E2E.
 

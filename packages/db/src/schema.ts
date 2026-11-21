@@ -233,6 +233,8 @@ export const workflows = pgTable("workflows", {
   actions: jsonb("actions").$type<WorkflowAction[]>().notNull(),
   version: integer("version").notNull().default(1),
   createdBy: uuid("created_by"),
+  /** Whose access the workflow runs with: the person who last saved it. */
+  runAs: uuid("run_as"),
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   deletedAt: ts("deleted_at"),
@@ -247,7 +249,7 @@ export const workflowRuns = pgTable("workflow_runs", {
   workflowVersion: integer("workflow_version").notNull(),
   eventId: uuid("event_id").notNull(),
   status: text("status").$type<"pending" | "running" | "succeeded" | "failed" | "skipped" | "cancelled">().notNull().default("pending"),
-  plan: jsonb("plan").$type<{ event: Record<string, unknown> & { id: string; type: string; payload: unknown; depth: number; correlationId: string }; actions: WorkflowAction[] }>().notNull(),
+  plan: jsonb("plan").$type<{ event: Record<string, unknown> & { id: string; type: string; payload: unknown; depth: number; correlationId: string }; actions: WorkflowAction[]; runAs?: string | null }>().notNull(),
   steps: jsonb("steps").$type<StepResult[]>().notNull().default([]),
   error: text("error"),
   engineRunId: text("engine_run_id"),

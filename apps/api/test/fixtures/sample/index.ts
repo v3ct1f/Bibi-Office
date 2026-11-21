@@ -69,7 +69,7 @@ export default defineModule({
   },
   actions: {
     "sample.add_note": action({
-      label: "Add note", input: z.object({ contactId: z.uuid(), text: z.string().min(1) }),
+      label: "Add note", permission: "sample:notes.write", input: z.object({ contactId: z.uuid(), text: z.string().min(1) }),
       run: (ctx, i) => addNote(ctx, i.contactId, i.text),
     }),
   },

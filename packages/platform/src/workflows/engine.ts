@@ -1,15 +1,15 @@
-import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import jsonLogic from "json-logic-js";
 import { z } from "zod";
-import { audit, badRequest, notFound, requirePermission, type RequestContext } from "@office/core";
+import { audit, badRequest, forbidden, hasPermission, notFound, requirePermission, resolveMembership, type RequestContext } from "@office/core";
 import {
-  uuidv7, withTenant, workflowRuns, workflows, type Db, type StepResult, type Tx, type WorkflowAction,
+  memberships, users, uuidv7, withTenant, workflowRuns, workflows, type Db, type StepResult, type Tx, type WorkflowAction,
 } from "@office/db";
 import type { EventEnvelope } from "@office/sdk";
 import type { ModuleRegistry } from "../registry.ts";
 import type { ModuleDeps } from "../tenant-modules.ts";
 import { systemContext } from "../context.ts";
-import { actionExists, executeAction, type HttpOptions } from "./actions.ts";
+import { actionExists, actionPermissions, executeAction, type HttpOptions } from "./actions.ts";
 import { render } from "./template.ts";
 
 // ───────── Definitions ─────────
@@ -29,10 +29,16 @@ export const WorkflowInput = z.object({
 }).strict();
 export type WorkflowInput = z.infer<typeof WorkflowInput>;
 
-function validateDefinition(registry: ModuleRegistry, w: WorkflowInput) {
+function validateDefinition(registry: ModuleRegistry, w: WorkflowInput, ctx: RequestContext) {
   const known = new Set([...CORE_EVENTS, ...registry.knownEvents()]);
   if (!known.has(w.trigger.event)) throw badRequest(`Unknown trigger event ${w.trigger.event}`);
   for (const a of w.actions) if (!actionExists(registry, a.key)) throw badRequest(`Unknown action ${a.key}`);
+  // A workflow runs with the access of the person who saves it, so they need every step's permission.
+  if (!ctx.actor.userId) throw forbidden("Workflows must be saved by a person: they run with that person's access");
+  for (const a of w.actions) {
+    const missing = actionPermissions(registry, a.key, a.input).filter((p) => !hasPermission(ctx.actor.permissions, p));
+    if (missing.length) throw forbidden(`You can't use the step ${a.key}: it needs ${missing.join(", ")}, which you don't have`);
+  }
   if (w.conditions != null) {
     if (JSON.stringify(w.conditions).length > 16_384) throw badRequest("conditions too large");
     try { jsonLogic.apply(w.conditions as jsonLogic.RulesLogic, { event: {}, payload: {} }); }
@@ -42,34 +48,46 @@ function validateDefinition(registry: ModuleRegistry, w: WorkflowInput) {
 
 const strip = <T extends { tenantId: string; deletedAt?: Date | null }>({ tenantId: _t, deletedAt: _d, ...r }: T) => r;
 
+/** Adds the name of the person each workflow runs as (null when they are no longer a member). */
+async function withRunAs<T extends { runAs: string | null }>(tx: Tx, rows: T[]) {
+  const ids = [...new Set(rows.map((r) => r.runAs).filter((x): x is string => !!x))];
+  const people = ids.length ? await tx.select({ id: users.id, name: users.name, email: users.email }).from(memberships)
+    .innerJoin(users, eq(users.id, memberships.userId))
+    .where(and(eq(memberships.tenantId, sql`app_tenant_id()`), eq(memberships.status, "active"), inArray(users.id, ids))) : [];
+  return rows.map((r) => {
+    const p = people.find((x) => x.id === r.runAs);
+    return { ...r, runAsName: p ? p.name || p.email : null };
+  });
+}
+
 export const workflowService = (registry: ModuleRegistry) => ({
   async list(tx: Tx, ctx: RequestContext) {
     requirePermission(ctx, "core:workflows.read");
-    return (await tx.select().from(workflows).where(isNull(workflows.deletedAt)).orderBy(desc(workflows.id))).map(strip);
+    return withRunAs(tx, (await tx.select().from(workflows).where(isNull(workflows.deletedAt)).orderBy(desc(workflows.id))).map(strip));
   },
   async get(tx: Tx, ctx: RequestContext, id: string) {
     requirePermission(ctx, "core:workflows.read");
     const [w] = await tx.select().from(workflows).where(and(eq(workflows.id, id), isNull(workflows.deletedAt)));
     if (!w) throw notFound("Workflow");
-    return strip(w);
+    return (await withRunAs(tx, [strip(w)]))[0]!;
   },
   async create(tx: Tx, ctx: RequestContext, input: WorkflowInput) {
     requirePermission(ctx, "core:workflows.manage");
-    validateDefinition(registry, input);
+    validateDefinition(registry, input, ctx);
     const id = uuidv7();
     const [w] = await tx.insert(workflows).values({
       id, tenantId: ctx.tenantId, name: input.name, enabled: input.enabled, trigger: input.trigger,
-      conditions: input.conditions ?? null, actions: input.actions as WorkflowAction[], createdBy: ctx.actor.userId ?? null,
+      conditions: input.conditions ?? null, actions: input.actions as WorkflowAction[], createdBy: ctx.actor.userId ?? null, runAs: ctx.actor.userId ?? null,
     }).returning();
     await audit(tx, ctx, "workflow.created", { type: "workflow", id }, input);
     return strip(w!);
   },
   async update(tx: Tx, ctx: RequestContext, id: string, input: WorkflowInput) {
     requirePermission(ctx, "core:workflows.manage");
-    validateDefinition(registry, input);
+    validateDefinition(registry, input, ctx);
     const [w] = await tx.update(workflows).set({
       name: input.name, enabled: input.enabled, trigger: input.trigger, conditions: input.conditions ?? null,
-      actions: input.actions as WorkflowAction[], version: sql`${workflows.version} + 1`,
+      actions: input.actions as WorkflowAction[], version: sql`${workflows.version} + 1`, runAs: ctx.actor.userId ?? null,
     }).where(and(eq(workflows.id, id), isNull(workflows.deletedAt))).returning();
     if (!w) throw notFound("Workflow");
     await audit(tx, ctx, "workflow.updated", { type: "workflow", id }, input);
@@ -109,7 +127,7 @@ export async function matchWorkflows(tx: Tx, event: EventEnvelope): Promise<RunR
     const runId = uuidv7();
     const ins = await tx.insert(workflowRuns).values({
       id: runId, tenantId: event.tenantId, workflowId: w.id, workflowVersion: w.version, eventId: event.id,
-      plan: { event: event as never, actions: w.actions },
+      plan: { event: event as never, actions: w.actions, runAs: w.runAs },
     }).onConflictDoNothing().returning({ id: workflowRuns.id });
     if (!ins.length) continue;
     refs.push({
@@ -137,9 +155,15 @@ export async function executeStep(d: ExecDeps, tenantId: string, runId: string, 
       const action = run.plan.actions[index];
       if (!action) throw new Error(`no step ${index}`);
       const ev = run.plan.event;
-      const ctx = systemContext(tenantId, `run:${runId}`, `workflow:${run.workflowId}`, {
+      const base = systemContext(tenantId, `run:${runId}`, `workflow:${run.workflowId}`, {
         id: ev.id, correlationId: ev.correlationId ?? ev.id, depth: ev.depth ?? 0,
       });
+      // Run with the current access of the person who saved the workflow, never with full access.
+      let runAs = run.plan.runAs;
+      if (runAs === undefined) runAs = (await tx.select({ r: workflows.runAs }).from(workflows).where(eq(workflows.id, run.workflowId)))[0]?.r ?? null;
+      const owner = runAs ? await resolveMembership(tx, tenantId, runAs) : null;
+      if (!owner) throw new Error("This workflow runs with the access of someone who is no longer a member. Open it and save it again to run it with your access.");
+      const ctx: RequestContext = { ...base, actor: { ...base.actor, permissions: owner.permissions } };
       const data = { event: ev, payload: ev.payload, steps: run.steps.map((s) => s.output ?? null) };
       const output = action.key === "core.wait"
         ? { waited: action.input?.seconds ?? 0 }

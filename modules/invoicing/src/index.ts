@@ -130,7 +130,7 @@ export default defineModule({
   },
   actions: {
     "invoicing.create_invoice": action({
-      label: "Create invoice",
+      label: "Create invoice", permission: WRITE,
       input: z.object({
         companyId: z.uuid().optional().describe("Company to bill (or set Contact)"),
         contactId: z.uuid().optional().describe("Contact to bill (or set Company)"),
@@ -153,7 +153,7 @@ export default defineModule({
       },
     }),
     "invoicing.send_reminder": action({
-      label: "Send payment reminder",
+      label: "Send payment reminder", permission: SEND,
       input: z.object({ invoiceId: z.uuid().describe("Usually {{payload.id}}") }),
       run: (ctx, i) => remind(ctx, i.invoiceId),
     }),

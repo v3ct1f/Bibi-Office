@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { request } from "undici";
-import { emitEvent, entityService, type RequestContext } from "@office/core";
+import { emitEvent, entityService, hasPermission, type RequestContext } from "@office/core";
 import type { Tx } from "@office/db";
 import type { ModuleRegistry } from "../registry.ts";
 import { createModuleContext } from "../context.ts";
@@ -10,7 +10,12 @@ import { assertUrlAllowed, guardedAgent } from "../ssrf.ts";
 export interface ActionEnv { tx: Tx; ctx: RequestContext; deps: ModuleDeps; http: HttpOptions }
 export interface HttpOptions { allowPrivate: boolean; requireHttps: boolean }
 
-interface CoreAction<I extends z.ZodType> { label: string; input: I; run(env: ActionEnv, input: z.infer<I>): Promise<Record<string, unknown> | void> }
+interface CoreAction<I extends z.ZodType> {
+  label: string; input: I;
+  /** Permissions the workflow's owner needs for this step (may depend on the input). */
+  permissions(input: Record<string, unknown>): string[];
+  run(env: ActionEnv, input: z.infer<I>): Promise<Record<string, unknown> | void>;
+}
 const coreAction = <I extends z.ZodType>(a: CoreAction<I>) => a as unknown as CoreAction<z.ZodType>;
 
 const entityEnum = z.enum(["contacts", "companies", "documents", "tasks"]);
@@ -18,6 +23,7 @@ const entityEnum = z.enum(["contacts", "companies", "documents", "tasks"]);
 export const CORE_ACTIONS: Record<string, CoreAction<z.ZodType>> = {
   "core.create_task": coreAction({
     label: "Create task",
+    permissions: () => ["core:tasks.write"],
     input: z.object({
       title: z.string().min(1).max(500), description: z.string().max(20_000).nullish(),
       assigneeId: z.uuid().nullish(), dueInDays: z.number().int().min(0).max(3650).nullish(),
@@ -33,6 +39,7 @@ export const CORE_ACTIONS: Record<string, CoreAction<z.ZodType>> = {
   }),
   "core.update_record": coreAction({
     label: "Update record",
+    permissions: (i) => [`core:${typeof i.entity === "string" ? i.entity : "contacts"}.write`],
     input: z.object({ entity: entityEnum, id: z.uuid(), changes: z.record(z.string(), z.unknown()) }),
     async run({ tx, ctx }, i) {
       await entityService(i.entity).update(tx, ctx, i.id, i.changes);
@@ -41,6 +48,7 @@ export const CORE_ACTIONS: Record<string, CoreAction<z.ZodType>> = {
   }),
   "core.notify": coreAction({
     label: "Notify user",
+    permissions: () => [],
     input: z.object({ userId: z.uuid().nullish(), message: z.string().min(1).max(2000) }),
     async run({ tx, ctx }, i) {
       const id = await emitEvent(tx, ctx, "core.notification.requested", { userId: i.userId ?? null, message: i.message });
@@ -49,6 +57,8 @@ export const CORE_ACTIONS: Record<string, CoreAction<z.ZodType>> = {
   }),
   "core.http_request": coreAction({
     label: "HTTP request",
+    // Sends company data out of the app, like a webhook.
+    permissions: () => ["core:webhooks.manage"],
     input: z.object({
       url: z.string().url().max(2048), method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).default("POST"),
       headers: z.record(z.string().regex(/^[\w-]+$/), z.string().max(4096)).default({}), body: z.unknown().optional(),
@@ -67,6 +77,7 @@ export const CORE_ACTIONS: Record<string, CoreAction<z.ZodType>> = {
   }),
   "core.wait": coreAction({
     label: "Wait",
+    permissions: () => [],
     input: z.object({ seconds: z.number().int().min(1).max(90 * 86_400) }),
     async run() { throw new Error("core.wait is executed by the workflow engine, not as an activity"); },
   }),
@@ -81,12 +92,25 @@ export function actionCatalog(registry: ModuleRegistry) {
   return [...core, ...mods];
 }
 
+/** Permissions needed to use an action with this input (in a workflow saved by, or running as, someone). */
+export function actionPermissions(registry: ModuleRegistry, key: string, input: Record<string, unknown> = {}): string[] {
+  const core = CORE_ACTIONS[key];
+  if (core) return core.permissions(input);
+  const found = registry.action(key);
+  return found ? [found.spec.permission] : [];
+}
+
 export function actionExists(registry: ModuleRegistry, key: string) {
   return key in CORE_ACTIONS || !!registry.action(key);
 }
 
 /** Run one (already rendered) action. Module actions require the module enabled for the tenant. */
 export async function executeAction(env: ActionEnv, key: string, rawInput: unknown): Promise<Record<string, unknown>> {
+  for (const p of actionPermissions(env.deps.registry, key, (rawInput ?? {}) as Record<string, unknown>)) {
+    if (!hasPermission(env.ctx.actor.permissions, p)) {
+      throw new Error(`The person this workflow runs as no longer has the ${p} permission this step needs`);
+    }
+  }
   const core = CORE_ACTIONS[key];
   if (core) {
     const input = core.input.parse(rawInput);

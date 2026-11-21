@@ -333,6 +333,10 @@ export function WorkflowEditor() {
               value={wf.name} onChange={(e) => setWf({ ...wf, name: e.target.value })} maxLength={200} />
           </div>
         }
+        description={isNew ? "Runs with your access: each step can only do what you're allowed to do."
+          : !existing.data ? undefined
+          : existing.data.runAsName ? `Runs with the access of ${existing.data.runAsName}.${manage ? " Saving it makes it run with yours." : ""}`
+          : "Paused in effect: the person it ran as is no longer a member. Save it to run it with your access."}
         actions={<>
           <label className="flex items-center gap-2 text-sm">Enabled<Switch disabled={!manage} checked={wf.enabled} onCheckedChange={(enabled) => setWf({ ...wf, enabled })} /></label>
           {!isNew && manage && <Button variant="ghost" className="text-destructive" onClick={() => setDeleting(true)}><Trash2 /> Delete</Button>}

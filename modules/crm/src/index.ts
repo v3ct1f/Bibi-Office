@@ -89,7 +89,7 @@ export default defineModule({
   ],
   actions: {
     "crm.create_deal": action({
-      label: "Create deal",
+      label: "Create deal", permission: WRITE,
       input: z.object({
         title: z.string().min(1).max(300),
         amount: z.coerce.number().min(0).max(1e12).optional().describe("Deal value in major units, e.g. 1500.00"),
@@ -113,7 +113,7 @@ export default defineModule({
       },
     }),
     "crm.move_deal": action({
-      label: "Move deal to stage",
+      label: "Move deal to stage", permission: WRITE,
       input: z.object({
         dealId: z.uuid().describe("Usually {{payload.id}}"),
         stage: z.string().min(1).max(60).describe("Stage name, or won / lost"),
@@ -125,7 +125,7 @@ export default defineModule({
       },
     }),
     "crm.log_activity": action({
-      label: "Add note to deal",
+      label: "Add note to deal", permission: WRITE,
       input: z.object({ dealId: z.uuid().describe("Usually {{payload.id}}"), body: z.string().min(1).max(10_000) }),
       run: async (ctx, i) => ({ activityId: (await addActivity(ctx, i.dealId, { kind: "note", body: i.body })).id }),
     }),

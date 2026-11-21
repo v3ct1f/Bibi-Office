@@ -166,7 +166,7 @@ export default defineModule({
   routes: [route({ method: "POST", path: "/invoices", permission: "invoicing:invoice.write",
                    body: z.object({...}), status: 201, handler: async (ctx, { body }) => ({...}) })],
   handlers: { "crm.deal.won": async (ctx, event) => {} },        // must equal events.subscribes
-  actions:  { "invoicing.create_invoice": action({ label, input: z.object({...}), run: async (ctx, input) => ({ id }) }) },
+  actions:  { "invoicing.create_invoice": action({ label, permission: "invoicing:invoice.write", input: z.object({...}), run: async (ctx, input) => ({ id }) }) },
   lifecycle: { enable: async (ctx) => {}, disable: async (ctx) => {} },
 });
 ```
@@ -299,6 +299,7 @@ export default defineModule({
 - Tenant isolation: RLS (FORCE, applies to table owner too) on every tenant table; app role without BYPASSRLS; intra-tenant FKs are composite `(tenant_id, id)` so rows can't point at another tenant; tests assert cross-tenant reads/writes fail.
 - Deny by default: every `/api` route must declare `config.auth` or the server refuses to start; permission checked per route or in the core service.
 - OIDC + MFA via Keycloak; API keys `ok_<id>_<secret>` (256-bit), stored as HMAC-SHA256(pepper), scoped, expiring, revocable; a key can't hold more than its creator, checked at creation and again on every request (scopes the creator has lost are dropped, and the key stops working when the creator leaves the tenant).
+- Workflows run as a person (Session 19): each workflow runs with the *current* permissions of whoever last saved it (`workflows.run_as`), never with `*`. Every action declares a permission (`action({ permission })`, checked by `defineModule`; core actions: tasks/record write, `core:webhooks.manage` for HTTP requests). Saving needs every step's permission; each step is checked again when it runs, and a run fails if that person lost the permission or left (saving the workflow again makes it run as the new saver). Steps are still audited as `workflow:<id>`.
 - Invitations (Session 18): nobody joins a tenant without accepting. Invites are for one email address, expire after 7 days, store only SHA-256(token), and are re-checked against the inviter's current permissions on accept. Platform email (`MAIL_SMTP_URL`, `MAIL_FROM`) is operator config; links use `APP_URL`.
 - No privilege escalation (Session 17): creating, editing or deleting a role, giving roles, changing a member's roles and removing a member all require the actor to hold every permission involved (old and new). So an admin can't make a `*` role, hand out `core:tenant.manage`, or demote or remove an owner.
 - Failed sign-ins are also limited per IP (default 120 a minute, then 429 for the rest of the minute), because the general rate limit is per credential and random fake tokens would each get a fresh bucket. In-memory, per API instance.

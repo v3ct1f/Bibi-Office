@@ -43,6 +43,11 @@ describe("SDK + installer", () => {
       .toThrow(/has no handler/);
     expect(() => defineModule({ manifest: { key: "x2", name: "X", version: "1.0.0", office: "^1", permissions: { declares: [{ key: "crm:x", label: "x" }] } } }))
       .toThrow(/must start with "x2:"/);
+    const { z } = await import("zod");
+    expect(() => defineModule({
+      manifest: { key: "x3", name: "X", version: "1.0.0", office: "^1", workflow: { actions: [{ key: "x3.go", label: "Go" }] } },
+      actions: { "x3.go": { label: "Go", permission: "core:tenant.manage", input: z.object({}), run: async () => {} } },
+    })).toThrow(/action x3.go uses undeclared permission/);
   });
   it("refuses module tables without tenant RLS", async () => {
     await expect(installModules(h.tdb.ownerUrl, new ModuleRegistry([bad]), () => {})).rejects.toThrow(/bad_things/);
@@ -201,6 +206,53 @@ describe("workflows", () => {
     expect(runs.length).toBeLessThanOrEqual(10);
     expect(runs.some((r) => r.status === "failed" && /too deep/.test(r.error))).toBe(true);
     await c.del(`/workflows/${w.id}`);
+  });
+
+  it("run with the access of the person who saved them, never more", async () => {
+    const c = C();
+    await c.put("/roles/flows", { name: "Flows", permissions: ["core:workflows.read", "core:workflows.manage", "core:contacts.read", "core:contacts.write"] });
+    const carolM = ((await c.get("/members")).body as { id: string; email: string }[]).find((m) => m.email === "carol@example.com")!;
+    await c.put(`/members/${carolM.id}/roles`, { roles: ["flows"] });
+    const cc = h.client(carol, tA);
+    const wf = (actions: unknown[]) => ({ name: "Carol's flow", trigger: { event: "core.company.created" }, actions });
+    // Steps she isn't allowed to do herself can't be saved.
+    expect((await cc.post("/workflows", wf([{ key: "core.create_task", input: { title: "x" } }]))).body.title).toMatch(/core:tasks.write/);
+    expect((await cc.post("/workflows", wf([{ key: "core.http_request", input: { url: "https://example.com" } }]))).status).toBe(403);
+    expect((await cc.post("/workflows", wf([{ key: "sample.add_note", input: { contactId: "{{payload.id}}", text: "x" } }]))).status).toBe(403);
+    expect((await cc.post("/workflows", wf([{ key: "core.update_record", input: { entity: "tasks", id: "{{payload.id}}", changes: {} } }]))).status).toBe(403);
+
+    const contact = (await c.post("/contacts", { firstName: "Flo" })).body;
+    const step = { key: "core.update_record", input: { entity: "contacts", id: contact.id, changes: { lastName: "{{payload.name}}" } } };
+    const w = await cc.post("/workflows", wf([step]));
+    expect(w.status).toBe(201);
+    expect((await c.get(`/workflows/${w.body.id}`)).body).toMatchObject({ runAsName: "carol" });
+    await pump();
+    await c.post("/companies", { name: "Globex" });
+    await pump();
+    expect((await c.get(`/contacts/${contact.id}`)).body.lastName).toBe("Globex");
+
+    // Carol loses contacts.write: her workflow can't do it either.
+    await c.put("/roles/flows", { name: "Flows", permissions: ["core:workflows.read", "core:workflows.manage", "core:contacts.read"] });
+    await c.post("/companies", { name: "Hooli" });
+    await pump();
+    let run = (await c.get(`/workflows/${w.body.id}/runs`)).body[0];
+    expect(run.status).toBe("failed");
+    expect(run.error).toMatch(/core:contacts.write/);
+    expect((await c.get(`/contacts/${contact.id}`)).body.lastName).toBe("Globex");
+
+    // Carol leaves: it stops until someone saves it again, and then runs with their access.
+    await c.del(`/members/${carolM.id}`);
+    await c.post("/companies", { name: "Umbrella" });
+    await pump();
+    run = (await c.get(`/workflows/${w.body.id}/runs`)).body[0];
+    expect(run.error).toMatch(/no longer a member/);
+    expect((await c.get(`/workflows/${w.body.id}`)).body.runAsName).toBeNull();
+    expect((await c.put(`/workflows/${w.body.id}`, wf([step]))).status).toBe(200); // alice saves it again
+    expect((await c.get(`/workflows/${w.body.id}`)).body.runAsName).toBe("alice");
+    await c.post("/companies", { name: "Initrode" });
+    await pump();
+    expect((await c.get(`/contacts/${contact.id}`)).body.lastName).toBe("Initrode");
+    await c.del(`/workflows/${w.body.id}`);
   });
 });
 
