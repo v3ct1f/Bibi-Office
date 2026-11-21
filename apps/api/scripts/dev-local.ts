@@ -40,6 +40,9 @@ const defaults: Record<string, string> = {
   API_KEY_PEPPER: "dev-pepper-dev-pepper-dev-pepper-000",
   SECRETS_KEY: Buffer.alloc(32, 1).toString("base64"),
   CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173",
+  // Locally, the default dev user is the program owner, and businesses are created from the admin page.
+  PLATFORM_ADMIN_EMAILS: "dev@example.com",
+  SELF_SIGNUP: "false",
 };
 const portArg = process.argv.indexOf("--port");
 if (portArg > 0 && process.argv[portArg + 1]) defaults.PORT = process.argv[portArg + 1]!;

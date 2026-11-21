@@ -30,6 +30,10 @@ export interface AppDeps {
   logger?: boolean | object;
   /** Failed sign-ins allowed per IP per minute (default 120). */
   authFailuresPerMin?: number;
+  /** Program owners (verified emails) who create and pause businesses. */
+  platformAdmins?: string[];
+  /** Anyone signed in may create their own business (default false: only program owners). */
+  selfSignup?: boolean;
 }
 
 export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
@@ -109,6 +113,7 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   const inTenant = makeTenantRunner(d.db);
   await app.register(registerRoutes, {
     prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER, mailer: d.mailer ?? null,
+    platformAdmins: (d.platformAdmins ?? []).map((e) => e.toLowerCase()), selfSignup: d.selfSignup ?? false,
     appUrl: (d.config.APP_URL ?? d.config.CORS_ORIGINS[0] ?? "http://localhost:5173").replace(/\/+$/, ""),
   });
   await app.register(registerPlatformRoutes, {

@@ -72,6 +72,7 @@ export const invitations = pgTable("invitations", {
   acceptedAt: ts("accepted_at"),
   acceptedBy: uuid("accepted_by"),
   revokedAt: ts("revoked_at"),
+  byPlatform: boolean("by_platform").notNull().default(false),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 

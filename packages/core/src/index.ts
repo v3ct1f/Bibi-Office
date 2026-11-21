@@ -6,3 +6,4 @@ export * from "./audit.ts";
 export * from "./identity.ts";
 export * from "./entities.ts";
 export * from "./invitations.ts";
+export * from "./businesses.ts";

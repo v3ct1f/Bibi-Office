@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Navigate, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Building2, LogIn } from "lucide-react";
+import { ArrowRight, Building2, LogIn, MailQuestion } from "lucide-react";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, Field, Input, Select, Spinner } from "@office/ui";
 import { safeReturn, useAuth, userManager } from "../auth/auth.tsx";
 import { errorMessage, request } from "../api/client.ts";
@@ -61,14 +61,36 @@ export function AuthCallback() {
   return <Loading />;
 }
 
-/** "/" -> last used workspace, first workspace, or onboarding. */
+/** Signed in, but not part of any business, and businesses are set up by the program owner. */
+function NoWorkspace() {
+  const me = useMe();
+  const { signOut } = useAuth();
+  return (
+    <FullPage>
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <div className="mb-2 grid size-10 place-items-center rounded-lg bg-secondary text-secondary-foreground"><MailQuestion className="size-5" /></div>
+          <CardTitle className="text-lg">You're not in a workspace yet</CardTitle>
+          <CardDescription>
+            You're signed in as {me.data?.email}. To get in, open the invitation link you were sent, or ask your business owner to invite this address.
+          </CardDescription>
+        </CardHeader>
+        <CardContent><Button variant="outline" onClick={() => void signOut()}>Sign out</Button></CardContent>
+      </Card>
+    </FullPage>
+  );
+}
+
+/** "/" -> last used workspace, first workspace; with none: program admin, onboarding (self sign-up) or "ask for an invitation". */
 export function HomeRedirect() {
   const me = useMe();
   if (me.isPending) return <Loading />;
   if (me.isError) return <FullPage><Card className="w-full max-w-md"><ErrorState error={me.error} onRetry={() => me.refetch()} /></Card></FullPage>;
   const ts = me.data.tenants;
-  const pick = ts.find((t) => t.slug === lastTenant()) ?? ts[0];
-  return pick ? <Navigate to="/t/$slug" params={{ slug: pick.slug }} replace /> : <Navigate to="/onboarding" replace />;
+  const pick = ts.find((t) => t.slug === lastTenant() && t.tenantStatus === "active") ?? ts.find((t) => t.tenantStatus === "active") ?? ts[0];
+  if (pick) return <Navigate to="/t/$slug" params={{ slug: pick.slug }} replace />;
+  if (me.data.platformAdmin) return <Navigate to="/admin" replace />;
+  return me.data.selfSignup ? <Navigate to="/onboarding" replace /> : <NoWorkspace />;
 }
 
 export const slugify = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "")
@@ -90,6 +112,10 @@ export function Onboarding() {
   });
   const slugBad = effSlug !== "" && !SLUG_RE.test(effSlug);
   const hasTenants = (me.data?.tenants.length ?? 0) > 0;
+  if (me.isPending) return <Loading />;
+  if (me.data && !me.data.selfSignup) {
+    return me.data.platformAdmin ? <Navigate to="/admin" replace /> : hasTenants ? <Navigate to="/" replace /> : <NoWorkspace />;
+  }
   return (
     <FullPage>
       <Card className="w-full max-w-md">

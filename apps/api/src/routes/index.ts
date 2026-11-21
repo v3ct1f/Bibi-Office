@@ -10,6 +10,7 @@ import {
 } from "@office/core";
 import { auditLog, tenants, users, withTenant, type Db, type Tx } from "@office/db";
 import { invitationEmail, type Mailer } from "../mail.ts";
+import { registerOwnerRoutes } from "./owner.ts";
 
 type InTenant = <T>(req: import("fastify").FastifyRequest, perm: string | null,
   fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T>;
@@ -23,15 +24,25 @@ const Page = z.object({
 });
 const tenantHeader = z.object({ "x-tenant-id": z.uuid().optional() }).loose();
 
-export const registerRoutes: FastifyPluginAsync<{ db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null }> = async (app0, o) => {
+export const registerRoutes: FastifyPluginAsync<{
+  db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null; platformAdmins: string[]; selfSignup: boolean;
+}> = async (app0, o) => {
   const app = app0.withTypeProvider<ZodTypeProvider>();
   const { db, inTenant } = o;
+  /** A program owner: signed in with a verified email that the operator listed in PLATFORM_ADMIN_EMAILS. */
+  const platformAdmin = (req: import("fastify").FastifyRequest) => {
+    const p = req.principal;
+    return p?.kind === "user" && p.emailVerified && o.platformAdmins.includes(p.email.toLowerCase()) ? { userId: p.userId, email: p.email.toLowerCase() } : null;
+  };
 
   // ───── Me / tenants ─────
   app.get("/me", { config: AUTH, schema: { tags: ["me"] } }, async (req) => {
     const p = req.principal!;
     if (p.kind !== "user") return { kind: p.kind, tenantId: p.tenantId, scopes: [...p.scopes] };
-    return { kind: "user", userId: p.userId, email: p.email, tenants: await listUserTenants(db, p.userId) };
+    return {
+      kind: "user", userId: p.userId, email: p.email, tenants: await listUserTenants(db, p.userId),
+      platformAdmin: !!platformAdmin(req), selfSignup: o.selfSignup,
+    };
   });
 
   app.post("/tenants", {
@@ -47,12 +58,16 @@ export const registerRoutes: FastifyPluginAsync<{ db: Db; inTenant: InTenant; pe
   }, async (req, reply) => {
     const p = req.principal!;
     if (p.kind !== "user") throw forbidden("Only users can create tenants");
+    if (!o.selfSignup && !platformAdmin(req)) throw forbidden("New businesses are set up by the program owner. Ask them for an invitation.");
     const t = await createTenant(db, req.body, { userId: p.userId }, { requestId: req.id, ip: req.ip, userAgent: req.headers["user-agent"] });
     return reply.status(201).send(t);
   });
 
   app.get("/tenant", { config: AUTH, schema: { tags: ["tenants"], headers: tenantHeader } },
     (req) => inTenant(req, null, async (_tx, ctx) => getTenant(db, ctx.tenantId)));
+
+  // ───── Program owner (all businesses; never their data) ─────
+  await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, platformAdmin });
 
   // ───── Members ─────
   app.get("/members", { config: AUTH, schema: { tags: ["members"], headers: tenantHeader } },

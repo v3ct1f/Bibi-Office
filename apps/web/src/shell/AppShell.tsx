@@ -67,8 +67,9 @@ function TenantSwitcher() {
             {t.id === tenant.id && <Check className="text-primary" />}
           </DropdownMenuItem>
         ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => navigate({ to: "/onboarding" })}><Plus /> Create workspace</DropdownMenuItem>
+        {(me.data?.selfSignup || me.data?.platformAdmin) && <DropdownMenuSeparator />}
+        {me.data?.platformAdmin ? <DropdownMenuItem onSelect={() => navigate({ to: "/admin" })}><Plus /> New business</DropdownMenuItem>
+          : me.data?.selfSignup && <DropdownMenuItem onSelect={() => navigate({ to: "/onboarding" })}><Plus /> Create workspace</DropdownMenuItem>}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -77,6 +78,8 @@ function TenantSwitcher() {
 function UserMenu() {
   const { user, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
+  const me = useMe();
+  const navigate = useNavigate();
   const email = (user?.profile.email as string | undefined) ?? "";
   const name = (user?.profile.name as string | undefined) ?? email;
   const themes: [Theme, typeof Sun, string][] = [["light", Sun, "Light"], ["dark", Moon, "Dark"], ["system", Monitor, "System"]];
@@ -97,6 +100,7 @@ function UserMenu() {
           <DropdownMenuItem key={t} onSelect={() => setTheme(t)}><Icon /> <span className="flex-1">{label}</span>{theme === t && <Check className="text-primary" />}</DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
+        {me.data?.platformAdmin && <DropdownMenuItem onSelect={() => navigate({ to: "/admin" })}><Building2 /> Program admin</DropdownMenuItem>}
         <DropdownMenuItem onSelect={() => void signOut()}><LogOut /> Sign out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

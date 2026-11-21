@@ -12,6 +12,8 @@ pnpm dev:api                          # http://localhost:3000/docs
 pnpm dev:worker                       # outbox -> NATS relay
 ```
 
+Set `PLATFORM_ADMIN_EMAILS` to your own email: you're the program owner and set up each business at `/admin`. With `SELF_SIGNUP=false` (default), nobody else can create a business.
+
 ## Tests (real Postgres, no Docker needed)
 ```bash
 scripts/local-pg.sh start             # throwaway PG16 on :55432

@@ -28,14 +28,15 @@ export async function upsertUser(db: Db, c: IdpClaims) {
   return existing!;
 }
 
+/** The user's businesses, including paused ones (tenantStatus "suspended") so the app can say why they're closed. */
 export async function listUserTenants(db: Db, userId: string) {
-  return db.select({ id: tenants.id, slug: tenants.slug, name: tenants.name, status: memberships.status })
+  return db.select({ id: tenants.id, slug: tenants.slug, name: tenants.name, status: memberships.status, tenantStatus: tenants.status })
     .from(memberships).innerJoin(tenants, eq(tenants.id, memberships.tenantId))
-    .where(and(eq(memberships.userId, userId), eq(tenants.status, "active")));
+    .where(and(eq(memberships.userId, userId), inArray(tenants.status, ["active", "suspended"])));
 }
 
 // ───────── Tenants ─────────
-async function seedSystemRoles(tx: Tx, tenantId: string) {
+export async function seedSystemRoles(tx: Tx, tenantId: string) {
   const ids: Record<string, string> = {};
   for (const [key, r] of Object.entries(SYSTEM_ROLES)) {
     const id = uuidv7();

@@ -4,7 +4,7 @@ import { unauthorized, upsertUser, verifyApiKey } from "@office/core";
 import type { Db } from "@office/db";
 
 export type Principal =
-  | { kind: "user"; userId: string; email: string }
+  | { kind: "user"; userId: string; email: string; emailVerified: boolean }
   | { kind: "api_key"; keyId: string; tenantId: string; createdBy: string | null; scopes: ReadonlySet<string> };
 
 export interface AuthDeps { db: Db; issuer: string; audience: string; pepper: string; jwks?: JWTVerifyGetKey }
@@ -33,6 +33,6 @@ export function createAuthenticator(d: AuthDeps) {
     if (payload.email_verified === false) throw unauthorized("Email not verified");
     const u = await upsertUser(d.db, { sub: payload.sub, email, name: typeof payload.name === "string" ? payload.name : undefined });
     if (u.status !== "active") throw unauthorized("User disabled");
-    return { kind: "user", userId: u.id, email: u.email };
+    return { kind: "user", userId: u.id, email: u.email, emailVerified: payload.email_verified === true };
   };
 }

@@ -8,7 +8,7 @@ import { buildApp } from "../src/app.ts";
 export const ISSUER = "https://idp.test/realms/office";
 export const AUDIENCE = "office-api";
 
-export async function setup(modules: ModuleDefinition[] = [], opts: { authFailuresPerMin?: number; mailer?: import("../src/mail.ts").Mailer } = {}) {
+export async function setup(modules: ModuleDefinition[] = [], opts: { authFailuresPerMin?: number; mailer?: import("../src/mail.ts").Mailer; selfSignup?: boolean } = {}) {
   const tdb = await createTestDatabase();
   const registry = new ModuleRegistry(modules);
   if (modules.length) await installModules(tdb.ownerUrl, registry, () => {});
@@ -18,7 +18,7 @@ export async function setup(modules: ModuleDefinition[] = [], opts: { authFailur
   const { publicKey, privateKey } = await generateKeyPair("RS256");
   const jwk = { ...(await exportJWK(publicKey)), kid: "k1", alg: "RS256" };
   const app = await buildApp({
-    db: app_.db, logger: false, ...opts, jwks: createLocalJWKSet({ keys: [jwk] }), platform: { registry, secrets },
+    db: app_.db, logger: false, selfSignup: true, platformAdmins: ["boss@example.com"], ...opts, jwks: createLocalJWKSet({ keys: [jwk] }), platform: { registry, secrets },
     config: {
       OIDC_ISSUER: ISSUER, OIDC_AUDIENCE: AUDIENCE, API_KEY_PEPPER: "x".repeat(32),
       CORS_ORIGINS: [], RATE_LIMIT_PER_MIN: 10_000, TRUST_PROXY: false, NODE_ENV: "test",

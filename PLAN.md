@@ -37,6 +37,7 @@
 | 12 | Module: Docs & e-sign (library with folders, PDF + template requests, boxes on pages, signing order, emailed or copied links, reminders/expiry, signed copy + certificate, Contacts + HR links, public signing page) | ✅ done (174 unit/integration + 58 E2E green) |
 | 13 | Module: AI email/meeting summaries (Claude with the company's own key; pasted notes or uploaded transcripts; action items → Tasks; follow-up email draft; support ticket recap + suggested reply; Contacts + Deals links; usage and monthly limit) | ✅ done (188 unit/integration + 62 E2E green) |
 | 14 | Module: KPI dashboard (shared boards, live numbers from every feature via the new metrics contract, week/month/quarter/year, compare with the period before or last year, targets, trend charts, hand-typed numbers, weekly email per board, dashboard widget) | ✅ done (202 unit/integration + 66 E2E green) |
+| 20 | Program owner: businesses created, listed, paused and reactivated by the program owner; self sign-up switch | ✅ done (217 unit/integration + 69 E2E green) |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
@@ -54,6 +55,15 @@
 - Each module in `/modules/<name>` with its own README.
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
+
+## Session 20, program owner and businesses
+- The person running Office (the program owner) sets up each business; each business gets its own workspace, data and owner. Program owners are listed in `PLATFORM_ADMIN_EMAILS` (signed in with a verified email). `SELF_SIGNUP=false` (default) means only program owners create businesses; `true` keeps the old "anyone can create a workspace".
+- `/admin` (Program admin): list of businesses (owner or open owner invitation, people, features, created, status); **New business** (name, URL, owner's email, region) creates an empty workspace and an owner invitation (emailed, or a link to copy); **Send new owner invitation**; **Pause** / **Reactivate** (data kept; members see "paused", outsiders still get 404; scheduled jobs skip paused businesses).
+- The program owner is not a member and can't open a business's data (only names, owner emails, counts, feature keys). Audit rows show `platform:<email>`.
+- People with no workspace see "You're not in a workspace yet" instead of onboarding when self sign-up is off.
+- API: `GET/POST /platform/businesses`, `POST /platform/businesses/:id/{pause,resume,owner-invite}`; `/me` adds `platformAdmin`, `selfSignup` and each tenant's `tenantStatus`; paused tenants answer 403 `tenant_paused`. Migration 0007 adds `invitations.by_platform` (owner invitations don't depend on an inviting member).
+- Tests: api 142 (owner 7); 217 unit/integration in total; 69 E2E (owner 3).
+- Later: billing per business (`tenants.plan`), deleting a business, a support "view as" with the owner's consent.
 
 ## Session 19, workflows run as a person
 - A workflow runs with the current access of the person who last saved it (migration 0006 `workflows.run_as`), not with full access. Module actions must declare `permission`; saving a workflow needs every step's permission; each step is re-checked when it runs; if the person left, runs fail until someone saves it again. The workflow page says whose access it runs with.

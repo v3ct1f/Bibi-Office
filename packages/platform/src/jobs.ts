@@ -1,5 +1,6 @@
 import type postgres from "postgres";
-import { withTenant, type Db } from "@office/db";
+import { eq } from "drizzle-orm";
+import { tenants, withTenant, type Db } from "@office/db";
 import { createModuleContext, systemContext } from "./context.ts";
 import { loadEnabledModule, type ModuleDeps } from "./tenant-modules.ts";
 
@@ -49,6 +50,9 @@ export async function runDueJobs(relay: postgres.Sql, d: JobDeps, limit = 20): P
     let error: string | null = null;
     try {
       const did = await withTenant(d.db, r.tenant_id, async (tx) => {
+        // Paused businesses get no scheduled work (no digests, reminders or mailbox syncs).
+        const [t] = await tx.select({ status: tenants.status }).from(tenants).where(eq(tenants.id, r.tenant_id));
+        if (t?.status !== "active") return false;
         const loaded = await loadEnabledModule(tx, d, r.tenant_id, r.module_key);
         if (!loaded) return false;
         const base = systemContext(r.tenant_id, `job:${r.module_key}.${r.job_key}:${Date.now()}`, `module:${r.module_key}`);

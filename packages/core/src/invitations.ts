@@ -124,11 +124,14 @@ export async function acceptInvitation(
     return { tenantId, slug: t!.slug };
   }
   // The inviter must still be a member who holds what the roles give; otherwise the invitation lapses.
-  const inviter = inv!.invitedBy ? await resolveMembership(tx, tenantId, inv!.invitedBy) : null;
+  // Invitations from the program owner (a new business's first owner) don't depend on a member.
   const roleRows = await rolesByKey(tx, inv!.roles);
-  const perms = await rolePerms(tx, roleRows.map((r) => r.id));
-  if (!inviter || perms.some((p) => !hasPermission(inviter.permissions, p))) {
-    throw conflict("This invitation is no longer valid. Ask for a new one.");
+  if (!inv!.byPlatform) {
+    const inviter = inv!.invitedBy ? await resolveMembership(tx, tenantId, inv!.invitedBy) : null;
+    const perms = await rolePerms(tx, roleRows.map((r) => r.id));
+    if (!inviter || perms.some((p) => !hasPermission(inviter.permissions, p))) {
+      throw conflict("This invitation is no longer valid. Ask for a new one.");
+    }
   }
 
   const membershipId = uuidv7();

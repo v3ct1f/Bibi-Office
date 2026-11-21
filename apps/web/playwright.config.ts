@@ -40,6 +40,8 @@ export default defineConfig({
         DATABASE_URL_APP: appDb, OIDC_ISSUER: issuer, OIDC_AUDIENCE: "office-api",
         API_KEY_PEPPER: "e2e-pepper-e2e-pepper-e2e-pepper-0000", SECRETS_KEY: Buffer.alloc(32, 9).toString("base64"),
         CORS_ORIGINS: `http://localhost:${WEB}`, RATE_LIMIT_PER_MIN: "100000",
+        // The older flows create their own workspaces; the program-owner flow uses boss@example.com.
+        SELF_SIGNUP: "true", PLATFORM_ADMIN_EMAILS: "boss@example.com",
         AI_API_BASE_URL: `http://127.0.0.1:${FAKE_AI}`,
       },
       reuseExistingServer: false,
