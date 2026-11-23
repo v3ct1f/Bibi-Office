@@ -84,3 +84,10 @@ export function useDebounced<T>(v: T, ms = 250) {
   useEffect(() => { const t = setTimeout(() => setD(v), ms); return () => clearTimeout(t); }, [v, ms]);
   return d;
 }
+
+/** A date n days from today, as YYYY-MM-DD (local time). */
+export function inDays(n: number): string {
+  const d = new Date(); d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+export const SNOOZES = [{ label: "Tomorrow", short: "+1d", days: 1 }, { label: "In 3 days", short: "+3d", days: 3 }, { label: "Next week", short: "+1w", days: 7 }] as const;

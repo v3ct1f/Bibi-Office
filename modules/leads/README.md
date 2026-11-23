@@ -22,6 +22,12 @@ form (one per business: public "contact us" page, off until turned on; the token
   If the email already has an open lead, the message is added to that lead instead of a new one. Replacing the link stops the old one.
   Public routes are rate-limited per IP by the platform.
 
+## Following up
+
+- **Follow up now** tab: open leads whose follow-up date is today or earlier, soonest first (`due=1`). **My leads** button: only leads you own (`mine=1`).
+- One click sets the next follow-up: Tomorrow / In 3 days / Next week (and Clear) on the lead page, +1d / +3d / +1w in the list's Follow up column.
+- Tick leads in the list, pick a colleague (or nobody) and **Assign**: `POST /leads/assign`. Each change is logged on the lead and emits `leads.lead.updated`.
+
 ## Importing from a spreadsheet
 
 **Leads → Import** (`/leads/import`): choose a `.csv` file (up to 5 MB and 5000 rows; commas, semicolons or tabs; first row = column titles).
@@ -46,8 +52,9 @@ it, shows a preview of the first rows, and sends the rows in parts of 1000 to `P
 
 | Method | Path | Permission |
 |---|---|---|
-| GET | `/config` · `/summary` · `/people` · `/leads?view=open\|all\|<status>&source&ownerId&q&limit&cursor` · `/leads/:id` · `/form` | `leads:lead.read` |
+| GET | `/config` · `/summary` · `/people` · `/leads?view=open\|all\|<status>&source&ownerId&mine=1&due=1&q&limit&cursor` · `/leads/:id` · `/form` | `leads:lead.read` |
 | POST/PATCH/DELETE | `/leads` · `/leads/:id` | `leads:lead.write` |
+| POST | `/leads/assign { ids (1 to 200), ownerId \| null }` gives several leads to one colleague | `leads:lead.write` |
 | POST | `/leads/import { source?, rows: [{ line, values }] }` (1 to 1000 rows, body up to 2 MB) | `leads:lead.write` |
 | POST | `/leads/:id/status { status, reason? }` · `/leads/:id/activities { kind, body }` · `/leads/:id/convert` | `leads:lead.write` |
 | PATCH / POST | `/form` · `/form/replace-link` | `leads:form.manage` |

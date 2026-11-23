@@ -4,7 +4,7 @@ import { action, defineModule, publicRoute, route } from "@office/sdk";
 import { metrics } from "./metrics.ts";
 import { SOURCES } from "./schema.ts";
 import {
-  ActivityInput, addActivity, ConvertInput, convertLead, createLead, deleteLead, FormInput, getForm, getLead, LeadInput, LeadPatch, ImportInput, importLeads, ListQuery,
+  ActivityInput, addActivity, AssignInput, assignLeads, ConvertInput, convertLead, createLead, deleteLead, FormInput, getForm, getLead, LeadInput, LeadPatch, ImportInput, importLeads, ListQuery,
   listLeads, PublicSubmit, publicFormView, publicSubmit, replaceFormLink, saveForm, setStatus, settingsOf, StatusInput, summary, Token, updateLead,
 } from "./service.ts";
 
@@ -72,6 +72,7 @@ export default defineModule({
     }),
     route({ method: "GET", path: "/leads", permission: READ, query: ListQuery, handler: (ctx, { query }) => listLeads(ctx, query) }),
     route({ method: "POST", path: "/leads", permission: WRITE, status: 201, body: LeadInput, handler: (ctx, { body }) => createLead(ctx, body) }),
+    route({ method: "POST", path: "/leads/assign", permission: WRITE, body: AssignInput, handler: (ctx, { body }) => assignLeads(ctx, body) }),
     route({
       method: "POST", path: "/leads/import", permission: WRITE, body: ImportInput, bodyLimit: 2 * 1024 * 1024,
       handler: (ctx, { body }) => importLeads(ctx, body),

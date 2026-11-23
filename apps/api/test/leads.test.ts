@@ -205,3 +205,30 @@ describe("importing leads from a spreadsheet", () => {
     expect((await h.client(carol, tA).post(`${M}/leads/import`, { rows: [row(2, { name: "Viewer" })] })).status).toBe(403);
   });
 });
+
+describe("following up: my leads, due now, bulk assign", () => {
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const nextMonth = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+  let dueId: string, laterId: string, carolId: string;
+
+  it("lists only open leads whose follow-up date has come, soonest first, and only mine on request", async () => {
+    dueId = (await A().post(`${M}/leads`, { firstName: "Due", lastName: "Now", email: "due@fu.test", followUpOn: yesterday })).body.id;
+    laterId = (await A().post(`${M}/leads`, { firstName: "Later", email: "later@fu.test", followUpOn: nextMonth })).body.id;
+    const due = (await A().get(`${M}/leads?due=1`)).body.data.map((l: { id: string }) => l.id);
+    expect(due).toContain(dueId);
+    expect(due).not.toContain(laterId);
+    expect((await A().get(`${M}/leads?mine=1&q=fu.test`)).body.data).toHaveLength(2);
+    expect((await h.client(carol, tA).get(`${M}/leads?mine=1&q=fu.test`)).body.data).toHaveLength(0);
+  });
+
+  it("gives several leads to a colleague in one step", async () => {
+    carolId = (await A().get(`${M}/people`)).body.find((p: { name: string }) => p.name === "carol").userId;
+    const r = await A().post(`${M}/leads/assign`, { ids: [dueId, laterId], ownerId: carolId });
+    expect(r.body).toEqual({ changed: 2 });
+    expect((await A().get(`${M}/leads/${dueId}`)).body.ownerName).toBe("carol");
+    expect((await A().post(`${M}/leads/assign`, { ids: [dueId], ownerId: carolId })).body).toEqual({ changed: 0 });
+    expect((await h.client(carol, tA).get(`${M}/leads?mine=1&q=fu.test`)).body.data).toHaveLength(2);
+    expect((await A().post(`${M}/leads/assign`, { ids: [dueId], ownerId: null })).body).toEqual({ changed: 1 });
+    expect((await h.client(carol, tA).post(`${M}/leads/assign`, { ids: [dueId], ownerId: carolId })).status).toBe(403);
+  });
+});
