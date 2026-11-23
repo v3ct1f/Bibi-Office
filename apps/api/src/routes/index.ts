@@ -93,7 +93,7 @@ export const registerRoutes: FastifyPluginAsync<{
   });
 
   await registerContactRoutes(app, { db, mailer: o.mailer, contactEmail: o.contactEmail, inTenant });
-  await registerBillingRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, billing: o.billing, inTenant });
+  await registerBillingRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, billing: o.billing, contactEmail: o.contactEmail, inTenant });
   await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, platformAdmin, modules: o.modules });
 
   // ───── Members ─────

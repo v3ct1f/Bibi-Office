@@ -57,12 +57,14 @@ export function TermsPage() {
           <li>Payments are handled by Stripe. We never see or store your card details.</li>
           <li>Prices may include or be subject to VAT or other taxes where the law requires.</li>
           <li>We may change the price. We will email you at least 30 days before a change applies to you, and you may cancel before then.</li>
-          <li>If a payment fails, Stripe tries again for a while. If it still fails, the account is paused until payment is made.</li>
+          <li>If a payment fails, we pause the account straight away. Nobody in your business can use it while it is paused. We email the business owner a link to pay with another card or update the payment method. As soon as the payment succeeds, the account is switched back on automatically and we email you to confirm. Your data is kept while the account is paused.</li>
+          <li>Stripe may try the payment again for a while. If it cannot be collected, the subscription ends, and section 5 applies to the data from that date.</li>
+          <li>We send these billing notices by email because they are part of providing the Service; they are not marketing and you cannot opt out of them while you have an account.</li>
         </ul>
       </S>
       <S title="5. Cancelling">
         <p>You can cancel at any time yourself: in the Service go to Settings, then General, then "Manage subscription". Cancelling stops the next renewal. You keep full use of the Service until the end of the month you have already paid for. After that the account is paused and you are not charged again.</p>
-        <p>After the subscription ends we keep the business's data for up to {C.keepDays} days so you can come back. After that we permanently delete it. You can ask for a copy or for deletion earlier at any time by emailing {C.email}.</p>
+        <p>After the subscription ends (whether you cancelled it or it ended because payment could not be collected) we keep the business's data for up to {C.keepDays} days so you can come back. After that we permanently delete it. You can ask for a copy or for deletion earlier at any time by emailing {C.email}.</p>
       </S>
       <S title="6. No refunds">
         <p>Payments are not refundable. This includes the current month when you cancel part-way, and any unused time. This does not take away any right that the law gives you and that cannot be excluded by contract. We may, at our own choice, make a refund in a particular case; doing so once does not oblige us to do it again.</p>
@@ -110,7 +112,7 @@ export function PrivacyPage() {
           <li><strong>Sign-in:</strong> your email and a password stored only as a protected hash by our sign-in service. We never see your password.</li>
           <li><strong>Payment:</strong> Stripe handles your card and payment details. We receive only a customer and subscription reference, the status and the amounts. Needed to bill you and keep accounting records (contract and legal obligation).</li>
           <li><strong>Security and history:</strong> a log of important actions in a business (who did what, when, from which IP address) and technical logs. Needed to keep the Service secure and for you to see what happened (legitimate interest and contract).</li>
-          <li><strong>Emails:</strong> the invitations, receipts and notices we send you about your account.</li>
+          <li><strong>Emails:</strong> the invitations, receipts and notices we send you about your account, including notices that a payment failed and that the account was paused or switched back on. These are needed to provide the Service (contract), not for marketing.</li>
         </ul>
       </S>
       <S title="3. Business data you put into the Service">

@@ -35,6 +35,39 @@ export function invitationEmail(o: { tenantName: string; inviterName: string | n
   };
 }
 
+/** A payment failed, so the business is paused until it is paid. */
+export function paymentFailedEmail(o: { tenantName: string; payUrl: string | null; contact: string }) {
+  return {
+    subject: `Payment failed: ${o.tenantName} is paused`,
+    text: [
+      `We couldn't collect the payment for ${o.tenantName}, so the account is paused. Nobody in your business can use it until the payment goes through.`,
+      "",
+      o.payUrl
+        ? `To fix it, pay with a different card or update your payment method here: ${o.payUrl}`
+        : `To fix it, reply to this email or write to ${o.contact} and we will send you a payment link.`,
+      "",
+      "As soon as the payment succeeds, the account is switched back on automatically and we'll email you to confirm. Nothing is lost while it is paused: all your data is kept.",
+      "If the payment can't be collected after several attempts, the subscription is ended. A business whose subscription has ended is deleted 90 days later, as described in the Terms.",
+      "",
+      `Questions? ${o.contact}`,
+    ].join("\n"),
+  };
+}
+
+/** A payment went through, so the business is switched back on. */
+export function serviceResumedEmail(o: { tenantName: string; openUrl: string; contact: string }) {
+  return {
+    subject: `${o.tenantName} is active again`,
+    text: [
+      `Thank you, the payment for ${o.tenantName} went through and the account is switched back on. Everyone in your business can use it again.`,
+      "",
+      `Open it here: ${o.openUrl}`,
+      "",
+      `Questions? ${o.contact}`,
+    ].join("\n"),
+  };
+}
+
 export function ownerAddedEmail(o: { by: string; adminUrl: string; passwordLink?: string | null }) {
   return {
     subject: "You're now an owner of Office",

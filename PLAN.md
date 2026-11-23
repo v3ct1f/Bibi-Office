@@ -58,6 +58,13 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 30, failed payments pause the business
+- **Failed payment -> paused at once.** Webhook `invoice.payment_failed` suspends the business (`tenants.billing_paused_at`, migration 0012) and emails every owner (or the invoice's billing email if nobody accepted yet) a "Payment failed: <business> is paused" mail with Stripe's hosted invoice link to pay with another card. Stripe's retries don't re-send it. This pause does **not** start the 90-day erasure clock; that starts only when Stripe gives up (subscription `unpaid`/`canceled`).
+- **Paid -> back on.** `invoice.paid` (or the subscription turning `active`) switches a business paused for billing back on and emails the owners "<business> is active again". A business the program owner paused **by hand** is never changed by a payment, and a failed payment on it sends nothing.
+- Handles both Stripe invoice shapes (`subscription` and the newer `parent.subscription_details.subscription`). The webhook endpoint must also receive `invoice.payment_failed` and `invoice.paid` (the local listener started in Session 28 only forwards three events; restart it with the five).
+- Terms section 4/5 and the Privacy Policy describe it (version `2026-11-23.2`). New `docs/legal-checklist.md`: what is covered and what needs a gestor/lawyer.
+- Tests: billing 18.
+
 ## Session 29, going-live pieces: legal pages, cancelling, Keycloak
 - **Terms of Service and Privacy Policy** at `/terms` and `/privacy` (public; linked from the sign-in screen and /start). Text is in `apps/web/src/pages/Legal.tsx`; the company details they print are in `apps/web/src/legal/company.ts`, still in [SQUARE BRACKETS] until filled in (the pages show a draft warning meanwhile). They say: for businesses only, monthly in advance, auto-renewing, **cancel any time and keep access until the paid month ends, no refunds** (except where the law forces one), data kept up to 90 days after ending, the program owner can look inside a business read-only.
 - **Consent**: /start has a required tickbox; the API refuses checkout without `acceptTerms: true`; the terms version and time are stored on the Stripe subscription (`TERMS_VERSION` in `routes/billing.ts` must match `COMPANY.version`).

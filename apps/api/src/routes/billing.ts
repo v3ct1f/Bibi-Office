@@ -4,15 +4,15 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { eq, ne, and } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { AppError, INVITATION_DAYS, createBusiness, setBusinessStatus, type RequestContext } from "@office/core";
+import { AppError, INVITATION_DAYS, createBusiness, listOwnerEmails, setBusinessStatus, type RequestContext } from "@office/core";
 import { tenants, type Db, type Tx } from "@office/db";
-import { invitationEmail, type Mailer } from "../mail.ts";
+import { invitationEmail, paymentFailedEmail, serviceResumedEmail, type Mailer } from "../mail.ts";
 import type { Identity } from "../identity.ts";
 import { verifyStripeSignature, type Billing } from "../billing.ts";
 
 const PUBLIC = { auth: "public" } as const;
 /** Date of the Terms and Privacy Policy text a customer agrees to; bump it (here and in apps/web/src/legal/company.ts) when they change. */
-export const TERMS_VERSION = "2026-11-23";
+export const TERMS_VERSION = "2026-11-23.2";
 const STRIPE_ACTOR = { userId: null, email: "stripe" } as const;
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
 
@@ -31,7 +31,7 @@ const str = (v: unknown) => (typeof v === "string" && v ? v : null);
 export async function registerBillingRoutes(
   app0: FastifyInstance,
   o: {
-    db: Db; appUrl: string; mailer: Mailer | null; identity: Identity | null; billing: Billing | null;
+    db: Db; appUrl: string; mailer: Mailer | null; identity: Identity | null; billing: Billing | null; contactEmail: string | undefined;
     inTenant: <T>(req: FastifyRequest, perm: string | null, fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T>;
   },
 ) {
@@ -88,6 +88,44 @@ export async function registerBillingRoutes(
     }
   });
 
+  const contactLine = o.contactEmail ?? "the address on our website";
+
+  /** Stripe's newer API versions moved the subscription id of an invoice under `parent`. */
+  const invoiceSubscription = (inv: Record<string, unknown>) =>
+    str(inv.subscription) ?? str(((inv.parent as { subscription_details?: { subscription?: unknown } } | undefined)?.subscription_details)?.subscription);
+
+  const tenantBySubscription = async (subscriptionId: string | null) => {
+    if (!subscriptionId) return null;
+    const [t] = await o.db.select({
+      id: tenants.id, name: tenants.name, slug: tenants.slug, status: tenants.status,
+      billingPausedAt: tenants.billingPausedAt, subscriptionEndedAt: tenants.subscriptionEndedAt,
+    }).from(tenants).where(and(eq(tenants.stripeSubscriptionId, subscriptionId), ne(tenants.status, "deleted")));
+    return t ?? null;
+  };
+
+  /** Emails the business's owners (or the customer's billing email if nobody has accepted the invitation yet). Never fails the webhook. */
+  async function notifyOwners(
+    req: FastifyRequest, t: { id: string; name: string }, fallback: string | null,
+    build: (tenantName: string) => { subject: string; text: string },
+  ) {
+    if (!o.mailer) { req.log.warn({ tenantId: t.id }, "billing email not sent: mail isn't set up"); return; }
+    try {
+      let to = await listOwnerEmails(o.db, t.id);
+      if (!to.length && fallback) to = [fallback.trim().toLowerCase()];
+      for (const addr of to) await o.mailer.send({ to: addr, ...build(t.name) });
+    } catch (err) {
+      req.log.warn({ err, tenantId: t.id }, "billing email failed");
+    }
+  }
+
+  /** Switches a business that was paused for billing back on (never one the program owner paused by hand) and says so. */
+  async function resume(req: FastifyRequest, t: NonNullable<Awaited<ReturnType<typeof tenantBySubscription>>>, fallback: string | null) {
+    if (t.status !== "suspended" || (!t.billingPausedAt && !t.subscriptionEndedAt)) return { ignored: true };
+    await setBusinessStatus(o.db, STRIPE_ACTOR, t.id, "active", { requestId: req.id, ip: req.ip });
+    await notifyOwners(req, t, fallback, (name) => serviceResumedEmail({ tenantName: name, openUrl: `${o.appUrl}/t/${t.slug}`, contact: contactLine }));
+    return { ok: true, resumed: true };
+  }
+
   // The webhook needs the exact bytes Stripe signed, so this plugin keeps the body raw.
   await app.register(async (hook) => {
     hook.addContentTypeParser("application/json", { parseAs: "buffer", bodyLimit: 262_144 }, (_req, body, done) => done(null, body));
@@ -142,20 +180,39 @@ export async function registerBillingRoutes(
         return reply.send({ ok: true });
       }
 
+      // A payment failed: pause the business straight away and tell its owners how to pay.
+      if (ev.type === "invoice.payment_failed") {
+        const t = await tenantBySubscription(invoiceSubscription(obj));
+        if (!t) return reply.send({ ignored: true });
+        if (t.status !== "active") return reply.send({ ok: true, alreadyPaused: true });   // paused already (retries) or paused by hand
+        await setBusinessStatus(o.db, STRIPE_ACTOR, t.id, "suspended", meta, { billingPaused: true });
+        await notifyOwners(req, t, str(obj.customer_email), (name) => paymentFailedEmail({ tenantName: name, payUrl: str(obj.hosted_invoice_url), contact: contactLine }));
+        return reply.send({ ok: true, paused: true });
+      }
+
+      // A payment went through: switch a business that was paused for billing back on, and say so.
+      if (ev.type === "invoice.paid") {
+        const t = await tenantBySubscription(invoiceSubscription(obj));
+        if (!t) return reply.send({ ignored: true });
+        return reply.send(await resume(req, t, str(obj.customer_email)));
+      }
+
       if (ev.type === "customer.subscription.updated" || ev.type === "customer.subscription.deleted") {
         const id = str(obj.id);
         const status = ev.type === "customer.subscription.deleted" ? "canceled" : str(obj.status);
-        // Only act when the payment status itself changed, so a manual pause by the program owner isn't undone by an unrelated update.
+        // Only act when the payment status itself changed, so an unrelated update changes nothing.
         const changed = ev.type === "customer.subscription.deleted" || ev.data.previous_attributes?.status !== undefined;
         if (!id || !status || !changed) return reply.send({ ignored: true });
-        const [t] = await o.db.select({ id: tenants.id, status: tenants.status }).from(tenants)
-          .where(and(eq(tenants.stripeSubscriptionId, id), ne(tenants.status, "deleted")));
+        const t = await tenantBySubscription(id);
         if (!t) return reply.send({ ignored: true });
-        // past_due keeps working while Stripe retries the card; the rest of the "not paying" states pause it.
-        const want = status === "active" || status === "trialing" || status === "past_due" ? "active"
-          : status === "canceled" || status === "unpaid" || status === "incomplete_expired" ? "suspended" : t.status;
-        if (want !== t.status) await setBusinessStatus(o.db, STRIPE_ACTOR, t.id, want as "active" | "suspended", meta, { subscriptionEnded: want === "suspended" });
-        return reply.send({ ok: true });
+        if (status === "active" || status === "trialing") return reply.send(await resume(req, t, null));
+        // past_due: the failed-payment event above does the pausing (it carries the link to pay). The subscription
+        // ending (cancelled, or unpaid after Stripe gave up) pauses it too and starts the 90-day countdown to erasure.
+        if ((status === "canceled" || status === "unpaid" || status === "incomplete_expired") && t.status !== "deleted") {
+          await setBusinessStatus(o.db, STRIPE_ACTOR, t.id, "suspended", meta, { subscriptionEnded: true });
+          return reply.send({ ok: true, ended: true });
+        }
+        return reply.send({ ignored: true });
       }
       return reply.send({ ignored: true });
     });

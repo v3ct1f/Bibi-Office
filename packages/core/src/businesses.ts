@@ -108,13 +108,18 @@ export async function inviteBusinessOwner(db: Db, admin: PlatformAdmin, tenantId
 /** Pause (nobody can use it; data is kept) or reactivate a business. */
 export async function setBusinessStatus(
   db: Db, admin: PlatformActor, tenantId: string, status: "active" | "suspended", meta: Meta,
-  /** subscriptionEnded: the pause is because the paid subscription ended, which starts the 90-day countdown to erasure. */
-  opts: { subscriptionEnded?: boolean } = {},
+  /**
+   * subscriptionEnded: the pause is because the paid subscription ended, which starts the 90-day countdown to erasure.
+   * billingPaused: the pause is because a payment failed (the business comes back when it is paid; no countdown).
+   */
+  opts: { subscriptionEnded?: boolean; billingPaused?: boolean } = {},
 ) {
   return withTenant(db, tenantId, async (tx) => {
     const [t] = await tx.update(tenants).set({
       status,
-      ...(status === "active" ? { subscriptionEndedAt: null } : opts.subscriptionEnded ? { subscriptionEndedAt: sql`coalesce(${tenants.subscriptionEndedAt}, now())` } : {}),
+      ...(status === "active" ? { subscriptionEndedAt: null, billingPausedAt: null } : {}),
+      ...(status === "suspended" && opts.subscriptionEnded ? { subscriptionEndedAt: sql`coalesce(${tenants.subscriptionEndedAt}, now())` } : {}),
+      ...(status === "suspended" && opts.billingPaused ? { billingPausedAt: sql`coalesce(${tenants.billingPausedAt}, now())` } : {}),
     })
       .where(and(eq(tenants.id, tenantId), ne(tenants.status, "deleted"))).returning();
     if (!t) throw notFound("Business");
@@ -161,4 +166,16 @@ export async function listErasableBusinesses(db: Db, limit = 20): Promise<string
 export async function eraseBusiness(db: Db, tenantId: string, opts: { now?: boolean } = {}): Promise<string[]> {
   const rows = await db.execute<{ idp_subject: string }>(sql`select idp_subject from erase_tenant(${tenantId}::uuid, ${!!opts.now})`);
   return [...rows].map((r) => r.idp_subject);
+}
+
+/** Email addresses of a business's owners (who get billing notices). */
+export async function listOwnerEmails(db: Db, tenantId: string): Promise<string[]> {
+  return withTenant(db, tenantId, async (tx) => {
+    const rows = await tx.select({ email: users.email }).from(memberRoles)
+      .innerJoin(roles, eq(roles.id, memberRoles.roleId))
+      .innerJoin(memberships, eq(memberships.id, memberRoles.membershipId))
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(and(eq(roles.key, "owner"), eq(memberships.status, "active")));
+    return [...new Set(rows.map((r) => r.email.toLowerCase()))];
+  });
 }

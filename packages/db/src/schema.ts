@@ -28,6 +28,8 @@ export const tenants = pgTable("tenants", {
   /** When the business was deleted (erased for good 30 days later), and when its paid subscription ended (erased 90 days later). */
   deletedAt: ts("deleted_at"),
   subscriptionEndedAt: ts("subscription_ended_at"),
+  /** Paused because a payment failed (cleared when it is paid). Not set for a pause by hand. */
+  billingPausedAt: ts("billing_paused_at"),
   region: text("region").notNull().default("eu"),
   status: text("status").$type<"active" | "suspended" | "deleted">().notNull().default("active"),
   settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),

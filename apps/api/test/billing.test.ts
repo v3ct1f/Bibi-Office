@@ -6,18 +6,18 @@ import { setup } from "./harness.ts";
 /** Paid sign-up: pay on Stripe (faked here), a signed webhook creates the business and invites its owner. */
 const SECRET = "whsec_test_secret";
 const checkouts: CheckoutInput[] = [];
-const sent: { to: string; text?: string }[] = [];
+const sent: { to: string; subject: string; text: string }[] = [];
 const portals: { customerId: string; returnUrl: string }[] = [];
 const billing: Billing = {
   label: "€29 per month", webhookSecret: SECRET,
   async createCheckout(i) { checkouts.push(i); return "https://checkout.stripe.test/c/abc"; },
   async portalUrl(customerId, returnUrl) { portals.push({ customerId, returnUrl }); return "https://billing.stripe.test/p/xyz"; },
 };
-const mailer = { send: async (m: { to: string; text?: string }) => { sent.push(m); } } as unknown as Mailer;
+const mailer: Mailer = { send: async (m) => { sent.push(m); } };
 
 let h: Awaited<ReturnType<typeof setup>>;
 let boss: string;
-beforeAll(async () => { h = await setup([], { billing, mailer }); boss = await h.token("boss"); });
+beforeAll(async () => { h = await setup([], { billing, mailer, contactEmail: "support@example.com" }); boss = await h.token("boss"); });
 afterAll(async () => { await h.teardown(); });
 
 const hook = (event: object, sig?: string) => {
@@ -42,7 +42,7 @@ describe("paid sign-up", () => {
     const r = await h.client().post("/signup/checkout", { businessName: "Maria's Bakery", email: "Maria@Example.com", acceptTerms: true, businessUse: true });
     expect(r.status).toBe(200);
     expect(r.body.url).toBe("https://checkout.stripe.test/c/abc");
-    expect(checkouts.at(-1)).toMatchObject({ email: "maria@example.com", slug: "marias-bakery", region: "eu", termsVersion: "2026-11-23" });
+    expect(checkouts.at(-1)).toMatchObject({ email: "maria@example.com", slug: "marias-bakery", region: "eu", termsVersion: "2026-11-23.2" });
   });
 
   it("won't start checkout unless the terms are accepted", async () => {
@@ -112,6 +112,109 @@ describe("paid sign-up", () => {
     expect((await hook({ id: "e", type: "invoice.created", data: { object: {} } })).json()).toEqual({ ignored: true });
     await hook(completed("sub_3", { payment_status: "unpaid", metadata: { businessName: "Nope", slug: "nope-co", region: "eu" } }));
     expect(await find("nope-co")).toBeUndefined();
+  });
+});
+
+describe("failed payments pause the business and paying brings it back", () => {
+  /** A paid business whose owner has accepted the invitation. */
+  async function paid(slug: string, sub: string, ownerSub: string) {
+    await hook(completed(sub, { customer: `cus_${sub}`, customer_email: `${ownerSub}@example.com`, metadata: { businessName: `Biz ${slug}`, slug, region: "eu" } }));
+    const biz = await find(slug);
+    const link = (await h.client(boss).post(`/platform/businesses/${biz.id}/owner-invite`, { email: `${ownerSub}@example.com` })).body.invitation.link as string;
+    const owner = await h.token(ownerSub, `${ownerSub}@example.com`);
+    await h.client(owner).post("/invitations/accept", { tenantId: biz.id, token: link.split("/").pop() });
+    return { id: biz.id as string, owner };
+  }
+  const failed = (sub: string, extra: Record<string, unknown> = {}) => hook({
+    id: "evt_f", type: "invoice.payment_failed", data: { object: { subscription: sub, hosted_invoice_url: "https://invoice.stripe.test/i/abc", ...extra } },
+  });
+  const paidInvoice = (sub: string) => hook({ id: "evt_p", type: "invoice.paid", data: { object: { subscription: sub } } });
+  const mailsTo = (to: string) => sent.filter((m) => m.to === to);
+  const flags = async (id: string) => (await h.ownerSql`select status, billing_paused_at, subscription_ended_at from tenants where id = ${id}`)[0]!;
+
+  it("pauses at once, emails the owner a link to pay, and lets nobody in until it is paid", async () => {
+    const { id, owner } = await paid("late-payer", "sub_f1", "lena");
+    expect((await h.client(owner, id).get("/contacts")).status).toBe(200);
+    const before = mailsTo("lena@example.com").length;
+    expect((await failed("sub_f1")).json()).toMatchObject({ paused: true });
+    expect((await find("late-payer")).status).toBe("suspended");
+    expect((await h.client(owner, id).get("/contacts")).status).toBe(403);
+    const mail = mailsTo("lena@example.com").at(-1)!;
+    expect(mailsTo("lena@example.com").length).toBe(before + 1);
+    expect(mail.subject).toMatch(/Payment failed/);
+    expect(mail.text).toContain("https://invoice.stripe.test/i/abc");
+    expect(mail.text).toMatch(/switched back on automatically/);
+    expect(mail.text).toContain("support@example.com");
+    // Not the "subscription ended" clock: that only starts if Stripe gives up.
+    expect(await flags(id)).toMatchObject({ status: "suspended", subscription_ended_at: null });
+    expect((await flags(id)).billing_paused_at).not.toBeNull();
+  });
+
+  it("Stripe's retries don't send the same email again", async () => {
+    const { id } = await paid("retried", "sub_f2", "ravi");
+    await failed("sub_f2");
+    const n = mailsTo("ravi@example.com").length;
+    expect((await failed("sub_f2")).json()).toMatchObject({ alreadyPaused: true });
+    await failed("sub_f2");
+    expect(mailsTo("ravi@example.com").length).toBe(n);
+    expect((await flags(id)).status).toBe("suspended");
+  });
+
+  it("paying switches it back on and emails the owner", async () => {
+    const { id, owner } = await paid("pays-up", "sub_f3", "pia");
+    await failed("sub_f3");
+    expect((await h.client(owner, id).get("/contacts")).status).toBe(403);
+    const n = mailsTo("pia@example.com").length;
+    expect((await paidInvoice("sub_f3")).json()).toMatchObject({ resumed: true });
+    expect((await find("pays-up")).status).toBe("active");
+    expect(await flags(id)).toMatchObject({ billing_paused_at: null, subscription_ended_at: null });
+    expect((await h.client(owner, id).get("/contacts")).status).toBe(200);
+    expect(mailsTo("pia@example.com").length).toBe(n + 1);
+    const mail = mailsTo("pia@example.com").at(-1)!;
+    expect(mail.subject).toMatch(/active again/);
+    expect(mail.text).toContain("/t/pays-up");
+    // A second "paid" message from Stripe changes and sends nothing.
+    expect((await paidInvoice("sub_f3")).json()).toEqual({ ignored: true });
+    expect(mailsTo("pia@example.com").length).toBe(n + 1);
+  });
+
+  it("a business the program owner paused by hand is left alone by payments, in both directions", async () => {
+    const { id } = await paid("hand-paused", "sub_f4", "hugo");
+    await h.client(boss).post(`/platform/businesses/${id}/pause`, {});
+    const n = sent.length;
+    expect((await failed("sub_f4")).json()).toMatchObject({ alreadyPaused: true });
+    expect((await paidInvoice("sub_f4")).json()).toEqual({ ignored: true });
+    expect((await find("hand-paused")).status).toBe("suspended");
+    expect(sent.length).toBe(n);
+  });
+
+  it("if Stripe gives up the subscription ends (the erasure countdown starts); paying later still brings it back", async () => {
+    const { id } = await paid("gives-up", "sub_f5", "gina");
+    await failed("sub_f5");
+    await hook({ id: "e", type: "customer.subscription.updated", data: { object: { id: "sub_f5", status: "unpaid" }, previous_attributes: { status: "past_due" } } });
+    const f = await flags(id);
+    expect(f.status).toBe("suspended");
+    expect(f.subscription_ended_at).not.toBeNull();
+    expect((await paidInvoice("sub_f5")).json()).toMatchObject({ resumed: true });
+    expect(await flags(id)).toMatchObject({ status: "active", billing_paused_at: null, subscription_ended_at: null });
+  });
+
+  it("reads the subscription from newer Stripe invoices, and ignores invoices of unknown subscriptions", async () => {
+    const { id } = await paid("new-api", "sub_f6", "nils");
+    const r = await hook({ id: "e", type: "invoice.payment_failed", data: { object: { parent: { subscription_details: { subscription: "sub_f6" } } } } });
+    expect(r.json()).toMatchObject({ paused: true });
+    expect((await flags(id)).status).toBe("suspended");
+    expect((await failed("sub_nobody")).json()).toEqual({ ignored: true });
+    expect((await paidInvoice("sub_nobody")).json()).toEqual({ ignored: true });
+    expect((await hook({ id: "e", type: "invoice.payment_failed", data: { object: {} } })).json()).toEqual({ ignored: true });
+  });
+
+  it("with no owner yet, the notice goes to the billing email on the invoice", async () => {
+    await hook(completed("sub_f7", { customer_email: "buyer@example.com", metadata: { businessName: "No Owner Yet", slug: "no-owner-yet", region: "eu" } }));
+    const n = mailsTo("buyer@example.com").length;      // the invitation already went here
+    await failed("sub_f7", { customer_email: "Buyer@Example.com" });
+    expect(mailsTo("buyer@example.com").length).toBe(n + 1);
+    expect(mailsTo("buyer@example.com").at(-1)!.subject).toMatch(/Payment failed/);
   });
 });
 
