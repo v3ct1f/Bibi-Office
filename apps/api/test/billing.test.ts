@@ -39,7 +39,7 @@ const find = async (slug: string) => (await h.client(boss).get("/platform/busine
 describe("paid sign-up", () => {
   it("shows the price and starts checkout without signing in", async () => {
     expect((await h.client().get("/signup/config")).body).toEqual({ open: true, price: "€29 per month" });
-    const r = await h.client().post("/signup/checkout", { businessName: "Maria's Bakery", email: "Maria@Example.com", acceptTerms: true });
+    const r = await h.client().post("/signup/checkout", { businessName: "Maria's Bakery", email: "Maria@Example.com", acceptTerms: true, businessUse: true });
     expect(r.status).toBe(200);
     expect(r.body.url).toBe("https://checkout.stripe.test/c/abc");
     expect(checkouts.at(-1)).toMatchObject({ email: "maria@example.com", slug: "marias-bakery", region: "eu", termsVersion: "2026-11-23" });
@@ -49,13 +49,16 @@ describe("paid sign-up", () => {
     const n = checkouts.length;
     expect((await h.client().post("/signup/checkout", { businessName: "No Terms", email: "n@example.com" })).status).toBe(400);
     expect((await h.client().post("/signup/checkout", { businessName: "No Terms", email: "n@example.com", acceptTerms: false })).status).toBe(400);
+    // Terms ticked but not business use: also refused (the Terms are for businesses only).
+    expect((await h.client().post("/signup/checkout", { businessName: "No Biz", email: "n@example.com", acceptTerms: true })).status).toBe(400);
+    expect((await h.client().post("/signup/checkout", { businessName: "No Biz", email: "n@example.com", acceptTerms: true, businessUse: false })).status).toBe(400);
     expect(checkouts.length).toBe(n);
   });
 
   it("refuses an address that is already taken, before any payment", async () => {
     await h.client(boss).post("/platform/businesses", { name: "Taken", slug: "taken-co", ownerEmail: "t@example.com" });
     const n = checkouts.length;
-    const r = await h.client().post("/signup/checkout", { businessName: "Taken", slug: "taken-co", email: "x@example.com", acceptTerms: true });
+    const r = await h.client().post("/signup/checkout", { businessName: "Taken", slug: "taken-co", email: "x@example.com", acceptTerms: true, businessUse: true });
     expect(r.status).toBe(409);
     expect(checkouts.length).toBe(n);
   });
@@ -148,7 +151,7 @@ describe("sign-up closed", () => {
     const closed = await setup([], {});
     try {
       expect((await closed.client().get("/signup/config")).body).toEqual({ open: false, price: "" });
-      expect((await closed.client().post("/signup/checkout", { businessName: "X", email: "x@example.com", acceptTerms: true })).status).toBe(503);
+      expect((await closed.client().post("/signup/checkout", { businessName: "X", email: "x@example.com", acceptTerms: true, businessUse: true })).status).toBe(503);
     } finally { await closed.teardown(); }
   });
 });

@@ -54,7 +54,7 @@ const defaults: Record<string, string> = {
 const localEnv = new URL("../../../.env.local", import.meta.url);
 if (existsSync(localEnv)) {
   const vars = parseEnv(readFileSync(localEnv, "utf8"));
-  for (const k of ["MAIL_SMTP_URL", "MAIL_FROM", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PRICE_ID", "STRIPE_PRICE_LABEL"]) if (vars[k]) process.env[k] ??= vars[k];
+  for (const k of ["MAIL_SMTP_URL", "MAIL_FROM", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PRICE_ID", "STRIPE_PRICE_LABEL", "CONTACT_EMAIL"]) if (vars[k]) process.env[k] ??= vars[k];
   if (process.env.MAIL_SMTP_URL) console.log(`email: invitations are sent from ${process.env.MAIL_FROM ?? "(MAIL_FROM missing)"}`);
 }
 const portArg = process.argv.indexOf("--port");

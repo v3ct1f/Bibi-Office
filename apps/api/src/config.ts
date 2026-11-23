@@ -22,6 +22,8 @@ const Env = z.object({
   IDP_ADMIN_SECRET: z.string().optional(),
   /** Program owners (comma-separated emails): they see every business, create businesses and pause them. */
   PLATFORM_ADMIN_EMAILS: z.string().default("").transform((s) => s.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean)),
+  /** Where the public contact form sends messages (the public support address). Needs mail set up too. */
+  CONTACT_EMAIL: z.string().optional(),
   /** Production sign-in service (Keycloak). With URL, client id and secret set it replaces the dev sign-in server for password emails and colleague accounts. */
   KEYCLOAK_URL: z.string().optional(),
   KEYCLOAK_REALM: z.string().default("office"),

@@ -14,6 +14,7 @@ import { invitationEmail, passwordResetEmail, type Mailer } from "../mail.ts";
 import type { Identity } from "../identity.ts";
 import { registerOwnerRoutes } from "./owner.ts";
 import { registerBillingRoutes } from "./billing.ts";
+import { registerContactRoutes } from "./contact.ts";
 import type { Billing } from "../billing.ts";
 
 type InTenant = <T>(req: import("fastify").FastifyRequest, perm: string | null,
@@ -29,7 +30,7 @@ const Page = z.object({
 const tenantHeader = z.object({ "x-tenant-id": z.uuid().optional() }).loose();
 
 export const registerRoutes: FastifyPluginAsync<{
-  db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null; identity: Identity | null; selfSignup: boolean; billing: Billing | null;
+  db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null; identity: Identity | null; selfSignup: boolean; billing: Billing | null; contactEmail: string | undefined;
   modules: import("@office/platform").ModuleDeps;
 }> = async (app0, o) => {
   const app = app0.withTypeProvider<ZodTypeProvider>();
@@ -91,6 +92,7 @@ export const registerRoutes: FastifyPluginAsync<{
     return reply.status(202).send({ ok: true, available: !!(o.mailer && o.identity) });
   });
 
+  await registerContactRoutes(app, { mailer: o.mailer, contactEmail: o.contactEmail });
   await registerBillingRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, billing: o.billing, inTenant });
   await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, platformAdmin, modules: o.modules });
 

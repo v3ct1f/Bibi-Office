@@ -17,9 +17,10 @@ export function StartPage() {
   const [email, setEmail] = useState("");
   const [region, setRegion] = useState<"eu" | "us">("eu");
   const [agreed, setAgreed] = useState(false);
+  const [business, setBusiness] = useState(false);
   const go = useMutation({
     mutationFn: () => request<{ url: string }>("POST", "/signup/checkout", {
-      body: { businessName: name, slug: slug || slugify(name), email, region, acceptTerms: agreed }, anonymous: true,
+      body: { businessName: name, slug: slug || slugify(name), email, region, acceptTerms: agreed, businessUse: business }, anonymous: true,
     }),
     onSuccess: (r) => { window.location.href = r.url; },
   });
@@ -56,6 +57,10 @@ export function StartPage() {
                 )}
               </Field>
               <label className="flex items-start gap-2 text-sm">
+                <Checkbox checked={business} onCheckedChange={(v) => setBusiness(v === true)} className="mt-0.5" aria-label="I am signing up for business or professional use" />
+                <span>I am signing up for <strong>business or professional use</strong>, not as a private consumer.</span>
+              </label>
+              <label className="flex items-start gap-2 text-sm">
                 <Checkbox checked={agreed} onCheckedChange={(v) => setAgreed(v === true)} className="mt-0.5" aria-label="I agree to the Terms and the Privacy Policy" />
                 <span>
                   I agree to the <Link to="/terms" target="_blank" className="underline">Terms</Link> and the <Link to="/privacy" target="_blank" className="underline">Privacy Policy</Link>.
@@ -63,7 +68,7 @@ export function StartPage() {
                 </span>
               </label>
               {go.isError && <ErrorState error={go.error} />}
-              <Button className="w-full" type="submit" loading={go.isPending || go.isSuccess} disabled={!agreed}>Continue to payment</Button>
+              <Button className="w-full" type="submit" loading={go.isPending || go.isSuccess} disabled={!agreed || !business}>Continue to payment</Button>
             </form>
           )}
           <Button asChild variant="ghost" className="w-full"><Link to="/">Already have an account? Sign in</Link></Button>

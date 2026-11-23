@@ -25,6 +25,7 @@ import { AdminPage } from "./pages/Admin.tsx";
 import { ForgotPasswordPage } from "./pages/ForgotPassword.tsx";
 import { StartPage, StartThanksPage } from "./pages/Start.tsx";
 import { PrivacyPage, TermsPage } from "./pages/Legal.tsx";
+import { ContactPage } from "./pages/Contact.tsx";
 
 type AnyCfg = EntityConfig<{ id: string } & Record<string, unknown>>;
 const cfg = (c: unknown) => c as AnyCfg;
@@ -63,6 +64,7 @@ const start = createRoute({ getParentRoute: () => root, path: "/start", componen
 const startThanks = createRoute({ getParentRoute: () => root, path: "/start/thanks", component: StartThanksPage });
 const terms = createRoute({ getParentRoute: () => root, path: "/terms", component: TermsPage });
 const privacy = createRoute({ getParentRoute: () => root, path: "/privacy", component: PrivacyPage });
+const contact = createRoute({ getParentRoute: () => root, path: "/contact", component: ContactPage });
 const publicPage = createRoute({ getParentRoute: () => root, path: "/p/$tenantId/$module/$", component: PublicRoute });
 const tenant = createRoute({ getParentRoute: () => root, path: "/t/$slug", component: () => <Authed><TenantLayout /></Authed> });
 
@@ -85,7 +87,7 @@ function ModuleRoute() {
 }
 
 const tree = root.addChildren([
-  index, callback, onboarding, admin, invite, forgot, start, startThanks, terms, privacy, publicPage,
+  index, callback, onboarding, admin, invite, forgot, start, startThanks, terms, privacy, contact, publicPage,
   tenant.addChildren([
     t("/", Dashboard),
     t("/contacts", () => <Gate perm="core:contacts.read"><EntityList key="contacts" cfg={cfg(contactsConfig)} /></Gate>, newSearch),

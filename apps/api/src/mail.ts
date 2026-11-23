@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 
 /** Platform email (invitations). Configured by the operator, not by tenants. */
-export interface Mailer { send(m: { to: string; subject: string; text: string }): Promise<void> }
+export interface Mailer { send(m: { to: string; subject: string; text: string; replyTo?: string }): Promise<void> }
 
 /** Builds a mailer from MAIL_SMTP_URL (smtp:// or smtps://user:pass@host:port) and MAIL_FROM; null when not set up. */
 export function smtpMailer(url: string | undefined, from: string | undefined): Mailer | null {
@@ -10,7 +10,7 @@ export function smtpMailer(url: string | undefined, from: string | undefined): M
   const transport = nodemailer.createTransport(url.replace(/\s+/g, ""), { from });
   return {
     async send(m) {
-      await transport.sendMail({ from, to: m.to, subject: m.subject, text: m.text, headers: { "Auto-Submitted": "auto-generated" } });
+      await transport.sendMail({ from, to: m.to, subject: m.subject, text: m.text, ...(m.replyTo ? { replyTo: m.replyTo } : {}), headers: { "Auto-Submitted": "auto-generated" } });
     },
   };
 }

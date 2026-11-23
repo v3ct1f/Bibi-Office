@@ -12,6 +12,7 @@ function LegalPage({ title, children }: { title: string; children: ReactNode }) 
           <Link to="/" className="hover:text-foreground">Home</Link>
           <Link to="/terms" className="hover:text-foreground">Terms</Link>
           <Link to="/privacy" className="hover:text-foreground">Privacy Policy</Link>
+          <Link to="/contact" className="hover:text-foreground">Contact</Link>
         </nav>
         {legalIncomplete && (
           <p role="alert" className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
@@ -90,7 +91,7 @@ export function TermsPage() {
         <p>These Terms are governed by the law of {C.law}. Disputes go to the competent courts of {C.law}, unless mandatory law says otherwise.</p>
       </S>
       <S title="14. Contact">
-        <p>{C.name}, {C.address}, {C.country}. Email: {C.email}.</p>
+        <p>{C.name}, {C.address}, {C.country}. Tax ID: {C.registration}. Email: {C.email}. Or use the <Link to="/contact" className="underline">contact form</Link>.</p>
       </S>
     </LegalPage>
   );

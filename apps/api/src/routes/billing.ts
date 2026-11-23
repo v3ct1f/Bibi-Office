@@ -51,6 +51,8 @@ export async function registerBillingRoutes(
         region: z.enum(["eu", "us"]).default("eu"),
         /** Must be ticked: "I agree to the Terms and the Privacy Policy". */
         acceptTerms: z.literal(true, { error: "Please accept the Terms and the Privacy Policy" }),
+        /** Must be ticked: "I am signing up for business or professional use" (the Terms are for businesses only). */
+        businessUse: z.literal(true, { error: "Please confirm this is for business or professional use" }),
       }).strict(),
     },
   }, async (req) => {
