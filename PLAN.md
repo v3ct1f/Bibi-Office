@@ -58,6 +58,11 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 32, Messages (chat between colleagues)
+- New feature **Messages** (`modules/messages`, see its README): one-to-one chats and named groups (rename, add people, managers remove people, anyone leaves), photos and files up to 5 MB, edit/delete your own messages, unread counts. Only the people in a chat can read it, not even the owner. Every role can use it once the business adds it.
+- Updates arrive by asking every few seconds (no websockets yet). New manifest slot field `badge` (nav.main): a module-relative GET path answering `{ count }`, shown next to the menu item and refreshed every 10 s or when a page fires `office:refresh-badges`.
+- Owner flow test now counts 12 features ("11 of 12 included"). 221 unit/integration green (9 new) + 4 new E2E green.
+
 ## Session 31, hosting plan and files (nothing deployed yet)
 - Decision: **one small EU server** (about 4 GB, Ubuntu), everything in Docker: Postgres, NATS (the production worker needs it; Temporal stays optional), API, worker, Keycloak, Caddy (web app + automatic HTTPS). `infra/prod/` holds the recipe: `docker-compose.yml`, `Dockerfile.web`, `Caddyfile` (+ `Caddyfile.cutover` for bibidesk.com), `init-db.sh`, `.env.example`, `make-env.sh` (random secrets), `bootstrap-server.sh`, `deploy-from-pc.sh` (ships committed files only), `backup.sh`, `docker-compose.admin.yml`, `README.md`. A `.dockerignore` keeps `.env*` and `.dev-accounts.json` out of images.
 - Addresses: `office.bibidesk.com` (web), `office-api.bibidesk.com`, `office-auth.bibidesk.com` first; the root `bibidesk.com` at cutover (Office at `/`, Bibi's `/web /proxy /app /downloads /pay /.well-known` and its own `/assets/` files forwarded to Bibi's Vercel project). See `docs/domain-move.md`. Realm file allows both web addresses.

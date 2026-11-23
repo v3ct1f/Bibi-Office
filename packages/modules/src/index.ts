@@ -13,6 +13,7 @@ import kpi from "@office/module-kpi";
 import leads from "@office/module-leads";
 import docs from "@office/module-docs";
 import invoicing from "@office/module-invoicing";
+import messages from "@office/module-messages";
 
-export const MODULES: ModuleDefinition[] = [invoicing, crm, expenses, scheduling, inventory, support, hr, docs, ai, kpi, leads];
+export const MODULES: ModuleDefinition[] = [invoicing, crm, expenses, scheduling, inventory, support, hr, docs, ai, kpi, leads, messages];
 export const createRegistry = () => new ModuleRegistry(MODULES);
