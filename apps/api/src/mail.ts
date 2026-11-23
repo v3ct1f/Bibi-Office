@@ -6,7 +6,8 @@ export interface Mailer { send(m: { to: string; subject: string; text: string })
 /** Builds a mailer from MAIL_SMTP_URL (smtp:// or smtps://user:pass@host:port) and MAIL_FROM; null when not set up. */
 export function smtpMailer(url: string | undefined, from: string | undefined): Mailer | null {
   if (!url || !from) return null;
-  const transport = nodemailer.createTransport(url, { from });
+  // A URL never contains spaces; people often paste app passwords as Google shows them ("abcd efgh ...").
+  const transport = nodemailer.createTransport(url.replace(/\s+/g, ""), { from });
   return {
     async send(m) {
       await transport.sendMail({ from, to: m.to, subject: m.subject, text: m.text, headers: { "Auto-Submitted": "auto-generated" } });
