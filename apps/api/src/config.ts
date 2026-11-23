@@ -22,6 +22,12 @@ const Env = z.object({
   IDP_ADMIN_SECRET: z.string().optional(),
   /** Program owners (comma-separated emails): they see every business, create businesses and pause them. */
   PLATFORM_ADMIN_EMAILS: z.string().default("").transform((s) => s.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean)),
+  /** Paid sign-up with Stripe (all three needed): secret key, webhook signing secret, and the monthly price's id. */
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_ID: z.string().optional(),
+  /** Price as shown on the sign-up page, e.g. "€29 per month". */
+  STRIPE_PRICE_LABEL: z.string().optional(),
   /** true = anyone who signs in may create their own business. false (default) = only program owners create businesses. */
   SELF_SIGNUP: z.stringbool().default(false),
 });

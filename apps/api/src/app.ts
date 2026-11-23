@@ -21,6 +21,7 @@ import type { ModuleRegistry, SecretBox } from "@office/platform";
 import type { Config } from "./config.ts";
 import type { Mailer } from "./mail.ts";
 import type { Identity } from "./identity.ts";
+import type { Billing } from "./billing.ts";
 
 export interface AppDeps {
   db: Db;
@@ -29,6 +30,8 @@ export interface AppDeps {
   mailer?: Mailer | null;
   /** Gives "set your password" links for emails; null or missing = emails go out without one. */
   identity?: Identity | null;
+  /** Paid sign-up through Stripe; null or missing = sign-up page says "not open yet". */
+  billing?: Billing | null;
   jwks?: JWTVerifyGetKey;      // injectable for tests
   platform: { registry: ModuleRegistry; secrets: SecretBox };
   logger?: boolean | object;
@@ -118,7 +121,7 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   const inTenant = makeTenantRunner(d.db, d.platform.registry.all().flatMap((m) => m.manifest.roles.viewer ?? []));
   await app.register(registerRoutes, {
     prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER, mailer: d.mailer ?? null, identity: d.identity ?? null,
-    selfSignup: d.selfSignup ?? false, modules: d.platform,
+    selfSignup: d.selfSignup ?? false, billing: d.billing ?? null, modules: d.platform,
     appUrl: (d.config.APP_URL ?? d.config.CORS_ORIGINS[0] ?? "http://localhost:5173").replace(/\/+$/, ""),
   });
   await app.register(registerPlatformRoutes, {

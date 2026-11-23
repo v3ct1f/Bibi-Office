@@ -58,6 +58,16 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 28, paid sign-up with Stripe
+- Public page **/start**: business name, web address (suggested from the name), email, region -> **Continue to payment** on Stripe's own Checkout page (monthly subscription). After paying, Stripe sends people to **/start/thanks**.
+- A **signed webhook** (`POST /api/v1/stripe/webhook`) does the real work. On `checkout.session.completed` it creates the business (`createBusiness`, audited as `platform:stripe`) and emails the owner invitation, the same as when the program owner creates one by hand. Repeats from Stripe never create a second business (unique `tenants.stripe_subscription_id`).
+- Subscription changes: cancelled / unpaid pauses the business, paying again reactivates it (`past_due` keeps working while Stripe retries the card). Only a real status change counts, so a manual pause by the program owner isn't undone by an unrelated update. Data is never deleted.
+- If the address was taken while the customer paid, they get a close variant (`name-ab12cd`) instead of losing their purchase. The address is also checked before paying.
+- Off until all four are set in `.env.local`: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`, `STRIPE_PRICE_LABEL` (text shown on the page). Without them the page says "Sign-up isn't open yet". Step by step: `docs/stripe-setup.md`.
+- No Stripe package: plain HTTPS calls plus our own signature check (`apps/api/src/billing.ts`). Migration 0010. `GET /platform/businesses` items now have `paid`.
+- Tests: api billing 7 (written and type-checked; **not run** yet, no Postgres on the machine they were written on).
+- Not yet: customers cancelling / changing card themselves (Stripe customer portal), invoices with VAT (Stripe Tax), several price plans, a paid flag in the Program admin list.
+
 ## Session 27, Colleagues
 - New **Colleagues** page in the main menu (anyone with `core:members.read`): the people who work in the business, their role and when they joined.
 - **Add colleague** (`core:members.manage`): name, email, role and a **starting password** (one is made up, or type your own; at least 10 characters). The account is created in the sign-in service and the person is a member straight away; the owner sees the email and password once to hand over. Office doesn't keep the password.

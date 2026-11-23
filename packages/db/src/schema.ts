@@ -22,6 +22,9 @@ export const tenants = pgTable("tenants", {
   plan: text("plan").notNull().default("free"),
   /** Features the program owner allows this business to turn on; null = all. */
   allowedModules: text("allowed_modules").array(),
+  /** Set when the business came from a paid Stripe subscription. */
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
   region: text("region").notNull().default("eu"),
   status: text("status").$type<"active" | "suspended" | "deleted">().notNull().default("active"),
   settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),

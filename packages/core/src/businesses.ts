@@ -15,15 +15,17 @@ import type { RequestContext } from "./context.ts";
  * Never a business's own data (contacts, invoices, ...); the program owner is not a member.
  */
 export interface PlatformAdmin { userId: string; email: string }
+/** Who acts: a program owner, or the payment system (no user, audited as platform:stripe). */
+export type PlatformActor = { userId: string | null; email: string };
 type Meta = { requestId: string; ip?: string | undefined };
 
 /** The request context for the program owner acting on one business (audited as platform:<email>). */
-export const platformContext = (tenantId: string, admin: PlatformAdmin, meta: Meta): RequestContext => ({
+export const platformContext = (tenantId: string, admin: PlatformActor, meta: Meta): RequestContext => ({
   tenantId, requestId: meta.requestId, ip: meta.ip,
   actor: { type: "system", id: `platform:${admin.email}`, permissions: new Set() },
 });
 
-async function ownerInvite(tx: Tx, tenantId: string, email: string, admin: PlatformAdmin) {
+async function ownerInvite(tx: Tx, tenantId: string, email: string, admin: PlatformActor) {
   await tx.update(invitations).set({ revokedAt: new Date() })
     .where(and(eq(invitations.byPlatform, true), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
   await tx.update(invitations).set({ revokedAt: new Date() })
@@ -33,7 +35,7 @@ async function ownerInvite(tx: Tx, tenantId: string, email: string, admin: Platf
   const expiresAt = new Date(Date.now() + INVITATION_DAYS * 86_400_000);
   await tx.insert(invitations).values({
     id, tenantId, email, roles: ["owner"], tokenHash: createHash("sha256").update(token).digest(),
-    invitedBy: admin.userId, byPlatform: true, expiresAt,
+    invitedBy: admin.userId ?? null, byPlatform: true, expiresAt,
   });
   return { id, email, expiresAt, token };
 }
@@ -63,7 +65,7 @@ export async function listBusinesses(db: Db) {
       };
     });
     out.push({
-      id: t.id, name: t.name, slug: t.slug, region: t.region, status: t.status, createdAt: t.createdAt, allowedFeatures: t.allowedModules,
+      id: t.id, name: t.name, slug: t.slug, region: t.region, status: t.status, createdAt: t.createdAt, allowedFeatures: t.allowedModules, paid: !!t.stripeSubscriptionId,
       members: counts.find((c) => c.t === t.id)?.n ?? 0, ...extra,
     });
   }
@@ -72,17 +74,21 @@ export async function listBusinesses(db: Db) {
 
 /** Creates a business with no members yet and invites its owner (they become owner by accepting). */
 export async function createBusiness(
-  db: Db, admin: PlatformAdmin, input: { name: string; slug: string; region?: "eu" | "us" | undefined; ownerEmail: string }, meta: Meta,
+  db: Db, admin: PlatformActor,
+  input: { name: string; slug: string; region?: "eu" | "us" | undefined; ownerEmail: string; stripe?: { customerId: string | null; subscriptionId: string } },
+  meta: Meta,
 ) {
   const tenantId = uuidv7();
   return withTenant(db, tenantId, async (tx) => {
     const [dupe] = await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, input.slug));
     if (dupe) throw conflict("That web address is already taken");
-    const [t] = await tx.insert(tenants).values({ id: tenantId, slug: input.slug, name: input.name, region: input.region ?? "eu" }).returning();
+    const [t] = await tx.insert(tenants).values({ id: tenantId, slug: input.slug, name: input.name, region: input.region ?? "eu",
+      ...(input.stripe ? { stripeCustomerId: input.stripe.customerId, stripeSubscriptionId: input.stripe.subscriptionId, plan: "paid" } : {}),
+    }).returning();
     await seedSystemRoles(tx, tenantId);
     const inv = await ownerInvite(tx, tenantId, input.ownerEmail.trim().toLowerCase(), admin);
     const ctx = platformContext(tenantId, admin, meta);
-    await audit(tx, ctx, "tenant.created", { type: "tenant", id: tenantId }, { slug: input.slug, name: input.name, by: "platform", ownerEmail: inv.email });
+    await audit(tx, ctx, "tenant.created", { type: "tenant", id: tenantId }, { slug: input.slug, name: input.name, by: "platform", ownerEmail: inv.email, ...(input.stripe ? { paid: true } : {}) });
     await emitEvent(tx, ctx, "core.tenant.created", { id: tenantId, slug: input.slug });
     return { tenant: t!, invite: inv };
   });
@@ -100,7 +106,7 @@ export async function inviteBusinessOwner(db: Db, admin: PlatformAdmin, tenantId
 }
 
 /** Pause (nobody can use it; data is kept) or reactivate a business. */
-export async function setBusinessStatus(db: Db, admin: PlatformAdmin, tenantId: string, status: "active" | "suspended", meta: Meta) {
+export async function setBusinessStatus(db: Db, admin: PlatformActor, tenantId: string, status: "active" | "suspended", meta: Meta) {
   return withTenant(db, tenantId, async (tx) => {
     const [t] = await tx.update(tenants).set({ status })
       .where(and(eq(tenants.id, tenantId), ne(tenants.status, "deleted"))).returning();
