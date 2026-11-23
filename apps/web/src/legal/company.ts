@@ -7,11 +7,11 @@ export const COMPANY = {
   /** The name customers see. */
   service: "Bibi Office",
   /** Legal name of the person or company running the service. */
-  name: "Zias Van Campenhout",
-  address: "Calle Utrera, 5, [POSTCODE, CITY]",
+  name: "[NAME OF THE PERSON OR COMPANY]",
+  address: "[BUSINESS ADDRESS]",
   country: "Spain",
   /** Tax ID (NIF / NIE / company number) and VAT number if any. */
-  registration: "Y7815370F",
+  registration: "[TAX ID]",
   /** Public contact for support and privacy requests. */
   email: "vectiff@gmail.com",
   /** Where the service runs once it is hosted (a processor named in the Privacy Policy). */
