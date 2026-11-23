@@ -58,12 +58,6 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Session 24, deleting a business
-- Program admin → a business's **⋯ → Delete business…**: type the business name, then **enter your password again** on the sign-in page ("Confirm it's you"); the business is deleted as soon as you come back.
-- Office never sees the password: the app asks the sign-in service to sign in again (`prompt=login`, `max_age=0`) and the API only accepts `POST /platform/businesses/:id/delete {confirmName}` when the token's `auth_time` is less than 5 minutes old (else 403 `reauth_required`). The dev sign-in server now sets `auth_time`.
-- Deleted = `tenants.status = 'deleted'`: gone for everyone (not listed, members get 404, API keys and scheduled work stop, open invitations revoked). The records stay in the database; permanent erasure isn't built yet. Audited as `tenant.deleted`.
-- Pause / Reactivate (Session 20) is unchanged and is the reversible option.
-
 ## Session 25, Leads
 - New feature **Leads** (`modules/leads`, category Sales): people who might become customers. Add them by hand, from the public **web form** or from a workflow; work them through New → Contacted → Qualified; **Convert to customer** or **Disqualify** (with a reason; can be reopened).
 - Logging a call, email or meeting on a new lead marks it contacted. Each lead has an owner, a follow-up date (red when due), a possible value and a timeline.
@@ -71,6 +65,12 @@
 - **Web form** (Leads → Web form, `leads:form.manage`): off until turned on; a link to a public page (name, email, optional phone/company, message). Hidden honeypot field for bots; a second message from the same email goes on their open lead; "Get a new link" stops the old one.
 - Leads list (tabs To work on / Qualified / Converted / Disqualified / All, source filter, search, counters), dashboard widget, metrics (new, converted, conversion rate, open), 8 events, 3 workflow actions.
 - Tests: api leads 10; E2E leads 6 flows.
+
+## Session 24, deleting a business
+- Program admin → a business's **⋯ → Delete business…**: type the business name, then **enter your password again** on the sign-in page ("Confirm it's you"); the business is deleted as soon as you come back.
+- Office never sees the password: the app asks the sign-in service to sign in again (`prompt=login`, `max_age=0`) and the API only accepts `POST /platform/businesses/:id/delete {confirmName}` when the token's `auth_time` is less than 5 minutes old (else 403 `reauth_required`). The dev sign-in server now sets `auth_time`.
+- Deleted = `tenants.status = 'deleted'`: gone for everyone (not listed, members get 404, API keys and scheduled work stop, open invitations revoked). The records stay in the database; permanent erasure isn't built yet. Audited as `tenant.deleted`.
+- Pause / Reactivate (Session 20) is unchanged and is the reversible option.
 
 ## Session 23, local accounts with passwords
 - The local sign-in server (`pnpm dev:oidc`) now uses real accounts: email + password (scrypt, 5 tries per 15 minutes, then locked for 15 minutes). Accounts and the signing key are kept in `.dev-accounts.json` (git-ignored), so sign-ins survive restarts. `DEV_OIDC_PASSWORDS=off` brings back the old any-email sign-in (E2E uses it).
