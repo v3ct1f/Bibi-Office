@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Building2, MailCheck } from "lucide-react";
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, Field, Input, Select } from "@office/ui";
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Checkbox, ErrorState, Field, Input, Select } from "@office/ui";
 import { request } from "../api/client.ts";
 import { FullPage } from "./auth.tsx";
 
@@ -16,9 +16,10 @@ export function StartPage() {
   const [slug, setSlug] = useState("");
   const [email, setEmail] = useState("");
   const [region, setRegion] = useState<"eu" | "us">("eu");
+  const [agreed, setAgreed] = useState(false);
   const go = useMutation({
     mutationFn: () => request<{ url: string }>("POST", "/signup/checkout", {
-      body: { businessName: name, slug: slug || slugify(name), email, region }, anonymous: true,
+      body: { businessName: name, slug: slug || slugify(name), email, region, acceptTerms: agreed }, anonymous: true,
     }),
     onSuccess: (r) => { window.location.href = r.url; },
   });
@@ -54,8 +55,15 @@ export function StartPage() {
                   </Select>
                 )}
               </Field>
+              <label className="flex items-start gap-2 text-sm">
+                <Checkbox checked={agreed} onCheckedChange={(v) => setAgreed(v === true)} className="mt-0.5" aria-label="I agree to the Terms and the Privacy Policy" />
+                <span>
+                  I agree to the <Link to="/terms" target="_blank" className="underline">Terms</Link> and the <Link to="/privacy" target="_blank" className="underline">Privacy Policy</Link>.
+                  The subscription renews monthly, you can cancel any time and keep access until the month ends, and payments aren't refundable.
+                </span>
+              </label>
               {go.isError && <ErrorState error={go.error} />}
-              <Button className="w-full" type="submit" loading={go.isPending || go.isSuccess}>Continue to payment</Button>
+              <Button className="w-full" type="submit" loading={go.isPending || go.isSuccess} disabled={!agreed}>Continue to payment</Button>
             </form>
           )}
           <Button asChild variant="ghost" className="w-full"><Link to="/">Already have an account? Sign in</Link></Button>

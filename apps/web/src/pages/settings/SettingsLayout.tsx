@@ -1,6 +1,8 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { Building, KeyRound, ScrollText, Shield, Users, Webhook } from "lucide-react";
-import { Badge, Card, CardContent, CardHeader, CardTitle, PageHeader, cn } from "@office/ui";
+import { useMutation } from "@tanstack/react-query";
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, PageHeader, cn } from "@office/ui";
+import { request } from "../../api/client.ts";
 import { useTenant } from "../../lib/tenant.tsx";
 import { fmtDate } from "../../lib/format.ts";
 
@@ -38,7 +40,11 @@ export function SettingsLayout() {
 }
 
 export function GeneralSettings() {
-  const { tenant, access } = useTenant();
+  const { tenant, access, can } = useTenant();
+  const portal = useMutation({
+    mutationFn: () => request<{ url: string }>("POST", "/billing/portal", { body: {}, tenantId: tenant.id }),
+    onSuccess: (r) => { window.location.href = r.url; },
+  });
   const rows: [string, React.ReactNode][] = [
     ["Name", tenant.name], ["URL", <code key="s" className="font-mono text-xs">/t/{tenant.slug}</code>],
     ["Workspace ID", <code key="i" className="font-mono text-xs break-all">{tenant.id}</code>],
@@ -53,6 +59,18 @@ export function GeneralSettings() {
             {rows.map(([k, v]) => <div key={k} className="grid gap-1 px-5 py-3 sm:grid-cols-[10rem_1fr]"><dt className="text-sm text-muted-foreground">{k}</dt><dd className="text-sm">{v}</dd></div>)}
           </dl>
         </Card>
+        {tenant.plan === "paid" && can("core:tenant.manage") && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Subscription</CardTitle>
+              <CardDescription>Change your card, see invoices or cancel. If you cancel, everything keeps working until the end of the month you've paid for.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {portal.isError && <ErrorState error={portal.error} />}
+              <Button variant="outline" loading={portal.isPending || portal.isSuccess} onClick={() => portal.mutate()}>Manage subscription</Button>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardHeader><CardTitle className="text-sm">Your access</CardTitle></CardHeader>
           <CardContent className="flex flex-wrap gap-1.5">

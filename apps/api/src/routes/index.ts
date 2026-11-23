@@ -91,7 +91,7 @@ export const registerRoutes: FastifyPluginAsync<{
     return reply.status(202).send({ ok: true, available: !!(o.mailer && o.identity) });
   });
 
-  await registerBillingRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, billing: o.billing });
+  await registerBillingRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, billing: o.billing, inTenant });
   await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, platformAdmin, modules: o.modules });
 
   // ───── Members ─────

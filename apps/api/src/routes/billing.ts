@@ -3,13 +3,16 @@ import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { eq, ne, and } from "drizzle-orm";
-import { AppError, INVITATION_DAYS, createBusiness, setBusinessStatus } from "@office/core";
-import { tenants, type Db } from "@office/db";
+import type { FastifyRequest } from "fastify";
+import { AppError, INVITATION_DAYS, createBusiness, setBusinessStatus, type RequestContext } from "@office/core";
+import { tenants, type Db, type Tx } from "@office/db";
 import { invitationEmail, type Mailer } from "../mail.ts";
 import type { Identity } from "../identity.ts";
 import { verifyStripeSignature, type Billing } from "../billing.ts";
 
 const PUBLIC = { auth: "public" } as const;
+/** Date of the Terms and Privacy Policy text a customer agrees to; bump it (here and in apps/web/src/legal/company.ts) when they change. */
+export const TERMS_VERSION = "2026-11-23";
 const STRIPE_ACTOR = { userId: null, email: "stripe" } as const;
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
 
@@ -27,7 +30,10 @@ const str = (v: unknown) => (typeof v === "string" && v ? v : null);
  */
 export async function registerBillingRoutes(
   app0: FastifyInstance,
-  o: { db: Db; appUrl: string; mailer: Mailer | null; identity: Identity | null; billing: Billing | null },
+  o: {
+    db: Db; appUrl: string; mailer: Mailer | null; identity: Identity | null; billing: Billing | null;
+    inTenant: <T>(req: FastifyRequest, perm: string | null, fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T>;
+  },
 ) {
   const app = app0.withTypeProvider<ZodTypeProvider>();
 
@@ -43,6 +49,8 @@ export async function registerBillingRoutes(
         slug: z.string().trim().toLowerCase().regex(SLUG, "Use 3-40 letters, numbers or dashes").optional(),
         email: z.email().max(320),
         region: z.enum(["eu", "us"]).default("eu"),
+        /** Must be ticked: "I agree to the Terms and the Privacy Policy". */
+        acceptTerms: z.literal(true, { error: "Please accept the Terms and the Privacy Policy" }),
       }).strict(),
     },
   }, async (req) => {
@@ -55,12 +63,26 @@ export async function registerBillingRoutes(
     try {
       const url = await o.billing.createCheckout({
         email: req.body.email.trim().toLowerCase(), businessName: req.body.businessName, slug, region: req.body.region,
-        successUrl: `${o.appUrl}/start/thanks`, cancelUrl: `${o.appUrl}/start`,
+        successUrl: `${o.appUrl}/start/thanks`, cancelUrl: `${o.appUrl}/start`, termsVersion: TERMS_VERSION,
       });
       return { url };
     } catch (e) {
       req.log.error({ err: e }, "stripe checkout failed");
       throw new AppError(502, "payment_unavailable", "Payment couldn't be started. Please try again in a moment.");
+    }
+  });
+
+  /** The business owner's "Manage subscription" button: Stripe's page to change the card, see invoices or cancel. */
+  app.post("/billing/portal", { config: { auth: "authenticated" }, schema: { tags: ["billing"], headers: z.object({ "x-tenant-id": z.uuid().optional() }).loose() } }, async (req) => {
+    if (!o.billing) throw new AppError(503, "billing_unavailable", "Billing isn't set up on this server.");
+    const tenantId = await o.inTenant(req, "core:tenant.manage", async (_tx, ctx) => ctx.tenantId);
+    const [t] = await o.db.select({ customer: tenants.stripeCustomerId, slug: tenants.slug }).from(tenants).where(eq(tenants.id, tenantId));
+    if (!t?.customer) throw new AppError(404, "no_subscription", "This business has no paid subscription to manage.");
+    try {
+      return { url: await o.billing.portalUrl(t.customer, `${o.appUrl}/t/${t.slug}/settings`) };
+    } catch (e) {
+      req.log.error({ err: e }, "stripe portal failed");
+      throw new AppError(502, "payment_unavailable", "The billing page couldn't be opened. Please try again in a moment.");
     }
   });
 

@@ -33,6 +33,7 @@ export function SignIn() {
             <LogIn /> Sign in
           </Button>
           <Button asChild variant="link" className="mt-2 w-full text-muted-foreground"><a href="/forgot-password">Forgot your password or never set one?</a></Button>
+          <p className="mt-3 text-center text-xs text-muted-foreground"><a className="underline" href="/terms">Terms</a> · <a className="underline" href="/privacy">Privacy Policy</a></p>
         </CardContent>
       </Card>
     </FullPage>

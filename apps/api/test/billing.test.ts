@@ -7,9 +7,11 @@ import { setup } from "./harness.ts";
 const SECRET = "whsec_test_secret";
 const checkouts: CheckoutInput[] = [];
 const sent: { to: string; text?: string }[] = [];
+const portals: { customerId: string; returnUrl: string }[] = [];
 const billing: Billing = {
   label: "€29 per month", webhookSecret: SECRET,
   async createCheckout(i) { checkouts.push(i); return "https://checkout.stripe.test/c/abc"; },
+  async portalUrl(customerId, returnUrl) { portals.push({ customerId, returnUrl }); return "https://billing.stripe.test/p/xyz"; },
 };
 const mailer = { send: async (m: { to: string; text?: string }) => { sent.push(m); } } as unknown as Mailer;
 
@@ -37,16 +39,23 @@ const find = async (slug: string) => (await h.client(boss).get("/platform/busine
 describe("paid sign-up", () => {
   it("shows the price and starts checkout without signing in", async () => {
     expect((await h.client().get("/signup/config")).body).toEqual({ open: true, price: "€29 per month" });
-    const r = await h.client().post("/signup/checkout", { businessName: "Maria's Bakery", email: "Maria@Example.com" });
+    const r = await h.client().post("/signup/checkout", { businessName: "Maria's Bakery", email: "Maria@Example.com", acceptTerms: true });
     expect(r.status).toBe(200);
     expect(r.body.url).toBe("https://checkout.stripe.test/c/abc");
-    expect(checkouts.at(-1)).toMatchObject({ email: "maria@example.com", slug: "marias-bakery", region: "eu" });
+    expect(checkouts.at(-1)).toMatchObject({ email: "maria@example.com", slug: "marias-bakery", region: "eu", termsVersion: "2026-11-23" });
+  });
+
+  it("won't start checkout unless the terms are accepted", async () => {
+    const n = checkouts.length;
+    expect((await h.client().post("/signup/checkout", { businessName: "No Terms", email: "n@example.com" })).status).toBe(400);
+    expect((await h.client().post("/signup/checkout", { businessName: "No Terms", email: "n@example.com", acceptTerms: false })).status).toBe(400);
+    expect(checkouts.length).toBe(n);
   });
 
   it("refuses an address that is already taken, before any payment", async () => {
     await h.client(boss).post("/platform/businesses", { name: "Taken", slug: "taken-co", ownerEmail: "t@example.com" });
     const n = checkouts.length;
-    const r = await h.client().post("/signup/checkout", { businessName: "Taken", slug: "taken-co", email: "x@example.com" });
+    const r = await h.client().post("/signup/checkout", { businessName: "Taken", slug: "taken-co", email: "x@example.com", acceptTerms: true });
     expect(r.status).toBe(409);
     expect(checkouts.length).toBe(n);
   });
@@ -103,12 +112,43 @@ describe("paid sign-up", () => {
   });
 });
 
+describe("manage subscription", () => {
+  it("lets the owner of a paid business open Stripe's billing page, nobody else", async () => {
+    const biz = await find("marias-bakery");
+    await hook({ id: "e0", type: "customer.subscription.updated", data: { object: { id: "sub_1", status: "active" }, previous_attributes: { status: "unpaid" } } });
+    const link = (await h.client(boss).post(`/platform/businesses/${biz.id}/owner-invite`, { email: "maria@example.com" })).body.invitation.link as string;
+    const maria = await h.token("maria", "maria@example.com");
+    expect((await h.client(maria).post("/invitations/accept", { tenantId: biz.id, token: link.split("/").pop() })).status).toBe(200);
+    const r = await h.client(maria, biz.id).post("/billing/portal", {});
+    expect(r.status).toBe(200);
+    expect(r.body.url).toBe("https://billing.stripe.test/p/xyz");
+    expect(portals.at(-1)).toMatchObject({ customerId: "cus_1", returnUrl: expect.stringMatching(/\/t\/marias-bakery\/settings$/) });
+    // Someone outside the business, and a business that didn't pay through Stripe.
+    const stranger = await h.token("stranger2");
+    expect((await h.client(stranger, biz.id).post("/billing/portal", {})).status).toBeGreaterThanOrEqual(403);
+    const hand = (await h.client(boss).post("/platform/businesses", { name: "By Hand", slug: "by-hand", ownerEmail: "hand@example.com" })).body;
+    const handOwner = await h.token("hand", "hand@example.com");
+    await h.client(handOwner).post("/invitations/accept", { tenantId: hand.business.id, token: hand.invitation.link.split("/").pop() });
+    expect((await h.client(handOwner, hand.business.id).post("/billing/portal", {})).status).toBe(404);
+  });
+
+  it("a customer who cancels keeps everything until the paid month ends, then it pauses", async () => {
+    await hook(completed("sub_9", { customer_email: "cancel@example.com", metadata: { businessName: "Cancels Co", slug: "cancels-co", region: "eu" } }));
+    // They press "cancel" in Stripe's portal: Stripe only sets a flag (no status change), so nothing happens yet.
+    await hook({ id: "e1", type: "customer.subscription.updated", data: { object: { id: "sub_9", status: "active", cancel_at_period_end: true }, previous_attributes: { cancel_at_period_end: false } } });
+    expect((await find("cancels-co")).status).toBe("active");
+    // At the end of the paid period Stripe deletes the subscription.
+    await hook({ id: "e2", type: "customer.subscription.deleted", data: { object: { id: "sub_9", status: "canceled" } } });
+    expect((await find("cancels-co")).status).toBe("suspended");
+  });
+});
+
 describe("sign-up closed", () => {
   it("says so when Stripe isn't set up", async () => {
     const closed = await setup([], {});
     try {
       expect((await closed.client().get("/signup/config")).body).toEqual({ open: false, price: "" });
-      expect((await closed.client().post("/signup/checkout", { businessName: "X", email: "x@example.com" })).status).toBe(503);
+      expect((await closed.client().post("/signup/checkout", { businessName: "X", email: "x@example.com", acceptTerms: true })).status).toBe(503);
     } finally { await closed.teardown(); }
   });
 });
