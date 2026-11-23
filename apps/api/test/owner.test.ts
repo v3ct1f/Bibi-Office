@@ -173,3 +173,59 @@ describe("self sign-up switch", () => {
     }
   });
 });
+
+describe("program owners", () => {
+  type O = { id: string; email: string; signedIn: boolean; you: boolean; addedBy: string };
+  const owners = async (t: string) => (await h.client(t).get("/platform/owners")).body.items as O[];
+
+  it("starts with the configured owner; others can't see or change the list", async () => {
+    expect(await owners(boss)).toEqual([expect.objectContaining({ email: "boss@example.com", signedIn: true, you: true, addedBy: "config" })]);
+    const sam = await h.token("sam");
+    expect((await h.client(sam).get("/platform/owners")).status).toBe(403);
+    expect((await h.client(sam).post("/platform/owners", { email: "sam@example.com" })).status).toBe(403);
+    expect((await h.client(sam).post("/platform/owners/transfer", { email: "sam@example.com" })).status).toBe(403);
+  });
+
+  it("adds a co-owner, who gets access when they sign in, and can be removed", async () => {
+    const r = await h.client(boss).post("/platform/owners", { email: "Cora@Example.com" });
+    expect(r.status).toBe(201);
+    expect(r.body).toMatchObject({ email: "cora@example.com", signedIn: false });
+    expect((await h.client(boss).post("/platform/owners", { email: "cora@example.com" })).status).toBe(409);
+
+    const cora = await h.token("cora");
+    expect((await h.client(cora).get("/me")).body.platformAdmin).toBe(true);
+    expect((await h.client(cora).get("/platform/businesses")).status).toBe(200);
+    expect((await owners(boss)).find((o) => o.email === "cora@example.com")).toMatchObject({ signedIn: true, addedBy: "boss@example.com" });
+
+    expect((await h.client(boss).del(`/platform/owners/${r.body.id}`)).body).toEqual({ removed: "cora@example.com", self: false });
+    expect((await h.client(cora).get("/me")).body.platformAdmin).toBe(false);
+    expect((await h.client(cora).get("/platform/businesses")).status).toBe(403);
+  });
+
+  it("never leaves the program without an owner who can sign in", async () => {
+    const me = (await owners(boss))[0]!;
+    // A co-owner who never signed in doesn't count.
+    const ghost = (await h.client(boss).post("/platform/owners", { email: "ghost@example.com" })).body;
+    const r = await h.client(boss).del(`/platform/owners/${me.id}`);
+    expect(r.status).toBe(409);
+    expect((await h.client(boss).del(`/platform/owners/${ghost.id}`)).status).toBe(200);
+  });
+
+  it("transfers ownership only to someone with an account", async () => {
+    expect((await h.client(boss).post("/platform/owners/transfer", { email: "nobody@example.com" })).status).toBe(409);
+    expect((await h.client(boss).post("/platform/owners/transfer", { email: "boss@example.com" })).status).toBe(400);
+
+    expect((await h.client(boss).post("/platform/owners/transfer", { email: "olivia@example.com" })).body).toEqual({ to: "olivia@example.com" });
+    expect((await h.client(boss).get("/me")).body.platformAdmin).toBe(false);
+    expect((await h.client(boss).get("/platform/owners")).status).toBe(403);
+    expect(await owners(olivia)).toEqual([expect.objectContaining({ email: "olivia@example.com", you: true })]);
+    // Olivia still owns her own business as before.
+    expect((await h.client(olivia).get("/me")).body.tenants.length).toBeGreaterThan(0);
+
+    // ... and hands it back; the history records every change.
+    await h.client(olivia).post("/platform/owners/transfer", { email: "boss@example.com" });
+    expect((await h.client(boss).get("/me")).body.platformAdmin).toBe(true);
+    const log = await h.ownerSql`select actor, action from platform_audit order by created_at, id`;
+    expect(log.map((l) => l.action)).toEqual(["owners.seeded", "owner.added", "owner.removed", "owner.added", "owner.removed", "ownership.transferred", "ownership.transferred"]);
+  });
+});

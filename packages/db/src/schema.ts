@@ -63,6 +63,23 @@ export const apiKeys = pgTable("api_keys", {
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 
+/** Program owners of this installation (global; no tenant). */
+export const platformAdmins = pgTable("platform_admins", {
+  id: uuid("id").primaryKey(),
+  email: text("email").notNull(),
+  addedBy: text("added_by").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+/** History of program-owner changes (append-only). */
+export const platformAudit = pgTable("platform_audit", {
+  id: uuid("id").primaryKey(),
+  actor: text("actor").notNull(),
+  action: text("action").notNull(),
+  detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
 export const invitations = pgTable("invitations", {
   id: uuid("id").primaryKey(),
   tenantId: uuid("tenant_id").notNull(),

@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { and, eq, ne } from "drizzle-orm";
 import {
-  createBusiness, forbidden, INVITATION_DAYS, inviteBusinessOwner, listBusinesses, notFound, platformContext, setBusinessStatus,
+  addPlatformAdmin, createBusiness, forbidden, listPlatformAdmins, removePlatformAdmin, transferPlatformOwnership, INVITATION_DAYS, inviteBusinessOwner, listBusinesses, notFound, platformContext, setBusinessStatus,
   type PlatformAdmin,
 } from "@office/core";
 import { tenants, withTenant, type Db } from "@office/db";
@@ -19,11 +19,11 @@ const Id = z.object({ id: z.uuid() });
  */
 export async function registerOwnerRoutes(
   app0: FastifyInstance,
-  o: { db: Db; appUrl: string; mailer: Mailer | null; platformAdmin: (req: FastifyRequest) => PlatformAdmin | null; modules: ModuleDeps },
+  o: { db: Db; appUrl: string; mailer: Mailer | null; platformAdmin: (req: FastifyRequest) => Promise<PlatformAdmin | null>; modules: ModuleDeps },
 ) {
   const app = app0.withTypeProvider<ZodTypeProvider>();
-  const admin = (req: FastifyRequest) => {
-    const a = o.platformAdmin(req);
+  const admin = async (req: FastifyRequest) => {
+    const a = await o.platformAdmin(req);
     if (!a) throw forbidden("Only the program owner can do this");
     return a;
   };
@@ -46,9 +46,50 @@ export async function registerOwnerRoutes(
     return { email: inv.email, expiresAt: inv.expiresAt, link, emailed, emailError };
   }
 
+  // ───── Program owners (co-owners, transfer) ─────
+  app.get("/platform/owners", { config: AUTH, schema: { tags: ["platform"] } }, async (req) => {
+    const a = await admin(req);
+    return { items: (await listPlatformAdmins(o.db)).map((x) => ({ ...x, you: x.email === a.email })) };
+  });
+
+  app.post("/platform/owners", {
+    config: AUTH, schema: { tags: ["platform"], body: z.object({ email: z.email().max(320) }).strict() },
+  }, async (req, reply) => {
+    const a = await admin(req);
+    const added = await addPlatformAdmin(o.db, a, req.body.email);
+    let emailed = false;
+    if (o.mailer) {
+      try {
+        await o.mailer.send({
+          to: added.email, subject: "You're now an owner of Office",
+          text: [
+            `${a.email} made you a program owner of Office.`, "",
+            `Sign in with this email address and open Program admin: ${o.appUrl}/admin`, "",
+            "Program owners create and pause businesses and choose their features. They can't see inside a business.",
+            "If you weren't expecting this, tell the person who added you.",
+          ].join("\n"),
+        });
+        emailed = true;
+      } catch (e) { req.log.warn({ err: e }, "owner email failed"); }
+    }
+    return reply.status(201).send({ ...added, you: false, emailed });
+  });
+
+  app.delete("/platform/owners/:id", { config: AUTH, schema: { tags: ["platform"], params: Id } }, async (req) => {
+    const a = await admin(req);
+    return removePlatformAdmin(o.db, a, req.params.id);
+  });
+
+  app.post("/platform/owners/transfer", {
+    config: AUTH, schema: { tags: ["platform"], body: z.object({ email: z.email().max(320) }).strict() },
+  }, async (req) => {
+    const a = await admin(req);
+    return transferPlatformOwnership(o.db, a, req.body.email);
+  });
+
   /** Every feature this installation has, for choosing what each business may use. */
   app.get("/platform/features", { config: AUTH, schema: { tags: ["platform"] } }, async (req) => {
-    admin(req);
+    await admin(req);
     return {
       items: o.modules.registry.all().map((m) => ({
         key: m.manifest.key, name: m.manifest.name, description: m.manifest.description, category: m.manifest.category, dependsOn: m.manifest.dependsOn,
@@ -61,7 +102,7 @@ export async function registerOwnerRoutes(
     config: AUTH,
     schema: { tags: ["platform"], params: Id, body: z.object({ features: z.array(z.string().regex(/^[a-z][a-z0-9-]{1,40}$/)).max(200).nullable() }).strict() },
   }, async (req) => {
-    const a = admin(req);
+    const a = await admin(req);
     return withTenant(o.db, req.params.id, async (tx) => {
       const [t] = await tx.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.id, req.params.id), ne(tenants.status, "deleted")));
       if (!t) throw notFound("Business");
@@ -71,7 +112,7 @@ export async function registerOwnerRoutes(
   });
 
   app.get("/platform/businesses", { config: AUTH, schema: { tags: ["platform"] } }, async (req) => {
-    admin(req);
+    await admin(req);
     return { items: await listBusinesses(o.db) };
   });
 
@@ -87,7 +128,7 @@ export async function registerOwnerRoutes(
       }).strict(),
     },
   }, async (req, reply) => {
-    const a = admin(req);
+    const a = await admin(req);
     const { tenant, invite } = await createBusiness(o.db, a, req.body, meta(req));
     return reply.status(201).send({
       business: { id: tenant.id, name: tenant.name, slug: tenant.slug, status: tenant.status },
@@ -98,14 +139,14 @@ export async function registerOwnerRoutes(
   app.post("/platform/businesses/:id/owner-invite", {
     config: AUTH, schema: { tags: ["platform"], params: Id, body: z.object({ email: z.email().max(320) }).strict() },
   }, async (req, reply) => {
-    const a = admin(req);
+    const a = await admin(req);
     const { tenant, invite } = await inviteBusinessOwner(o.db, a, req.params.id, req.body.email, meta(req));
     return reply.status(201).send({ invitation: await deliver(req, tenant, invite) });
   });
 
   for (const [path, status] of [["pause", "suspended"], ["resume", "active"]] as const) {
     app.post(`/platform/businesses/:id/${path}`, { config: AUTH, schema: { tags: ["platform"], params: Id } }, async (req) => {
-      const a = admin(req);
+      const a = await admin(req);
       return setBusinessStatus(o.db, a, req.params.id, status, meta(req));
     });
   }

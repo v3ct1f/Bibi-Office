@@ -39,6 +39,7 @@
 | 14 | Module: KPI dashboard (shared boards, live numbers from every feature via the new metrics contract, week/month/quarter/year, compare with the period before or last year, targets, trend charts, hand-typed numbers, weekly email per board, dashboard widget) | ✅ done (202 unit/integration + 66 E2E green) |
 | 20 | Program owner: businesses created, listed, paused and reactivated by the program owner; self sign-up switch | ✅ done (217 unit/integration + 69 E2E green) |
 | 21 | Features per business, chosen by the program owner | ✅ done (218 unit/integration + 70 E2E green) |
+| 22 | Program owners managed in the app: co-owners, transfer, history | ✅ done (222 unit/integration + 71 E2E green) |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
@@ -56,6 +57,14 @@
 - Each module in `/modules/<name>` with its own README.
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
+
+## Session 22, program owners managed in the app
+- Program owners live in the database (migration 0009 `platform_admins`, plus append-only `platform_audit`). `PLATFORM_ADMIN_EMAILS` only fills the list on first start (when it is empty); after that it's managed at Program admin → **Program owners**.
+- **Add co-owner** (by email; emailed; active once they sign in with that verified address), **Remove** / **Step down**, **Transfer ownership** (the new owner must have signed in once, so a typo can't lock everyone out; you step down). The program always keeps at least one owner who has signed in.
+- API: `GET/POST /platform/owners`, `DELETE /platform/owners/:id`, `POST /platform/owners/transfer`.
+- Local email: dev server reads `MAIL_SMTP_URL`/`MAIL_FROM` from `.env.local` (git-ignored); spaces in the SMTP URL are ignored (Google shows app passwords with spaces).
+- Tests: api 147 (owner 12); 222 unit/integration; 71 E2E.
+- Recovery if every owner is lost: insert a row into `platform_admins` as the database owner.
 
 ## Session 21, features per business
 - Program admin → a business's **⋯ → Choose features**: "All features" (default, includes features added later) or a list. Ticking a feature also ticks what it needs. Saving turns off features the business was using that are no longer included (data kept) and says which.

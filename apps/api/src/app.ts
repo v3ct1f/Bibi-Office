@@ -15,6 +15,7 @@ import { createAuthenticator } from "./plugins/auth.ts";
 import { registerErrorHandler } from "./plugins/errors.ts";
 import { makeTenantRunner } from "./tenant.ts";
 import { registerRoutes } from "./routes/index.ts";
+import { seedPlatformAdmins } from "@office/core";
 import { registerPlatformRoutes } from "./routes/platform.ts";
 import type { ModuleRegistry, SecretBox } from "@office/platform";
 import type { Config } from "./config.ts";
@@ -30,7 +31,7 @@ export interface AppDeps {
   logger?: boolean | object;
   /** Failed sign-ins allowed per IP per minute (default 120). */
   authFailuresPerMin?: number;
-  /** Program owners (verified emails) who create and pause businesses. */
+  /** Program owners on first start (verified emails); after that they're managed in Program admin. */
   platformAdmins?: string[];
   /** Anyone signed in may create their own business (default false: only program owners). */
   selfSignup?: boolean;
@@ -110,10 +111,11 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
     return { ok: true };
   });
 
+  await seedPlatformAdmins(d.db, d.platformAdmins ?? []);
   const inTenant = makeTenantRunner(d.db);
   await app.register(registerRoutes, {
     prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER, mailer: d.mailer ?? null,
-    platformAdmins: (d.platformAdmins ?? []).map((e) => e.toLowerCase()), selfSignup: d.selfSignup ?? false, modules: d.platform,
+    selfSignup: d.selfSignup ?? false, modules: d.platform,
     appUrl: (d.config.APP_URL ?? d.config.CORS_ORIGINS[0] ?? "http://localhost:5173").replace(/\/+$/, ""),
   });
   await app.register(registerPlatformRoutes, {

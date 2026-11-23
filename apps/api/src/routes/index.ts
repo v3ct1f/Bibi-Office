@@ -6,7 +6,7 @@ import {
   ENTITIES, entityService, createTenant, listUserTenants, getTenant, listMembers, setMemberRoles, notFound,
   createInvitation, listInvitations, revokeInvitation, viewInvitation, acceptInvitation, INVITATION_DAYS,
   removeMember, listRoles, upsertRole, deleteRole, createApiKey, listApiKeys, revokeApiKey, verifyAuditChain,
-  forbidden, CORE_PERMISSIONS, type EntityKey, type RequestContext,
+  forbidden, isPlatformAdmin, CORE_PERMISSIONS, type EntityKey, type RequestContext,
 } from "@office/core";
 import { auditLog, tenants, users, withTenant, type Db, type Tx } from "@office/db";
 import { invitationEmail, type Mailer } from "../mail.ts";
@@ -25,15 +25,16 @@ const Page = z.object({
 const tenantHeader = z.object({ "x-tenant-id": z.uuid().optional() }).loose();
 
 export const registerRoutes: FastifyPluginAsync<{
-  db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null; platformAdmins: string[]; selfSignup: boolean;
+  db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null; selfSignup: boolean;
   modules: import("@office/platform").ModuleDeps;
 }> = async (app0, o) => {
   const app = app0.withTypeProvider<ZodTypeProvider>();
   const { db, inTenant } = o;
-  /** A program owner: signed in with a verified email that the operator listed in PLATFORM_ADMIN_EMAILS. */
-  const platformAdmin = (req: import("fastify").FastifyRequest) => {
+  /** A program owner: signed in with a verified email that is on the program-owner list. */
+  const platformAdmin = async (req: import("fastify").FastifyRequest) => {
     const p = req.principal;
-    return p?.kind === "user" && p.emailVerified && o.platformAdmins.includes(p.email.toLowerCase()) ? { userId: p.userId, email: p.email.toLowerCase() } : null;
+    if (p?.kind !== "user" || !p.emailVerified) return null;
+    return (await isPlatformAdmin(db, p.email)) ? { userId: p.userId, email: p.email.toLowerCase() } : null;
   };
 
   // ───── Me / tenants ─────
@@ -42,7 +43,7 @@ export const registerRoutes: FastifyPluginAsync<{
     if (p.kind !== "user") return { kind: p.kind, tenantId: p.tenantId, scopes: [...p.scopes] };
     return {
       kind: "user", userId: p.userId, email: p.email, tenants: await listUserTenants(db, p.userId),
-      platformAdmin: !!platformAdmin(req), selfSignup: o.selfSignup,
+      platformAdmin: !!(await platformAdmin(req)), selfSignup: o.selfSignup,
     };
   });
 
@@ -59,7 +60,7 @@ export const registerRoutes: FastifyPluginAsync<{
   }, async (req, reply) => {
     const p = req.principal!;
     if (p.kind !== "user") throw forbidden("Only users can create tenants");
-    if (!o.selfSignup && !platformAdmin(req)) throw forbidden("New businesses are set up by the program owner. Ask them for an invitation.");
+    if (!o.selfSignup && !(await platformAdmin(req))) throw forbidden("New businesses are set up by the program owner. Ask them for an invitation.");
     const t = await createTenant(db, req.body, { userId: p.userId }, { requestId: req.id, ip: req.ip, userAgent: req.headers["user-agent"] });
     return reply.status(201).send(t);
   });

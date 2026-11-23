@@ -89,3 +89,25 @@ test("the program owner chooses which features a business can use", async ({ bro
   await expect(page.getByTestId("feature-crm").getByRole("button", { name: "Add CRM" })).toBeVisible();
   await ctx.close();
 });
+
+test("the program owner adds a co-owner, who sees Program admin, then removes them", async ({ browser }) => {
+  await boss.getByRole("button", { name: "Add co-owner" }).click();
+  const d = boss.getByRole("dialog");
+  await d.getByLabel("Their email").fill("cleo@example.com");
+  await d.getByRole("button", { name: "Add co-owner" }).click();
+  await expect(d.getByRole("status")).toContainText("cleo@example.com is now a program owner");
+  await d.getByRole("button", { name: "Done" }).click();
+  const list = boss.getByRole("list", { name: "Program owners" });
+  await expect(list).toContainText("Hasn't signed in yet");
+
+  const { ctx, page } = await newUser(browser, "cleo@example.com", "Cleo Co", "/admin");
+  await expect(page.getByRole("heading", { name: "Businesses" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Program owners" })).toContainText("Bea Boss");
+  await ctx.close();
+
+  await boss.reload();
+  await expect(list).toContainText("Cleo Co");
+  await boss.getByRole("button", { name: "Remove cleo@example.com" }).click();
+  await boss.getByRole("dialog").getByRole("button", { name: "Remove" }).click();
+  await expect(list).not.toContainText("Cleo");
+});

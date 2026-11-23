@@ -11,6 +11,7 @@ import { useAuth } from "../auth/auth.tsx";
 import { fmtDate } from "../lib/format.ts";
 import { useMe } from "../shell/AppShell.tsx";
 import { FullPage, Loading, slugify } from "./auth.tsx";
+import { ProgramOwners } from "./AdminOwners.tsx";
 
 interface Business {
   id: string; name: string; slug: string; region: string; status: "active" | "suspended"; createdAt: string; members: number;
@@ -172,6 +173,7 @@ export function AdminPage() {
             </Table>
           </Card>
         )}
+        <ProgramOwners />
       </main>
 
       <Dialog open={creating} onOpenChange={(o) => (o ? setCreating(true) : closeCreate())}>
