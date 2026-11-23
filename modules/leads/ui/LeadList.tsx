@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarClock, Globe, Plus, Search, UserPlus } from "lucide-react";
+import { CalendarClock, Globe, Plus, Upload, Search, UserPlus } from "lucide-react";
 import {
   Button, Card, EmptyState, ErrorState, Input, PageHeader, Select, Skeleton, Table, TBody, TD, TH, THead, TR, Tabs, TabsList, TabsTrigger, cn,
 } from "@office/ui";
@@ -54,6 +54,7 @@ export function LeadList(_: PageProps) {
       <PageHeader title="Leads" description="People who might become customers. Follow up, qualify them, then convert the good ones into customers."
         actions={<>
           {host.can("leads:form.manage") && <Button variant="outline" onClick={() => host.navigate("/form")}><Globe /> Web form</Button>}
+          {canWrite && <Button variant="outline" onClick={() => host.navigate("/leads/import")}><Upload /> Import</Button>}
           {canWrite && <Button onClick={() => host.navigate("/leads/new")}><Plus /> New lead</Button>}
         </>} />
       {s && s.open + s.addedThisWeek > 0 && (

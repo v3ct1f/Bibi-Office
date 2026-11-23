@@ -171,9 +171,10 @@ export async function summary(ctx: ModuleContext) {
 }
 
 // ── Commands ─────────────────────────────────────────────────────────────────
-export async function createLead(ctx: ModuleContext, input: z.input<typeof LeadInput>, opts: { source?: string; firstNote?: string } = {}) {
-  const i = LeadInput.parse(input);
-  await checkOwner(ctx, i.ownerId);
+type LeadValues = ReturnType<typeof LeadInput.parse>;
+
+/** Inserts the lead and its first timeline entry, audits and emits `leads.lead.created`. Shared by normal creation and import. */
+async function insertLead(ctx: ModuleContext, i: LeadValues, opts: { firstNote?: string } = {}) {
   const [row] = await ctx.db.insert(leads).values({
     id: uuidv7(), tenantId: ctx.tenantId,
     firstName: clean(i.firstName), lastName: clean(i.lastName), email: clean(i.email), phone: clean(i.phone),
@@ -185,7 +186,77 @@ export async function createLead(ctx: ModuleContext, input: z.input<typeof LeadI
   await log(ctx, row!.id, "system", opts.firstNote ?? `Lead added (${SOURCE_LABEL[row!.source] ?? row!.source})`);
   await ctx.audit.log("leads.lead.created", { type: "leads_lead", id: row!.id }, { name: leadName(row!), source: row!.source });
   await ctx.events.emit("leads.lead.created", payload(row!));
-  return getLead(ctx, row!.id);
+  return row!;
+}
+
+export async function createLead(ctx: ModuleContext, input: z.input<typeof LeadInput>, opts: { source?: string; firstNote?: string } = {}) {
+  const i = LeadInput.parse(input);
+  await checkOwner(ctx, i.ownerId);
+  const row = await insertLead(ctx, i, opts);
+  return getLead(ctx, row.id);
+}
+
+// ── Import from a spreadsheet ────────────────────────────────────────────────
+/** Most rows in one import (a bigger file is split in parts by the screen). */
+export const IMPORT_MAX_ROWS = 1000;
+const IMPORT_FIELDS = ["name", "firstName", "lastName", "email", "phone", "companyName", "jobTitle", "source", "notes"] as const;
+export const ImportInput = z.object({
+  /** Source for rows that do not say (or say something unknown). */
+  source: z.enum(SOURCES).default("other"),
+  rows: z.array(z.object({
+    /** Line number in the spreadsheet, shown in the report. */
+    line: z.number().int().min(1).max(10_000_000),
+    values: z.record(z.string(), z.string().max(10_000)),
+  }).strict()).min(1, "The file has no rows").max(IMPORT_MAX_ROWS, `At most ${IMPORT_MAX_ROWS} rows at a time`),
+}).strict();
+
+const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+const sourceFrom = (raw: string | undefined, fallback: LeadValues["source"]): LeadValues["source"] => {
+  const n = normalize(raw ?? "");
+  if (!n) return fallback;
+  return SOURCES.find((x) => normalize(x) === n || normalize(SOURCE_LABEL[x] ?? "") === n) ?? fallback;
+};
+
+export async function importLeads(ctx: ModuleContext, input: z.infer<typeof ImportInput>) {
+  const created: string[] = [];
+  const skipped: { line: number; reason: "invalid" | "duplicate"; message: string }[] = [];
+  // Validate every row first, drop repeats inside the file.
+  const good: { line: number; lead: LeadValues }[] = [];
+  const seenEmails = new Set<string>();
+  for (const r of input.rows) {
+    const v: Record<string, string> = {};
+    for (const k of IMPORT_FIELDS) { const x = r.values[k]?.trim(); if (x) v[k] = x; }
+    let { firstName, lastName } = v;
+    if (v.name && !firstName && !lastName) {
+      const parts = v.name.split(/\s+/);
+      firstName = parts[0]; lastName = parts.slice(1).join(" ") || undefined;
+    }
+    const parsed = LeadInput.safeParse({
+      firstName, lastName, email: v.email, phone: v.phone, companyName: v.companyName, jobTitle: v.jobTitle, notes: v.notes,
+      source: sourceFrom(v.source, input.source),
+    });
+    if (!parsed.success) { skipped.push({ line: r.line, reason: "invalid", message: parsed.error.issues[0]?.message ?? "Not a valid lead" }); continue; }
+    const e = parsed.data.email;
+    if (e && seenEmails.has(e)) { skipped.push({ line: r.line, reason: "duplicate", message: `${e} appears earlier in the file` }); continue; }
+    if (e) seenEmails.add(e);
+    good.push({ line: r.line, lead: parsed.data });
+  }
+  // Skip emails that already belong to a lead.
+  const emails = [...seenEmails];
+  const existing = new Set<string>();
+  for (let i = 0; i < emails.length; i += 500) {
+    const rows = await ctx.db.select({ email: leads.email }).from(leads).where(inArray(leads.email, emails.slice(i, i + 500)));
+    for (const x of rows) if (x.email) existing.add(x.email);
+  }
+  for (const g of good) {
+    const e = g.lead.email;
+    if (e && existing.has(e)) { skipped.push({ line: g.line, reason: "duplicate", message: `A lead with ${e} already exists` }); continue; }
+    const row = await insertLead(ctx, g.lead, { firstNote: "Lead imported from a spreadsheet" });
+    created.push(row.id);
+  }
+  if (created.length) await ctx.audit.log("leads.lead.imported", { type: "leads_lead", id: created[0]! }, { created: created.length, skipped: skipped.length });
+  skipped.sort((a, b) => a.line - b.line);
+  return { created: created.length, skipped };
 }
 
 export async function updateLead(ctx: ModuleContext, id: string, patch: z.infer<typeof LeadPatch>) {

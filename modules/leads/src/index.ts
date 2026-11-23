@@ -4,7 +4,7 @@ import { action, defineModule, publicRoute, route } from "@office/sdk";
 import { metrics } from "./metrics.ts";
 import { SOURCES } from "./schema.ts";
 import {
-  ActivityInput, addActivity, ConvertInput, convertLead, createLead, deleteLead, FormInput, getForm, getLead, LeadInput, LeadPatch, ListQuery,
+  ActivityInput, addActivity, ConvertInput, convertLead, createLead, deleteLead, FormInput, getForm, getLead, LeadInput, LeadPatch, ImportInput, importLeads, ListQuery,
   listLeads, PublicSubmit, publicFormView, publicSubmit, replaceFormLink, saveForm, setStatus, settingsOf, StatusInput, summary, Token, updateLead,
 } from "./service.ts";
 
@@ -72,6 +72,10 @@ export default defineModule({
     }),
     route({ method: "GET", path: "/leads", permission: READ, query: ListQuery, handler: (ctx, { query }) => listLeads(ctx, query) }),
     route({ method: "POST", path: "/leads", permission: WRITE, status: 201, body: LeadInput, handler: (ctx, { body }) => createLead(ctx, body) }),
+    route({
+      method: "POST", path: "/leads/import", permission: WRITE, body: ImportInput, bodyLimit: 2 * 1024 * 1024,
+      handler: (ctx, { body }) => importLeads(ctx, body),
+    }),
     route({ method: "GET", path: "/leads/:id", permission: READ, params: Id, handler: (ctx, { params }) => getLead(ctx, params.id) }),
     route({ method: "PATCH", path: "/leads/:id", permission: WRITE, params: Id, body: LeadPatch, handler: (ctx, { params, body }) => updateLead(ctx, params.id, body) }),
     route({ method: "DELETE", path: "/leads/:id", permission: WRITE, params: Id, status: 204, handler: (ctx, { params }) => deleteLead(ctx, params.id) }),

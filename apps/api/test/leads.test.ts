@@ -165,3 +165,43 @@ describe("leads module", () => {
     expect((await A().get(`/contacts/${contactId}`)).status).toBe(200);
   });
 });
+
+describe("importing leads from a spreadsheet", () => {
+  const row = (line: number, values: Record<string, string>) => ({ line, values });
+  const imp = (rows: unknown[], extra: object = {}) => A().post(`${M}/leads/import`, { rows, ...extra });
+
+  it("creates leads, reports bad rows and duplicates, and emits one created event per lead", async () => {
+    await A().post(`${M}/leads`, { firstName: "Already", email: "already@import.test" });
+    const before = (await types(tA)).filter((t) => t === "leads.lead.created").length;
+    const r = await imp([
+      row(2, { name: "Ada Lovelace", email: "Ada@Import.test", companyName: "Analytical", source: "Referral" }),
+      row(3, { firstName: "Bad", email: "not-an-email" }),
+      row(4, { notes: "nobody to reach" }),
+      row(5, { name: "Ada Again", email: "ada@import.test" }),
+      row(6, { name: "Existing", email: "ALREADY@import.test" }),
+      row(7, { name: "Grace Brewster Hopper", phone: "+34 600 000 000" }),
+    ], { source: "event" });
+    expect(r.status).toBe(200);
+    expect(r.body.created).toBe(2);
+    expect(r.body.skipped.map((s: { line: number; reason: string }) => [s.line, s.reason])).toEqual([[3, "invalid"], [4, "invalid"], [5, "duplicate"], [6, "duplicate"]]);
+    expect((await types(tA)).filter((t) => t === "leads.lead.created").length - before).toBe(2);
+
+    const ada = (await A().get(`${M}/leads?q=Lovelace`)).body.data[0];
+    expect(ada).toMatchObject({ name: "Ada Lovelace", email: "ada@import.test", source: "referral", status: "new", ownerName: "alice" });
+    const grace = (await A().get(`${M}/leads?q=Hopper`)).body.data[0];
+    expect(grace).toMatchObject({ firstName: "Grace", lastName: "Brewster Hopper", source: "event" });
+    expect((await A().get(`${M}/leads/${ada.id}`)).body.activities[0].body).toBe("Lead imported from a spreadsheet");
+  });
+
+  it("running the same file again creates nothing", async () => {
+    const r = await imp([row(2, { name: "Ada Lovelace", email: "ada@import.test" })]);
+    expect(r.body).toMatchObject({ created: 0 });
+    expect(r.body.skipped[0].reason).toBe("duplicate");
+  });
+
+  it("limits the number of rows and needs write access", async () => {
+    expect((await imp([])).status).toBe(400);
+    expect((await imp(Array.from({ length: 1001 }, (_, i) => row(i + 2, { name: `P${i}` })))).status).toBe(400);
+    expect((await h.client(carol, tA).post(`${M}/leads/import`, { rows: [row(2, { name: "Viewer" })] })).status).toBe(403);
+  });
+});
