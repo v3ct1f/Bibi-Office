@@ -10,6 +10,7 @@ import { EntityDetail, EntityList } from "./pages/data/EntityPages.tsx";
 import { companiesConfig, contactsConfig, tasksConfig, type EntityConfig } from "./pages/data/entities.tsx";
 import { GeneralSettings, SettingsLayout } from "./pages/settings/SettingsLayout.tsx";
 import { MembersPage } from "./pages/settings/Members.tsx";
+import { ColleaguesPage } from "./pages/Colleagues.tsx";
 import { RolesPage } from "./pages/settings/Roles.tsx";
 import { FeaturesPage } from "./pages/Features.tsx";
 import { ApiKeysPage } from "./pages/settings/ApiKeys.tsx";
@@ -85,6 +86,7 @@ const tree = root.addChildren([
     t("/contacts/$id", () => <EntityDetail cfg={cfg(contactsConfig)} />),
     t("/companies", () => <Gate perm="core:companies.read"><EntityList key="companies" cfg={cfg(companiesConfig)} /></Gate>, newSearch),
     t("/companies/$id", () => <EntityDetail cfg={cfg(companiesConfig)} />),
+    t("/colleagues", () => <Gate perm="core:members.read"><ColleaguesPage /></Gate>),
     t("/tasks", () => <Gate perm="core:tasks.read"><EntityList key="tasks" cfg={cfg(tasksConfig)} /></Gate>, newSearch),
     t("/workflows", () => <Gate perm="core:workflows.read"><WorkflowsPage /></Gate>),
     t("/workflows/new", () => <Gate perm="core:workflows.manage"><WorkflowEditor key="new" /></Gate>, recipeSearch),

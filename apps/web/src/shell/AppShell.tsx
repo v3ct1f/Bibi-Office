@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Building2, Check, ChevronsUpDown, Contact, LayoutDashboard, ListTodo, LogOut, Menu, Monitor, Moon, PackagePlus, Plus, Settings, Sun, Workflow, X,
+  Building2, Check, ChevronsUpDown, Contact, UsersRound, LayoutDashboard, ListTodo, LogOut, Menu, Monitor, Moon, PackagePlus, Plus, Settings, Sun, Workflow, X,
 } from "lucide-react";
 import {
   Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, cn,
@@ -142,6 +142,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     { to: `${base}/contacts`, label: "Contacts", icon: Contact, perm: "core:contacts.read" },
     { to: `${base}/companies`, label: "Companies", icon: Building2, perm: "core:companies.read" },
     { to: `${base}/tasks`, label: "Tasks", icon: ListTodo, perm: "core:tasks.read" },
+    { to: `${base}/colleagues`, label: "Colleagues", icon: UsersRound, perm: "core:members.read" },
   ].filter((d) => can(d.perm));
   return (
     <div className="flex h-full flex-col gap-2 p-3">

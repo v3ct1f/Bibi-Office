@@ -21,19 +21,41 @@ async function rolesByKey(tx: Tx, keys: string[]) {
   return keys.length ? tx.select().from(roles).where(inArray(roles.key, keys)) : [];
 }
 
-export async function createInvitation(tx: Tx, ctx: RequestContext, input: { email: string; roles: string[] }) {
+/** The roles someone may hand out when adding a person (no owner unless you are one; nothing you don't hold). */
+export async function checkGrantableRoles(tx: Tx, ctx: RequestContext, input: { email: string; roles: string[] }) {
   const email = input.email.trim().toLowerCase();
   const keys = [...new Set(input.roles)];
   if (!keys.length) throw badRequest("Pick at least one role");
   const found = await rolesByKey(tx, keys);
   if (found.length !== keys.length) throw badRequest("Unknown role");
-  if (found.some((r) => r.key === "owner") && !ctx.actor.permissions.has("*")) throw forbidden("Only owners can invite owners");
-  assertHolds(ctx, await rolePerms(tx, found.map((r) => r.id)), "invite someone with these roles");
+  if (found.some((r) => r.key === "owner") && !ctx.actor.permissions.has("*")) throw forbidden("Only owners can add owners");
+  assertHolds(ctx, await rolePerms(tx, found.map((r) => r.id)), "add someone with these roles");
 
   const [member] = await tx.select({ id: memberships.id }).from(memberships)
     .innerJoin(users, eq(users.id, memberships.userId))
     .where(and(eq(memberships.tenantId, ctx.tenantId), sql`lower(${users.email}) = ${email}`)); // memberships has no RLS
   if (member) throw conflict("This person is already a member");
+  return { email, keys, found };
+}
+
+/**
+ * Adds a colleague whose sign-in account the owner has just created (with a starting password), so there is
+ * nobody to ask: the account is new and belongs to this business's say-so.
+ */
+export async function addCreatedColleague(tx: Tx, ctx: RequestContext, input: { userId: string; email: string; roles: string[] }) {
+  const { found, keys } = await checkGrantableRoles(tx, ctx, input);
+  const membershipId = uuidv7();
+  await tx.insert(memberships).values({ id: membershipId, tenantId: ctx.tenantId, userId: input.userId });
+  await tx.insert(memberRoles).values(found.map((r) => ({ tenantId: ctx.tenantId, membershipId, roleId: r.id })));
+  // An open invitation for the same address isn't needed any more.
+  await tx.update(invitations).set({ revokedAt: new Date() }).where(and(eq(invitations.email, input.email.trim().toLowerCase()), open()));
+  await audit(tx, ctx, "member.added", { type: "membership", id: membershipId }, { userId: input.userId, roles: keys, accountCreated: true });
+  await emitEvent(tx, ctx, "core.member.added", { membershipId, userId: input.userId, roles: keys });
+  return { id: membershipId };
+}
+
+export async function createInvitation(tx: Tx, ctx: RequestContext, input: { email: string; roles: string[] }) {
+  const { email, keys } = await checkGrantableRoles(tx, ctx, input);
 
   // A new invitation replaces an open one for the same address (its link stops working).
   await tx.update(invitations).set({ revokedAt: new Date() }).where(and(eq(invitations.email, email), open()));

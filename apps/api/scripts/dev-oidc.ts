@@ -11,6 +11,8 @@
  *    Accounts and the signing key are kept in DEV_OIDC_DATA (default <repo>/.dev-accounts.json, git-ignored).
  *  - DEV_OIDC_PASSWORDS=off: anyone can sign in as any email (used by the automated browser tests).
  * Office asks for set-password links at POST /dev-admin/password-link with the shared DEV_OIDC_ADMIN_SECRET.
+ * A business owner can also create an account with a starting password (POST /dev-admin/accounts); the person
+ * must choose their own password the first time they sign in (like Keycloak's "temporary" password).
  *
  * NEVER run this outside local development: production uses a real identity provider (Keycloak).
  */
@@ -41,7 +43,8 @@ const LINK_DAYS = 7;
 const MIN_PASSWORD = 10;
 
 // ───── Stored data: accounts, one-time links and the signing key (so sign-ins survive restarts) ─────
-interface Account { name: string; salt: string; hash: string; updatedAt: string }
+/** mustChange: the password was set by someone else (a business owner); asked for a new one at the next sign-in. */
+interface Account { name: string; salt: string; hash: string; updatedAt: string; mustChange?: boolean }
 interface Store { key?: { pkcs8: string; spki: string }; accounts: Record<string, Account>; links: Record<string, { email: string; exp: number; next?: string }> }
 const store: Store = PASSWORDS && existsSync(DATA) ? JSON.parse(readFileSync(DATA, "utf8")) as Store : { accounts: {}, links: {} };
 store.accounts ??= {}; store.links ??= {};
@@ -74,6 +77,12 @@ function checkPassword(email: string, pw: string) {
   return !!a && timingSafeEqual(got, want);
 }
 const tokenHash = (t: string) => createHash("sha256").update(t).digest("hex");
+const setPassword = (email: string, name: string, pw: string, mustChange = false) => {
+  const salt = randomBytes(16).toString("base64");
+  store.accounts[email] = { name, salt, hash: hashPassword(pw, salt), updatedAt: new Date().toISOString(), ...(mustChange ? { mustChange } : {}) };
+};
+/** After signing in with a starting password: one-time tickets for the "choose your own password" step (10 minutes). */
+const changeTickets = new Map<string, { email: string; exp: number }>();
 
 // Failed sign-ins: 5 per email per 15 minutes, then wait.
 const failures = new Map<string, { n: number; until: number }>();
@@ -143,6 +152,18 @@ ${[...q].filter(([k]) => !["email", "password", "name"].includes(k)).map(([k, v]
 <button type="submit">Sign in</button>
 <p><a href="${esc(appOrigin)}/forgot-password">Forgot your password or never set one?</a></p></form>`);
 
+/** First sign-in with a password someone else chose: pick your own before going on. */
+const changePasswordPage = (q: URLSearchParams, ticket: string, email: string, error?: string) => page("Choose your password", `
+<form method="post" action="${P}/auth"><strong>Choose your own password</strong>
+<p>You signed in as <b>${esc(email)}</b> with a starting password. Choose a new one that only you know. At least ${MIN_PASSWORD} characters.</p>
+${error ? `<p class="err" role="alert">${esc(error)}</p>` : ""}
+${[...q].filter(([k]) => !["email", "password", "name", "change_ticket", "new_password", "new_password2"].includes(k)).map(([k, v]) => `<input type="hidden" name="${esc(k)}" value="${esc(v)}">`).join("")}
+<input type="hidden" name="change_ticket" value="${esc(ticket)}">
+<input type="email" name="username" value="${esc(email)}" autocomplete="username" hidden>
+<label>New password<br><input name="new_password" type="password" required minlength="${MIN_PASSWORD}" autocomplete="new-password" autofocus></label>
+<label>Repeat new password<br><input name="new_password2" type="password" required minlength="${MIN_PASSWORD}" autocomplete="new-password"></label>
+<button type="submit">Save and continue</button></form>`);
+
 const loginPage = (q: URLSearchParams) => `<!doctype html><html><head><meta charset="utf-8"><title>Dev sign-in</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>body{font:15px system-ui;background:#f4f4f5;display:grid;place-items:center;min-height:100vh;margin:0}
@@ -179,10 +200,26 @@ const server = createServer(async (req, res) => {
       if (q.get("response_type") !== "code" || q.get("code_challenge_method") !== "S256" || !q.get("code_challenge")) {
         return send(res, 400, "authorization code flow with PKCE S256 required");
       }
-      const email = (q.get("email") ?? "").trim().toLowerCase();
+      let email = (q.get("email") ?? "").trim().toLowerCase();
       const appOrigin = new URL(redirectUri).origin;
       let name = (q.get("name") ?? email).slice(0, 200);
-      if (PASSWORDS) {
+      const ticket = q.get("change_ticket");
+      if (PASSWORDS && ticket && req.method === "POST") {
+        // Second step after a starting password: save the person's own password, then sign them in.
+        const t = changeTickets.get(tokenHash(ticket));
+        if (!t || t.exp < Date.now()) { changeTickets.delete(tokenHash(ticket)); return send(res, 400, passwordLoginPage(q, appOrigin, "That took too long. Sign in again.")); }
+        const pw = q.get("new_password") ?? "";
+        const err = pw.length < MIN_PASSWORD ? `Use at least ${MIN_PASSWORD} characters.`
+          : pw !== q.get("new_password2") ? "The two passwords are different."
+          : checkPassword(t.email, pw) ? "Choose a different password from the one you were given." : null;
+        if (err) return send(res, 400, changePasswordPage(q, ticket, t.email, err));
+        changeTickets.delete(tokenHash(ticket));
+        email = t.email;
+        name = store.accounts[email]!.name || email;
+        setPassword(email, name, pw);
+        for (const [rt, g] of refresh) if (g.email === email) refresh.delete(rt);
+        save();
+      } else if (PASSWORDS) {
         if (req.method !== "POST" || !email) return send(res, 200, passwordLoginPage(q, appOrigin));
         if (locked(email)) return send(res, 429, passwordLoginPage(q, appOrigin, "Too many tries. Wait 15 minutes, or set a new password with the link below.", email));
         if (!checkPassword(email, q.get("password") ?? "")) {
@@ -191,6 +228,11 @@ const server = createServer(async (req, res) => {
         }
         failures.delete(email);
         name = store.accounts[email]!.name || email;
+        if (store.accounts[email]!.mustChange) {
+          const t = randomBytes(24).toString("base64url");
+          changeTickets.set(tokenHash(t), { email, exp: Date.now() + 10 * 60_000 });
+          return send(res, 200, changePasswordPage(q, t, email));
+        }
       } else if (req.method !== "POST" || !email) return send(res, 200, loginPage(q));
       const code = randomBytes(24).toString("base64url");
       codes.set(code, {
@@ -243,6 +285,25 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { link: `${BASE}/set-password?token=${token}`, hasPassword: !!store.accounts[email] });
     }
 
+    // ───── A business owner creates an account with a starting password (shared secret, local only) ─────
+    if (url.pathname === "/dev-admin/accounts" && req.method === "POST") {
+      const given = Buffer.from(String(req.headers["x-dev-admin-secret"] ?? ""));
+      const want = Buffer.from(ADMIN_SECRET);
+      if (given.length !== want.length || !timingSafeEqual(given, want)) return send(res, 401, { error: "unauthorized" });
+      let raw = ""; for await (const c of req) { raw += c; if (raw.length > 8192) throw new Error("body too large"); }
+      const b = JSON.parse(raw) as { email?: string; name?: string; password?: string };
+      const email = String(b.email ?? "").trim().toLowerCase();
+      const name = String(b.name ?? "").trim().slice(0, 200);
+      const pw = String(b.password ?? "");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return send(res, 400, { error: "invalid email" });
+      if (pw.length < MIN_PASSWORD || pw.length > 200) return send(res, 400, { error: `password must be ${MIN_PASSWORD}-200 characters` });
+      if (!PASSWORDS) return send(res, 201, { sub: sub(email) }); // any-email mode: nothing to store
+      if (store.accounts[email]) return send(res, 409, { error: "exists" });
+      setPassword(email, name || email, pw, true);
+      save();
+      return send(res, 201, { sub: sub(email) });
+    }
+
     // ───── Set (or reset) a password with a one-time link ─────
     if (url.pathname === "/set-password") {
       const f = req.method === "POST" ? await body(req) : url.searchParams;
@@ -270,8 +331,7 @@ ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ""}
       if (!name) return send(res, 400, form("Enter your name."));
       if (pw.length < MIN_PASSWORD) return send(res, 400, form(`Use at least ${MIN_PASSWORD} characters.`));
       if (pw !== f.get("password2")) return send(res, 400, form("The two passwords are different."));
-      const salt = randomBytes(16).toString("base64");
-      store.accounts[l.email] = { name, salt, hash: hashPassword(pw, salt), updatedAt: new Date().toISOString() };
+      setPassword(l.email, name, pw);
       delete store.links[tokenHash(token)];
       for (const [rt, g] of refresh) if (g.email === l.email) refresh.delete(rt); // sign out other sessions
       failures.delete(l.email);

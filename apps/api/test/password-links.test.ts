@@ -11,6 +11,7 @@ const identity: Identity = {
     asked.push({ email, next });
     return { link: `http://idp.test/set-password?token=t-${email}`, hasPassword: withPassword.has(email) };
   },
+  async createAccount() { throw new Error("not used here"); },
 };
 let h: Awaited<ReturnType<typeof setup>>;
 let boss: string;

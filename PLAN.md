@@ -58,6 +58,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 27, Colleagues
+- New **Colleagues** page in the main menu (anyone with `core:members.read`): the people who work in the business, their role and when they joined.
+- **Add colleague** (`core:members.manage`): name, email, role and a **starting password** (one is made up, or type your own; at least 10 characters). The account is created in the sign-in service and the person is a member straight away; the owner sees the email and password once to hand over. Office doesn't keep the password.
+- The first time the colleague signs in with it, the sign-in page asks them to **choose their own password** (not the same one) before going on.
+- An email that already has an Office account is refused (`409 account_exists`) with **Send invitation instead**, because an owner must not set someone else's password. Change role / remove link to the same actions; roles and invitations stay in Settings → Members.
+- API: `POST /members/accounts { name, email, password, roles }`. Checks permission, roles (no owner unless you are one; nothing you don't hold) and "already a member" before any account is made. `Identity.createAccount` (dev: `POST /dev-admin/accounts`; Keycloak: create user with a `temporary` credential). Audited as `member.added` with `accountCreated: true`.
+- Tests: api colleagues 6; E2E colleagues 3 flows.
+
 ## Session 26, program owner can look inside businesses (read-only)
 - Program admin → click a business's name (or **⋯ → View business (read-only)**): you see its workspace like a viewer, with a banner "You're viewing … as the program owner: read-only. This visit is recorded in its history." Paused businesses can be viewed too.
 - Read-only twice over: only GET requests (anything else answers 403 `read_only`), and only read permissions (core reads incl. members, roles, features, history, workflows, plus each feature's viewer grants). No API keys or webhooks (secrets).
