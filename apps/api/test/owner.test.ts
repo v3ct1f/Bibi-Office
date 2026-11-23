@@ -232,9 +232,7 @@ describe("program owners", () => {
 });
 
 describe("deleting a business", () => {
-  const now = () => Math.floor(Date.now() / 1000);
-
-  it("needs the name typed and the password entered again in the last 5 minutes", async () => {
+  it("needs the name typed in", async () => {
     const r = await h.client(boss).post("/platform/businesses", { name: "Doomed Deli", slug: "doomed-deli", ownerEmail: "dina@example.com" });
     const id = r.body.business.id;
     const link = r.body.invitation.link as string;
@@ -243,17 +241,9 @@ describe("deleting a business", () => {
     expect((await h.client(dina, id).get("/me/access")).status).toBe(200);
     const pending = (await h.client(boss).post(`/platform/businesses/${id}/owner-invite`, { email: "dan@example.com" })).body.invitation.link as string;
 
-    // Not signed in with a password recently (or the sign-in service doesn't say): refused.
-    const plain = await h.client(boss).post(`/platform/businesses/${id}/delete`, { confirmName: "Doomed Deli" });
-    expect(plain.status).toBe(403);
-    expect(plain.body.code ?? plain.body.error?.code).toBe("reauth_required");
-    const stale = await h.token("boss", "boss@example.com", { auth_time: now() - 10 * 60 });
-    expect((await h.client(stale).post(`/platform/businesses/${id}/delete`, { confirmName: "Doomed Deli" })).status).toBe(403);
-
-    const fresh = await h.token("boss", "boss@example.com", { auth_time: now() - 30 });
-    // Only program owners, even with a fresh password.
-    const dinaFresh = await h.token("dina", "dina@example.com", { auth_time: now() });
-    expect((await h.client(dinaFresh).post(`/platform/businesses/${id}/delete`, { confirmName: "Doomed Deli" })).status).toBe(403);
+    const fresh = boss;
+    // Only program owners.
+    expect((await h.client(dina).post(`/platform/businesses/${id}/delete`, { confirmName: "Doomed Deli" })).status).toBe(403);
     // The name must match.
     expect((await h.client(fresh).post(`/platform/businesses/${id}/delete`, { confirmName: "Doomed" })).status).toBe(400);
 

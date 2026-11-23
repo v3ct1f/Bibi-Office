@@ -73,8 +73,8 @@
 - Tests: api leads 10; E2E leads 6 flows.
 
 ## Session 24, deleting a business
-- Program admin → a business's **⋯ → Delete business…**: type the business name, then **enter your password again** on the sign-in page ("Confirm it's you"); the business is deleted as soon as you come back.
-- Office never sees the password: the app asks the sign-in service to sign in again (`prompt=login`, `max_age=0`) and the API only accepts `POST /platform/businesses/:id/delete {confirmName}` when the token's `auth_time` is less than 5 minutes old (else 403 `reauth_required`). The dev sign-in server now sets `auth_time`.
+- Program admin → a business's **⋯ → Delete business…**: type the business name to confirm (`POST /platform/businesses/:id/delete {confirmName}`).
+- Later change: the extra password step (sign in again with `prompt=login`, API checking `auth_time`) was removed at the owner's request; it kept sending them to the sign-in page. Typing the name is the only confirmation. The token's `auth_time` is still read (Principal `authTime`) but nothing uses it now.
 - Deleted = `tenants.status = 'deleted'`: gone for everyone (not listed, members get 404, API keys and scheduled work stop, open invitations revoked). The records stay in the database; permanent erasure isn't built yet. Audited as `tenant.deleted`.
 - Pause / Reactivate (Session 20) is unchanged and is the reversible option.
 

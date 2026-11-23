@@ -406,7 +406,7 @@ office/
 - Workflow builder: trigger picker from `/workflow-catalog`, condition rows <-> JSONLogic (falls back to raw "advanced" mode for anything rows cannot show, so no definition is lost), action steps with `{{payload.x}}` templating, runs tab.
 - Dev OIDC (`apps/api/scripts/dev-oidc.ts`, `pnpm dev:oidc`): Keycloak-shaped paths, refuses `NODE_ENV=production`. Local dev signs in with email + password (accounts and signing key in git-ignored `.dev-accounts.json`); E2E sets `DEV_OIDC_PASSWORDS=off` so any email signs in. No Docker needed.
 - Passwords belong to the sign-in service, never to Office. Office only asks it for one-time "set your password" links (`Identity.passwordLink`, `IDP_ADMIN_URL` + `IDP_ADMIN_SECRET`; dev: `POST /dev-admin/password-link` with `x-dev-admin-secret`) and puts them in emails to people who have no password yet. `POST /auth/forgot-password` is public, rate-limited (5 per 15 min) and answers the same for every email.
-- Sensitive actions re-check the password without Office seeing it (OIDC step-up): the web app signs in again with `prompt=login&max_age=0`, and the API checks the access token's `auth_time` (Principal `authTime`). Used for deleting a business (5-minute window).
+- Deleting a business is confirmed by typing its name. (A password re-check through the sign-in page was tried and removed; the access token's `auth_time` is still available as Principal `authTime` if a step-up is wanted later.)
 - CORS: explicit methods/headers (`x-tenant-id`, `idempotency-key`), preflight cached 10 min.
 - Tests: web unit (`apps/web/test`, vitest+jsdom), UI unit (`packages/ui`), full-stack E2E (`apps/web/e2e`, Playwright: real API + Postgres + dev OIDC + Vite; 9 flows). CI runs E2E as its own job.
 
