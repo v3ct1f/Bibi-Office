@@ -33,9 +33,9 @@
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["${OFFICE_APP_URL:http://localhost:5173}/*"],
-      "webOrigins": ["${OFFICE_APP_URL:http://localhost:5173}"],
-      "attributes": { "pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "${OFFICE_APP_URL:http://localhost:5173}/*" },
+      "redirectUris": ["${OFFICE_APP_URL:http://localhost:5173}/*", "${OFFICE_APP_URL_ALT:http://localhost:5173}/*"],
+      "webOrigins": ["${OFFICE_APP_URL:http://localhost:5173}", "${OFFICE_APP_URL_ALT:http://localhost:5173}"],
+      "attributes": { "pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "${OFFICE_APP_URL:http://localhost:5173}/*##${OFFICE_APP_URL_ALT:http://localhost:5173}/*" },
       "protocolMappers": [
         {
           "name": "office-api-audience",

@@ -1,0 +1,35 @@
+# Caddy: HTTPS certificates are obtained and renewed automatically. Host names come from the environment (.env).
+{
+	email {$ACME_EMAIL}
+}
+
+# ── The Office web app (sign-up, legal pages, the app) ──
+{$WEB_HOST} {
+	encode zstd gzip
+	root * /srv
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+	}
+	# Single-page app: unknown paths show index.html.
+	try_files {path} /index.html
+	file_server
+}
+
+# ── The API ──
+{$API_HOST} {
+	encode zstd gzip
+	reverse_proxy api:3000
+}
+
+# ── Sign-in (Keycloak). The admin console and the master realm are not reachable from the internet:
+#    use an SSH tunnel (see README) when you need them. ──
+{$AUTH_HOST} {
+	@blocked path /admin /admin/* /realms/master /realms/master/* /metrics* /health*
+	respond @blocked 403
+	reverse_proxy keycloak:8080
+}
+
+# ── bibidesk.com cutover: see Caddyfile.cutover (do not enable before Office is tested) ──

@@ -1,0 +1,4 @@
+# Shell scripts and server files must keep Unix line endings (they run on Linux).
+*.sh text eol=lf
+infra/prod/Caddyfile* text eol=lf
+infra/prod/docker-compose.yml text eol=lf

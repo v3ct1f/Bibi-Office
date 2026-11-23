@@ -58,6 +58,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 31, hosting plan and files (nothing deployed yet)
+- Decision: **one small EU server** (about 4 GB, Ubuntu), everything in Docker: Postgres, NATS (the production worker needs it; Temporal stays optional), API, worker, Keycloak, Caddy (web app + automatic HTTPS). `infra/prod/` holds the recipe: `docker-compose.yml`, `Dockerfile.web`, `Caddyfile` (+ `Caddyfile.cutover` for bibidesk.com), `init-db.sh`, `.env.example`, `make-env.sh` (random secrets), `bootstrap-server.sh`, `deploy-from-pc.sh` (ships committed files only), `backup.sh`, `docker-compose.admin.yml`, `README.md`. A `.dockerignore` keeps `.env*` and `.dev-accounts.json` out of images.
+- Addresses: `office.bibidesk.com` (web), `office-api.bibidesk.com`, `office-auth.bibidesk.com` first; the root `bibidesk.com` at cutover (Office at `/`, Bibi's `/web /proxy /app /downloads /pay /.well-known` and its own `/assets/` files forwarded to Bibi's Vercel project). See `docs/domain-move.md`. Realm file allows both web addresses.
+- Email through Resend (already used by Bibi for hello@bibidesk.com); the Stripe live values go into the server's `.env` by the owner.
+- An SSH key pair for deployment was created on the owner's PC (`~/.ssh/bibi-office-deploy`; the private half never leaves it).
+- Checked: shell syntax of all scripts, the real builds of API, worker and web (web has the API address baked in). **Not run: Docker** (none on this PC), so the first server deployment is the real test; likely tweak points are the Keycloak start options and realm import.
+- Namecheap and Vercel were read, never changed. A copy of Bibi's public site is in `Desktop\bibidesk-site-backup`.
+
 ## Session 30, failed payments pause the business
 - **Failed payment -> paused at once.** Webhook `invoice.payment_failed` suspends the business (`tenants.billing_paused_at`, migration 0012) and emails every owner (or the invoice's billing email if nobody accepted yet) a "Payment failed: <business> is paused" mail with Stripe's hosted invoice link to pay with another card. Stripe's retries don't re-send it. This pause does **not** start the 90-day erasure clock; that starts only when Stripe gives up (subscription `unpaid`/`canceled`).
 - **Paid -> back on.** `invoice.paid` (or the subscription turning `active`) switches a business paused for billing back on and emails the owners "<business> is active again". A business the program owner paused **by hand** is never changed by a payment, and a failed payment on it sends nothing.
