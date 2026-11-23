@@ -7,7 +7,7 @@ import { request } from "../api/client.ts";
 import { FullPage } from "./auth.tsx";
 
 const slugify = (name: string) =>
-  name.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "");
+  name.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "");
 
 /** Public: a new business signs up and pays by monthly subscription on Stripe's own page. */
 export function StartPage() {

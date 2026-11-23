@@ -15,7 +15,7 @@ const SLUG = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
 
 /** "Bakery Ltd" -> "bakery-ltd" (a suggestion; the customer can edit it). */
 export const slugify = (name: string) =>
-  name.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "");
+  name.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "");
 
 interface StripeEvent { id: string; type: string; data: { object: Record<string, unknown>; previous_attributes?: Record<string, unknown> } }
 const str = (v: unknown) => (typeof v === "string" && v ? v : null);
@@ -81,7 +81,8 @@ export async function registerBillingRoutes(
       if (ev.type === "checkout.session.completed") {
         const m = (obj.metadata ?? {}) as Record<string, string>;
         const subscriptionId = str(obj.subscription);
-        const email = str(obj.customer_email) ?? str((obj.customer_details as { email?: unknown } | undefined)?.email);
+        const rawEmail = str(obj.customer_email) ?? str((obj.customer_details as { email?: unknown } | undefined)?.email);
+        const email = rawEmail?.trim().toLowerCase() ?? null;
         if (obj.mode !== "subscription" || obj.payment_status === "unpaid" || !subscriptionId || !email || !m.businessName || !m.slug) {
           return reply.send({ ignored: true });
         }
