@@ -9,6 +9,8 @@
  * Dev keys below are public and fixed: NEVER use this outside local development.
  */
 import postgres from "postgres";
+import { existsSync, readFileSync } from "node:fs";
+import { parseEnv } from "node:util";
 import { migrate } from "@office/db";
 import { installModules } from "@office/platform";
 import { createRegistry } from "@office/modules";
@@ -43,7 +45,18 @@ const defaults: Record<string, string> = {
   // Locally, the default dev user is the program owner, and businesses are created from the admin page.
   PLATFORM_ADMIN_EMAILS: "dev@example.com",
   SELF_SIGNUP: "false",
+  // The local sign-in server (dev-oidc) hands out "set your password" links for emails.
+  IDP_ADMIN_URL: "http://localhost:8081/dev-admin",
+  IDP_ADMIN_SECRET: "dev-idp-admin-secret",
 };
+// Your own email settings for local testing live in the repo's .env.local (git-ignored, never committed).
+// Only the mail and Stripe (paid sign-up, test keys) settings are read from it, so other settings there can't change the dev setup.
+const localEnv = new URL("../../../.env.local", import.meta.url);
+if (existsSync(localEnv)) {
+  const vars = parseEnv(readFileSync(localEnv, "utf8"));
+  for (const k of ["MAIL_SMTP_URL", "MAIL_FROM", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PRICE_ID", "STRIPE_PRICE_LABEL", "CONTACT_EMAIL"]) if (vars[k]) process.env[k] ??= vars[k];
+  if (process.env.MAIL_SMTP_URL) console.log(`email: invitations are sent from ${process.env.MAIL_FROM ?? "(MAIL_FROM missing)"}`);
+}
 const portArg = process.argv.indexOf("--port");
 if (portArg > 0 && process.argv[portArg + 1]) defaults.PORT = process.argv[portArg + 1]!;
 for (const [k, v] of Object.entries(defaults)) process.env[k] ??= v;

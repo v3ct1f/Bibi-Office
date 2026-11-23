@@ -6,11 +6,16 @@ import {
   ENTITIES, entityService, createTenant, listUserTenants, getTenant, listMembers, setMemberRoles, notFound,
   createInvitation, listInvitations, revokeInvitation, viewInvitation, acceptInvitation, INVITATION_DAYS,
   removeMember, listRoles, upsertRole, deleteRole, createApiKey, listApiKeys, revokeApiKey, verifyAuditChain,
-  forbidden, CORE_PERMISSIONS, type EntityKey, type RequestContext,
+  forbidden, isPlatformAdmin, CORE_PERMISSIONS, checkGrantableRoles, addCreatedColleague, upsertUser, AppError,
+  type EntityKey, type RequestContext,
 } from "@office/core";
 import { auditLog, tenants, users, withTenant, type Db, type Tx } from "@office/db";
-import { invitationEmail, type Mailer } from "../mail.ts";
+import { invitationEmail, passwordResetEmail, type Mailer } from "../mail.ts";
+import type { Identity } from "../identity.ts";
 import { registerOwnerRoutes } from "./owner.ts";
+import { registerBillingRoutes } from "./billing.ts";
+import { registerContactRoutes } from "./contact.ts";
+import type { Billing } from "../billing.ts";
 
 type InTenant = <T>(req: import("fastify").FastifyRequest, perm: string | null,
   fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T>;
@@ -25,14 +30,16 @@ const Page = z.object({
 const tenantHeader = z.object({ "x-tenant-id": z.uuid().optional() }).loose();
 
 export const registerRoutes: FastifyPluginAsync<{
-  db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null; platformAdmins: string[]; selfSignup: boolean;
+  db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null; identity: Identity | null; selfSignup: boolean; billing: Billing | null; contactEmail: string | undefined;
+  modules: import("@office/platform").ModuleDeps;
 }> = async (app0, o) => {
   const app = app0.withTypeProvider<ZodTypeProvider>();
   const { db, inTenant } = o;
-  /** A program owner: signed in with a verified email that the operator listed in PLATFORM_ADMIN_EMAILS. */
-  const platformAdmin = (req: import("fastify").FastifyRequest) => {
+  /** A program owner: signed in with a verified email that is on the program-owner list. */
+  const platformAdmin = async (req: import("fastify").FastifyRequest) => {
     const p = req.principal;
-    return p?.kind === "user" && p.emailVerified && o.platformAdmins.includes(p.email.toLowerCase()) ? { userId: p.userId, email: p.email.toLowerCase() } : null;
+    if (p?.kind !== "user" || !p.emailVerified) return null;
+    return (await isPlatformAdmin(db, p.email)) ? { userId: p.userId, email: p.email.toLowerCase() } : null;
   };
 
   // ───── Me / tenants ─────
@@ -41,7 +48,7 @@ export const registerRoutes: FastifyPluginAsync<{
     if (p.kind !== "user") return { kind: p.kind, tenantId: p.tenantId, scopes: [...p.scopes] };
     return {
       kind: "user", userId: p.userId, email: p.email, tenants: await listUserTenants(db, p.userId),
-      platformAdmin: !!platformAdmin(req), selfSignup: o.selfSignup,
+      platformAdmin: !!(await platformAdmin(req)), selfSignup: o.selfSignup,
     };
   });
 
@@ -58,7 +65,7 @@ export const registerRoutes: FastifyPluginAsync<{
   }, async (req, reply) => {
     const p = req.principal!;
     if (p.kind !== "user") throw forbidden("Only users can create tenants");
-    if (!o.selfSignup && !platformAdmin(req)) throw forbidden("New businesses are set up by the program owner. Ask them for an invitation.");
+    if (!o.selfSignup && !(await platformAdmin(req))) throw forbidden("New businesses are set up by the program owner. Ask them for an invitation.");
     const t = await createTenant(db, req.body, { userId: p.userId }, { requestId: req.id, ip: req.ip, userAgent: req.headers["user-agent"] });
     return reply.status(201).send(t);
   });
@@ -67,7 +74,27 @@ export const registerRoutes: FastifyPluginAsync<{
     (req) => inTenant(req, null, async (_tx, ctx) => getTenant(db, ctx.tenantId)));
 
   // ───── Program owner (all businesses; never their data) ─────
-  await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, platformAdmin });
+  /**
+   * Forgot password / never set one: emails a one-time link from the sign-in service. Always answers the same,
+   * so nobody can find out which emails have accounts.
+   */
+  app.post("/auth/forgot-password", {
+    config: { auth: "public", rateLimit: { max: 5, timeWindow: "15 minutes" } },
+    schema: { tags: ["auth"], body: z.object({ email: z.email().max(320) }).strict() },
+  }, async (req, reply) => {
+    const email = req.body.email.trim().toLowerCase();
+    if (o.mailer && o.identity) {
+      try {
+        const pw = await o.identity.passwordLink(email);
+        if (pw?.link) await o.mailer.send({ to: email, ...passwordResetEmail({ link: pw.link, hasPassword: pw.hasPassword }) });
+      } catch (e) { req.log.warn({ err: e }, "password email failed"); }
+    }
+    return reply.status(202).send({ ok: true, available: !!(o.mailer && o.identity) });
+  });
+
+  await registerContactRoutes(app, { db, mailer: o.mailer, contactEmail: o.contactEmail, inTenant });
+  await registerBillingRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, billing: o.billing, contactEmail: o.contactEmail, inTenant });
+  await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, platformAdmin, modules: o.modules });
 
   // ───── Members ─────
   app.get("/members", { config: AUTH, schema: { tags: ["members"], headers: tenantHeader } },
@@ -92,7 +119,9 @@ export const registerRoutes: FastifyPluginAsync<{
     let emailed = false, emailError: string | null = null;
     if (o.mailer) {
       try {
-        await o.mailer.send({ to: inv.email, ...invitationEmail({ tenantName, inviterName: inviter, link, days: INVITATION_DAYS }) });
+        const pw = await o.identity?.passwordLink(inv.email, link);
+        const passwordLink = pw && !pw.hasPassword ? pw.link : null;
+        await o.mailer.send({ to: inv.email, ...invitationEmail({ tenantName, inviterName: inviter, link, days: INVITATION_DAYS, passwordLink }) });
         emailed = true;
       } catch (e) {
         req.log.warn({ err: e }, "invitation email failed");
@@ -126,6 +155,33 @@ export const registerRoutes: FastifyPluginAsync<{
   app.post("/invitations/accept", { config: AUTH, schema: { tags: ["members"], body: InviteRef } },
     (req) => inInviteTenant(req, req.body.tenantId, (tx, user) => acceptInvitation(tx, req.body.tenantId.toLowerCase(), req.body.token, user,
       { requestId: req.id, ip: req.ip, userAgent: req.headers["user-agent"] })));
+
+  // ───── Colleagues: the owner creates a sign-in account with a starting password ─────
+  // The person signs in with it once and is then asked to choose their own. The password goes straight to the
+  // sign-in service; Office doesn't keep it, log it or send it anywhere else.
+  app.post("/members/accounts", {
+    config: AUTH,
+    schema: {
+      tags: ["members"], headers: tenantHeader,
+      body: z.object({
+        name: z.string().trim().min(1).max(200), email: z.email().max(320),
+        password: z.string().min(10, "Use at least 10 characters").max(200), roles: z.array(z.string().max(41)).min(1).max(20),
+      }).strict(),
+    },
+  }, async (req, reply) => {
+    if (req.principal?.kind !== "user") throw forbidden("Only people can add people");
+    const email = req.body.email.trim().toLowerCase();
+    // Check first (permission, roles, not already here), so no account is made for a request that would fail.
+    await inTenant(req, "core:members.manage", (tx, ctx) => checkGrantableRoles(tx, ctx, { email, roles: req.body.roles }));
+    if (!o.identity) throw new AppError(503, "accounts_unavailable", "Creating accounts isn't set up on this server. Send an invitation instead.");
+    const made = await o.identity.createAccount({ email, name: req.body.name, password: req.body.password });
+    if (made === "exists") {
+      throw new AppError(409, "account_exists", `${email} already has an Office account. Send them an invitation instead; they join when they accept it.`);
+    }
+    const u = await upsertUser(db, { sub: made.sub, email, name: req.body.name });
+    const m = await inTenant(req, "core:members.manage", (tx, ctx) => addCreatedColleague(tx, ctx, { userId: u.id, email, roles: req.body.roles }));
+    return reply.status(201).send({ id: m.id, userId: u.id, email, name: req.body.name, roles: [...new Set(req.body.roles)] });
+  });
 
   app.put("/members/:id/roles", {
     config: AUTH,

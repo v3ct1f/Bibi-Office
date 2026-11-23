@@ -29,7 +29,7 @@ export default defineConfig({
     {
       command: "pnpm --filter @office/api dev:oidc",
       url: `${issuer}/.well-known/openid-configuration`,
-      env: { DEV_OIDC_PORT: String(OIDC), DEV_OIDC_REDIRECTS: `http://localhost:${WEB}/` },
+      env: { DEV_OIDC_PORT: String(OIDC), DEV_OIDC_REDIRECTS: `http://localhost:${WEB}/`, DEV_OIDC_PASSWORDS: "off" },
       reuseExistingServer: false,
     },
     {
@@ -43,6 +43,8 @@ export default defineConfig({
         // The older flows create their own workspaces; the program-owner flow uses boss@example.com.
         SELF_SIGNUP: "true", PLATFORM_ADMIN_EMAILS: "boss@example.com",
         AI_API_BASE_URL: `http://127.0.0.1:${FAKE_AI}`,
+        // Owners create colleagues' accounts through the sign-in server's admin side.
+        IDP_ADMIN_URL: `http://localhost:${OIDC}/dev-admin`, IDP_ADMIN_SECRET: "dev-idp-admin-secret",
       },
       reuseExistingServer: false,
       timeout: 60_000,

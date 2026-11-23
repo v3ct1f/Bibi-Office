@@ -1,0 +1,8 @@
+# Temporarily makes the sign-in admin console reachable from the server itself (never from the internet).
+# Use:   docker compose -f docker-compose.yml -f docker-compose.admin.yml --env-file .env up -d keycloak
+# then from your PC:  ssh -i ~/.ssh/bibi-office-deploy -L 8080:127.0.0.1:8080 root@SERVER_IP
+# and open http://localhost:8080/admin . Switch it off again by running the normal "up -d" without this file.
+services:
+  keycloak:
+    ports:
+      - "127.0.0.1:8080:8080"

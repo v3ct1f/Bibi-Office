@@ -32,6 +32,8 @@ export function SignIn() {
           <Button className="w-full" size="lg" loading={busy} onClick={() => { setBusy(true); void signIn().catch(() => setBusy(false)); }}>
             <LogIn /> Sign in
           </Button>
+          <Button asChild variant="link" className="mt-2 w-full text-muted-foreground"><a href="/forgot-password">Forgot your password or never set one?</a></Button>
+          <p className="mt-3 text-center text-xs text-muted-foreground"><a className="underline" href="/terms">Terms</a> · <a className="underline" href="/privacy">Privacy Policy</a></p>
         </CardContent>
       </Card>
     </FullPage>
@@ -53,7 +55,8 @@ export function AuthCallback() {
   const [error, setError] = useState<unknown>(null);
   useEffect(() => {
     pending ??= userManager.signinRedirectCallback().then((u) => safeReturn((u.state as { returnTo?: string } | undefined)?.returnTo));
-    pending.then((to) => navigate({ to, replace: true })).catch((e) => { pending = null; setError(e); });
+    // Cleared once used, so a later sign-in in the same visit (e.g. confirming the password) is handled too.
+    pending.then((to) => { pending = null; navigate({ to, replace: true }); }).catch((e) => { pending = null; setError(e); });
   }, [navigate]);
   if (error) {
     return <FullPage><Card className="w-full max-w-md"><ErrorState title="Sign-in failed" error={error} onRetry={() => navigate({ to: "/" })} /></Card></FullPage>;

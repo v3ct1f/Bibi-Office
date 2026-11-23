@@ -6,6 +6,8 @@ export interface Actor {
   userId?: string;
   membershipId?: string;
   permissions: ReadonlySet<string>;
+  /** A program owner looking inside a business they are not a member of: read-only, every visit logged. */
+  viewingAs?: "program_owner";
 }
 
 /** Everything a core service needs about the caller. Built by the API per request. */

@@ -1,9 +1,9 @@
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or, lte, sql } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
 import {
   invitations, memberRoles, memberships, roles, tenantModules, tenants, users, uuidv7, withTenant, type Db, type Tx,
 } from "@office/db";
-import { conflict, notFound } from "./errors.ts";
+import { badRequest, conflict, notFound } from "./errors.ts";
 import { audit } from "./audit.ts";
 import { emitEvent } from "./events.ts";
 import { seedSystemRoles } from "./identity.ts";
@@ -15,14 +15,17 @@ import type { RequestContext } from "./context.ts";
  * Never a business's own data (contacts, invoices, ...); the program owner is not a member.
  */
 export interface PlatformAdmin { userId: string; email: string }
+/** Who acts: a program owner, or the payment system (no user, audited as platform:stripe). */
+export type PlatformActor = { userId: string | null; email: string };
 type Meta = { requestId: string; ip?: string | undefined };
 
-const ctxFor = (tenantId: string, admin: PlatformAdmin, meta: Meta): RequestContext => ({
+/** The request context for the program owner acting on one business (audited as platform:<email>). */
+export const platformContext = (tenantId: string, admin: PlatformActor, meta: Meta): RequestContext => ({
   tenantId, requestId: meta.requestId, ip: meta.ip,
   actor: { type: "system", id: `platform:${admin.email}`, permissions: new Set() },
 });
 
-async function ownerInvite(tx: Tx, tenantId: string, email: string, admin: PlatformAdmin) {
+async function ownerInvite(tx: Tx, tenantId: string, email: string, admin: PlatformActor) {
   await tx.update(invitations).set({ revokedAt: new Date() })
     .where(and(eq(invitations.byPlatform, true), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
   await tx.update(invitations).set({ revokedAt: new Date() })
@@ -32,7 +35,7 @@ async function ownerInvite(tx: Tx, tenantId: string, email: string, admin: Platf
   const expiresAt = new Date(Date.now() + INVITATION_DAYS * 86_400_000);
   await tx.insert(invitations).values({
     id, tenantId, email, roles: ["owner"], tokenHash: createHash("sha256").update(token).digest(),
-    invitedBy: admin.userId, byPlatform: true, expiresAt,
+    invitedBy: admin.userId ?? null, byPlatform: true, expiresAt,
   });
   return { id, email, expiresAt, token };
 }
@@ -62,7 +65,7 @@ export async function listBusinesses(db: Db) {
       };
     });
     out.push({
-      id: t.id, name: t.name, slug: t.slug, region: t.region, status: t.status, createdAt: t.createdAt,
+      id: t.id, name: t.name, slug: t.slug, region: t.region, status: t.status, createdAt: t.createdAt, allowedFeatures: t.allowedModules, paid: !!t.stripeSubscriptionId,
       members: counts.find((c) => c.t === t.id)?.n ?? 0, ...extra,
     });
   }
@@ -71,17 +74,21 @@ export async function listBusinesses(db: Db) {
 
 /** Creates a business with no members yet and invites its owner (they become owner by accepting). */
 export async function createBusiness(
-  db: Db, admin: PlatformAdmin, input: { name: string; slug: string; region?: "eu" | "us" | undefined; ownerEmail: string }, meta: Meta,
+  db: Db, admin: PlatformActor,
+  input: { name: string; slug: string; region?: "eu" | "us" | undefined; ownerEmail: string; stripe?: { customerId: string | null; subscriptionId: string } },
+  meta: Meta,
 ) {
   const tenantId = uuidv7();
   return withTenant(db, tenantId, async (tx) => {
     const [dupe] = await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, input.slug));
     if (dupe) throw conflict("That web address is already taken");
-    const [t] = await tx.insert(tenants).values({ id: tenantId, slug: input.slug, name: input.name, region: input.region ?? "eu" }).returning();
+    const [t] = await tx.insert(tenants).values({ id: tenantId, slug: input.slug, name: input.name, region: input.region ?? "eu",
+      ...(input.stripe ? { stripeCustomerId: input.stripe.customerId, stripeSubscriptionId: input.stripe.subscriptionId, plan: "paid" } : {}),
+    }).returning();
     await seedSystemRoles(tx, tenantId);
     const inv = await ownerInvite(tx, tenantId, input.ownerEmail.trim().toLowerCase(), admin);
-    const ctx = ctxFor(tenantId, admin, meta);
-    await audit(tx, ctx, "tenant.created", { type: "tenant", id: tenantId }, { slug: input.slug, name: input.name, by: "platform", ownerEmail: inv.email });
+    const ctx = platformContext(tenantId, admin, meta);
+    await audit(tx, ctx, "tenant.created", { type: "tenant", id: tenantId }, { slug: input.slug, name: input.name, by: "platform", ownerEmail: inv.email, ...(input.stripe ? { paid: true } : {}) });
     await emitEvent(tx, ctx, "core.tenant.created", { id: tenantId, slug: input.slug });
     return { tenant: t!, invite: inv };
   });
@@ -93,18 +100,82 @@ export async function inviteBusinessOwner(db: Db, admin: PlatformAdmin, tenantId
     const [t] = await tx.select().from(tenants).where(and(eq(tenants.id, tenantId), ne(tenants.status, "deleted")));
     if (!t) throw notFound("Business");
     const inv = await ownerInvite(tx, tenantId, email.trim().toLowerCase(), admin);
-    await audit(tx, ctxFor(tenantId, admin, meta), "invitation.created", { type: "invitation", id: inv.id }, { email: inv.email, roles: ["owner"], by: "platform" });
+    await audit(tx, platformContext(tenantId, admin, meta), "invitation.created", { type: "invitation", id: inv.id }, { email: inv.email, roles: ["owner"], by: "platform" });
     return { tenant: t, invite: inv };
   });
 }
 
 /** Pause (nobody can use it; data is kept) or reactivate a business. */
-export async function setBusinessStatus(db: Db, admin: PlatformAdmin, tenantId: string, status: "active" | "suspended", meta: Meta) {
+export async function setBusinessStatus(
+  db: Db, admin: PlatformActor, tenantId: string, status: "active" | "suspended", meta: Meta,
+  /**
+   * subscriptionEnded: the pause is because the paid subscription ended, which starts the 90-day countdown to erasure.
+   * billingPaused: the pause is because a payment failed (the business comes back when it is paid; no countdown).
+   */
+  opts: { subscriptionEnded?: boolean; billingPaused?: boolean } = {},
+) {
   return withTenant(db, tenantId, async (tx) => {
-    const [t] = await tx.update(tenants).set({ status })
+    const [t] = await tx.update(tenants).set({
+      status,
+      ...(status === "active" ? { subscriptionEndedAt: null, billingPausedAt: null } : {}),
+      ...(status === "suspended" && opts.subscriptionEnded ? { subscriptionEndedAt: sql`coalesce(${tenants.subscriptionEndedAt}, now())` } : {}),
+      ...(status === "suspended" && opts.billingPaused ? { billingPausedAt: sql`coalesce(${tenants.billingPausedAt}, now())` } : {}),
+    })
       .where(and(eq(tenants.id, tenantId), ne(tenants.status, "deleted"))).returning();
     if (!t) throw notFound("Business");
-    await audit(tx, ctxFor(tenantId, admin, meta), status === "suspended" ? "tenant.paused" : "tenant.resumed", { type: "tenant", id: tenantId });
+    await audit(tx, platformContext(tenantId, admin, meta), status === "suspended" ? "tenant.paused" : "tenant.resumed", { type: "tenant", id: tenantId });
     return { id: t.id, status: t.status };
+  });
+}
+
+/**
+ * Deletes a business: it disappears for everyone (members, API keys, invitations, scheduled work) and can't be
+ * reopened from the app. Its records stay in the database. The caller must type the business name to confirm.
+ */
+export async function deleteBusiness(db: Db, admin: PlatformAdmin, tenantId: string, confirmName: string, meta: Meta) {
+  return withTenant(db, tenantId, async (tx) => {
+    const [t] = await tx.select().from(tenants).where(and(eq(tenants.id, tenantId), ne(tenants.status, "deleted"))).for("update");
+    if (!t) throw notFound("Business");
+    if (confirmName.trim().toLowerCase() !== t.name.trim().toLowerCase()) throw badRequest("Type the business name exactly to confirm");
+    await tx.update(tenants).set({ status: "deleted", deletedAt: new Date() }).where(eq(tenants.id, tenantId));
+    await tx.update(invitations).set({ revokedAt: new Date() }).where(and(isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
+    await audit(tx, platformContext(tenantId, admin, meta), "tenant.deleted", { type: "tenant", id: tenantId }, { name: t.name, slug: t.slug, was: t.status });
+    return { id: t.id, name: t.name, status: "deleted" as const };
+  });
+}
+
+// ───── Permanent erasure ─────
+/** Days a deleted business is kept before it is erased, and days a business is kept after its subscription ended (the Terms say 90). */
+export const ERASE_DELETED_AFTER_DAYS = 30;
+export const ERASE_ENDED_AFTER_DAYS = 90;
+
+/** Businesses that are due to be erased now (the same rules as the database function that does it). */
+export async function listErasableBusinesses(db: Db, limit = 20): Promise<string[]> {
+  const rows = await db.select({ id: tenants.id }).from(tenants).where(or(
+    and(eq(tenants.status, "deleted"), lte(tenants.deletedAt, sql`now() - ${`${ERASE_DELETED_AFTER_DAYS} days`}::interval`)),
+    and(ne(tenants.status, "active"), lte(tenants.subscriptionEndedAt, sql`now() - ${`${ERASE_ENDED_AFTER_DAYS} days`}::interval`)),
+  )).limit(limit);
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Erases a business and everything in it, for good. The database refuses unless it is due (deleted for 30 days,
+ * subscription ended 90 days ago) or `now` is set for a business that is already deleted (a privacy request).
+ * Returns the sign-in subjects of people who belonged to no other business and were erased with it.
+ */
+export async function eraseBusiness(db: Db, tenantId: string, opts: { now?: boolean } = {}): Promise<string[]> {
+  const rows = await db.execute<{ idp_subject: string }>(sql`select idp_subject from erase_tenant(${tenantId}::uuid, ${!!opts.now})`);
+  return [...rows].map((r) => r.idp_subject);
+}
+
+/** Email addresses of a business's owners (who get billing notices). */
+export async function listOwnerEmails(db: Db, tenantId: string): Promise<string[]> {
+  return withTenant(db, tenantId, async (tx) => {
+    const rows = await tx.select({ email: users.email }).from(memberRoles)
+      .innerJoin(roles, eq(roles.id, memberRoles.roleId))
+      .innerJoin(memberships, eq(memberships.id, memberRoles.membershipId))
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(and(eq(roles.key, "owner"), eq(memberships.status, "active")));
+    return [...new Set(rows.map((r) => r.email.toLowerCase()))];
   });
 }

@@ -5,7 +5,7 @@ import { action, defineModule, route } from "@office/sdk";
 import {
   ActivityInput, addActivity, board, BoardQuery, createDeal, createPipeline, DealInput, DealPatch, deleteDeal, deletePipeline,
   ensureDefaultPipeline, getDeal, ListQuery, listDeals, listPipelines, MoveInput, moveDeal, PipelineInput, PipelinePatch,
-  settingsOf, stageForOutcome, summary, updateDeal, updatePipeline,
+  settingsOf, stageForOutcome, summary, updateDeal, updatePipeline, dealFromLead,
 } from "./service.ts";
 
 const READ = "crm:deal.read", WRITE = "crm:deal.write", MANAGE = "crm:pipeline.manage";
@@ -35,7 +35,7 @@ export default defineModule({
     category: "sales",
     roles: { manager: [READ, WRITE, MANAGE], member: [READ, WRITE], viewer: [READ] },
     entities: ["deal", "pipeline", "stage", "activity"],
-    events: { emits: EVENTS.map((type) => ({ type })), subscribes: [] },
+    events: { emits: EVENTS.map((type) => ({ type })), subscribes: ["leads.lead.converted"] },
     workflow: {
       triggers: EVENTS,
       actions: [
@@ -65,6 +65,10 @@ export default defineModule({
   },
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
   metrics,
+  handlers: {
+    // Leads asks for a deal when a lead becomes a customer (only if CRM is on for that business).
+    "leads.lead.converted": async (ctx, e) => { await dealFromLead(ctx, e.payload); },
+  },
   lifecycle: {
     enable: async (ctx) => { await ensureDefaultPipeline(ctx); },
   },

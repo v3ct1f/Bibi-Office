@@ -70,3 +70,84 @@ test("pausing closes the business for its people; reactivating opens it", async 
   await boss.getByRole("dialog").getByRole("button", { name: "Reactivate" }).click();
   await expect(row).toContainText("Active");
 });
+
+test("the program owner chooses which features a business can use", async ({ browser }) => {
+  await boss.getByRole("button", { name: "Actions for Corner Bakery" }).click();
+  await boss.getByRole("menuitem", { name: "Choose features" }).click();
+  const d = boss.getByRole("dialog");
+  await d.getByRole("checkbox", { name: "All features" }).click();
+  await d.getByRole("checkbox", { name: "Inventory & Purchasing" }).click();
+  await d.getByRole("button", { name: "Save features" }).click();
+  await expect(d).toBeHidden();
+  const row = boss.getByRole("table", { name: "Businesses" }).getByRole("row", { name: /Corner Bakery/ });
+  await expect(row).toContainText("10 of 11 included");
+
+  const { ctx, page } = await newUser(browser, "olga@example.com", "Olga Owner", "/t/corner-bakery/features");
+  const card = page.getByTestId("feature-inventory");
+  await expect(card).toContainText("Not included");
+  await expect(card.getByRole("button", { name: /Add/ })).toHaveCount(0);
+  await expect(page.getByTestId("feature-crm").getByRole("button", { name: "Add CRM" })).toBeVisible();
+  await ctx.close();
+});
+
+test("the program owner adds a co-owner, who sees Program admin, then removes them", async ({ browser }) => {
+  await boss.getByRole("button", { name: "Add co-owner" }).click();
+  const d = boss.getByRole("dialog");
+  await d.getByLabel("Their email").fill("cleo@example.com");
+  await d.getByRole("button", { name: "Add co-owner" }).click();
+  await expect(d.getByRole("status")).toContainText("cleo@example.com is now a program owner");
+  await d.getByRole("button", { name: "Done" }).click();
+  const list = boss.getByRole("list", { name: "Program owners" });
+  await expect(list).toContainText("Hasn't signed in yet");
+
+  const { ctx, page } = await newUser(browser, "cleo@example.com", "Cleo Co", "/admin");
+  await expect(page.getByRole("heading", { name: "Businesses" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Program owners" })).toContainText("Bea Boss");
+  await ctx.close();
+
+  await boss.reload();
+  await expect(list).toContainText("Cleo Co");
+  await boss.getByRole("button", { name: "Remove cleo@example.com" }).click();
+  await boss.getByRole("dialog").getByRole("button", { name: "Remove" }).click();
+  await expect(list).not.toContainText("Cleo");
+});
+
+test("deleting a business needs its name typed", async () => {
+  await boss.goto("/admin");
+  await boss.getByRole("button", { name: "New business" }).first().click();
+  const d = boss.getByRole("dialog");
+  await d.getByLabel("Business name").fill("Short Lived");
+  await d.getByLabel("Owner's email").fill("sid@example.com");
+  await d.getByRole("button", { name: "Create and invite" }).click();
+  await d.getByRole("button", { name: "Done" }).click();
+  const table = boss.getByRole("table", { name: "Businesses" });
+  await expect(table.getByRole("row", { name: /Short Lived/ })).toBeVisible();
+
+  await boss.getByRole("button", { name: "Actions for Short Lived" }).click();
+  await boss.getByRole("menuitem", { name: "Delete business…" }).click();
+  const del = boss.getByRole("dialog", { name: "Delete Short Lived?" });
+  const go = del.getByRole("button", { name: "Delete business" });
+  await expect(go).toBeDisabled();
+  await del.getByLabel('Type "Short Lived" to confirm').fill("short lived");
+  await go.click();
+
+  await expect(boss.getByText("Short Lived was deleted")).toBeVisible();
+  await expect(table.getByRole("row", { name: /Short Lived/ })).toHaveCount(0);
+  await expect(table.getByRole("row", { name: /Corner Bakery/ })).toBeVisible();
+});
+
+test("the program owner can look inside a business, read-only", async () => {
+  await boss.goto("/admin");
+  await boss.getByRole("table", { name: "Businesses" }).getByRole("link", { name: "Corner Bakery" }).click();
+  await expect(boss).toHaveURL(/\/t\/corner-bakery/);
+  const banner = boss.getByRole("status").filter({ hasText: "as the program owner" });
+  await expect(banner).toContainText("read-only");
+  await expect(banner).toContainText("This visit is recorded in its history");
+
+  await boss.goto("/t/corner-bakery/contacts");
+  await expect(boss.getByRole("heading", { name: "Contacts" })).toBeVisible();
+  await expect(boss.getByRole("button", { name: "New contact" })).toHaveCount(0);
+
+  await banner.getByRole("link", { name: "Back to Program admin" }).click();
+  await expect(boss.getByRole("heading", { name: "Businesses" })).toBeVisible();
+});

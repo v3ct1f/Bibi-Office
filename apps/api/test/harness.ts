@@ -8,7 +8,7 @@ import { buildApp } from "../src/app.ts";
 export const ISSUER = "https://idp.test/realms/office";
 export const AUDIENCE = "office-api";
 
-export async function setup(modules: ModuleDefinition[] = [], opts: { authFailuresPerMin?: number; mailer?: import("../src/mail.ts").Mailer; selfSignup?: boolean } = {}) {
+export async function setup(modules: ModuleDefinition[] = [], opts: { authFailuresPerMin?: number; mailer?: import("../src/mail.ts").Mailer; identity?: import("../src/identity.ts").Identity; selfSignup?: boolean; billing?: import("../src/billing.ts").Billing | null; contactEmail?: string } = {}) {
   const tdb = await createTestDatabase();
   const registry = new ModuleRegistry(modules);
   if (modules.length) await installModules(tdb.ownerUrl, registry, () => {});
@@ -32,11 +32,11 @@ export async function setup(modules: ModuleDefinition[] = [], opts: { authFailur
       .sign(privateKey);
 
   /** Tiny client: c(user).get("/contacts", tenantId) */
-  const client = (auth: string, tenantId?: string) => {
+  const client = (auth?: string, tenantId?: string) => {
     const call = async (method: string, url: string, body?: unknown) => {
       const res = await app.inject({
         method: method as "GET", url: `/api/v1${url}`,
-        headers: { authorization: `Bearer ${auth}`, ...(tenantId ? { "x-tenant-id": tenantId } : {}) },
+        headers: { ...(auth ? { authorization: `Bearer ${auth}` } : {}), ...(tenantId ? { "x-tenant-id": tenantId } : {}) },
         ...(body !== undefined ? { payload: body as object } : {}),
       });
       return { status: res.statusCode, body: res.body ? res.json() : null, headers: res.headers };

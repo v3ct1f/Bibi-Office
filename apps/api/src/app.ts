@@ -15,22 +15,31 @@ import { createAuthenticator } from "./plugins/auth.ts";
 import { registerErrorHandler } from "./plugins/errors.ts";
 import { makeTenantRunner } from "./tenant.ts";
 import { registerRoutes } from "./routes/index.ts";
+import { seedPlatformAdmins } from "@office/core";
 import { registerPlatformRoutes } from "./routes/platform.ts";
 import type { ModuleRegistry, SecretBox } from "@office/platform";
 import type { Config } from "./config.ts";
 import type { Mailer } from "./mail.ts";
+import type { Identity } from "./identity.ts";
+import type { Billing } from "./billing.ts";
 
 export interface AppDeps {
   db: Db;
   config: Pick<Config, "OIDC_ISSUER" | "OIDC_AUDIENCE" | "API_KEY_PEPPER" | "CORS_ORIGINS" | "RATE_LIMIT_PER_MIN" | "TRUST_PROXY" | "NODE_ENV"> & Partial<Pick<Config, "APP_URL">>;
   /** Sends invitation emails; null or missing = show the link to copy instead. */
   mailer?: Mailer | null;
+  /** Gives "set your password" links for emails; null or missing = emails go out without one. */
+  identity?: Identity | null;
+  /** Paid sign-up through Stripe; null or missing = sign-up page says "not open yet". */
+  billing?: Billing | null;
+  /** Receives public contact-form messages; without it (or without mail) the form is closed. */
+  contactEmail?: string;
   jwks?: JWTVerifyGetKey;      // injectable for tests
   platform: { registry: ModuleRegistry; secrets: SecretBox };
   logger?: boolean | object;
   /** Failed sign-ins allowed per IP per minute (default 120). */
   authFailuresPerMin?: number;
-  /** Program owners (verified emails) who create and pause businesses. */
+  /** Program owners on first start (verified emails); after that they're managed in Program admin. */
   platformAdmins?: string[];
   /** Anyone signed in may create their own business (default false: only program owners). */
   selfSignup?: boolean;
@@ -110,10 +119,11 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
     return { ok: true };
   });
 
-  const inTenant = makeTenantRunner(d.db);
+  await seedPlatformAdmins(d.db, d.platformAdmins ?? []);
+  const inTenant = makeTenantRunner(d.db, d.platform.registry.all().flatMap((m) => m.manifest.roles.viewer ?? []));
   await app.register(registerRoutes, {
-    prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER, mailer: d.mailer ?? null,
-    platformAdmins: (d.platformAdmins ?? []).map((e) => e.toLowerCase()), selfSignup: d.selfSignup ?? false,
+    prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER, mailer: d.mailer ?? null, identity: d.identity ?? null,
+    selfSignup: d.selfSignup ?? false, billing: d.billing ?? null, contactEmail: d.contactEmail, modules: d.platform,
     appUrl: (d.config.APP_URL ?? d.config.CORS_ORIGINS[0] ?? "http://localhost:5173").replace(/\/+$/, ""),
   });
   await app.register(registerPlatformRoutes, {

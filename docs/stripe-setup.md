@@ -1,0 +1,27 @@
+# Setting up paid sign-up (Stripe)
+
+Stripe has no monthly fee. You pay only a small cut of each payment. Start in **test mode** (no real money), then repeat with live keys.
+
+## 1. Account and product
+1. Make a free account at stripe.com. Stay in **Test mode** (switch at the top of the dashboard).
+2. Product catalogue -> **Add product** -> name it (e.g. "Office business account") -> price **Recurring**, monthly, your amount -> Save.
+3. Open the price and copy its id (starts with `price_`).
+
+## 2. Keys
+Developers -> API keys -> copy the **Secret key** (`sk_test_...`).
+
+## 3. Webhook
+- Local testing: install the Stripe CLI, then `stripe listen --forward-to localhost:3100/api/v1/stripe/webhook`. It prints a signing secret (`whsec_...`).
+- Live: Developers -> Webhooks -> Add endpoint -> `https://YOUR-API-ADDRESS/api/v1/stripe/webhook`, events `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`. Copy its signing secret.
+
+## 4. Put them in `.env.local` (never in chat or git)
+```
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_ID=price_...
+STRIPE_PRICE_LABEL=EUR 49.99 per month
+```
+Restart the API. Open `http://localhost:5173/start`. Pay with Stripe's test card `4242 4242 4242 4242` (any future date, any CVC). The business appears in Program admin and the owner invitation is emailed.
+
+## Before taking real money
+Use live keys, a public API address with HTTPS, working email (Gmail app password is fine to start), and add your terms and privacy policy (Stripe asks for them). Customers can manage or cancel their subscription from a Stripe customer portal link (Stripe dashboard -> Settings -> Billing -> Customer portal).

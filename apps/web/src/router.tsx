@@ -10,6 +10,7 @@ import { EntityDetail, EntityList } from "./pages/data/EntityPages.tsx";
 import { companiesConfig, contactsConfig, tasksConfig, type EntityConfig } from "./pages/data/entities.tsx";
 import { GeneralSettings, SettingsLayout } from "./pages/settings/SettingsLayout.tsx";
 import { MembersPage } from "./pages/settings/Members.tsx";
+import { ColleaguesPage } from "./pages/Colleagues.tsx";
 import { RolesPage } from "./pages/settings/Roles.tsx";
 import { FeaturesPage } from "./pages/Features.tsx";
 import { ApiKeysPage } from "./pages/settings/ApiKeys.tsx";
@@ -21,6 +22,10 @@ import { ModulePage, PublicModulePage } from "./modules/SlotHost.tsx";
 import { useTenant } from "./lib/tenant.tsx";
 import { InvitePage } from "./pages/Invite.tsx";
 import { AdminPage } from "./pages/Admin.tsx";
+import { ForgotPasswordPage } from "./pages/ForgotPassword.tsx";
+import { StartPage, StartThanksPage } from "./pages/Start.tsx";
+import { PrivacyPage, TermsPage } from "./pages/Legal.tsx";
+import { ContactSupportPage } from "./pages/settings/ContactSupport.tsx";
 
 type AnyCfg = EntityConfig<{ id: string } & Record<string, unknown>>;
 const cfg = (c: unknown) => c as AnyCfg;
@@ -54,6 +59,11 @@ function PublicRoute() {
 }
 const admin = createRoute({ getParentRoute: () => root, path: "/admin", component: () => <Authed><AdminPage /></Authed> });
 const invite = createRoute({ getParentRoute: () => root, path: "/invite/$tenantId/$token", component: () => <Authed><InvitePage /></Authed> });
+const forgot = createRoute({ getParentRoute: () => root, path: "/forgot-password", component: ForgotPasswordPage });
+const start = createRoute({ getParentRoute: () => root, path: "/start", component: StartPage });
+const startThanks = createRoute({ getParentRoute: () => root, path: "/start/thanks", component: StartThanksPage });
+const terms = createRoute({ getParentRoute: () => root, path: "/terms", component: TermsPage });
+const privacy = createRoute({ getParentRoute: () => root, path: "/privacy", component: PrivacyPage });
 const publicPage = createRoute({ getParentRoute: () => root, path: "/p/$tenantId/$module/$", component: PublicRoute });
 const tenant = createRoute({ getParentRoute: () => root, path: "/t/$slug", component: () => <Authed><TenantLayout /></Authed> });
 
@@ -76,13 +86,14 @@ function ModuleRoute() {
 }
 
 const tree = root.addChildren([
-  index, callback, onboarding, admin, invite, publicPage,
+  index, callback, onboarding, admin, invite, forgot, start, startThanks, terms, privacy, publicPage,
   tenant.addChildren([
     t("/", Dashboard),
     t("/contacts", () => <Gate perm="core:contacts.read"><EntityList key="contacts" cfg={cfg(contactsConfig)} /></Gate>, newSearch),
     t("/contacts/$id", () => <EntityDetail cfg={cfg(contactsConfig)} />),
     t("/companies", () => <Gate perm="core:companies.read"><EntityList key="companies" cfg={cfg(companiesConfig)} /></Gate>, newSearch),
     t("/companies/$id", () => <EntityDetail cfg={cfg(companiesConfig)} />),
+    t("/colleagues", () => <Gate perm="core:members.read"><ColleaguesPage /></Gate>),
     t("/tasks", () => <Gate perm="core:tasks.read"><EntityList key="tasks" cfg={cfg(tasksConfig)} /></Gate>, newSearch),
     t("/workflows", () => <Gate perm="core:workflows.read"><WorkflowsPage /></Gate>),
     t("/workflows/new", () => <Gate perm="core:workflows.manage"><WorkflowEditor key="new" /></Gate>, recipeSearch),
@@ -97,6 +108,7 @@ const tree = root.addChildren([
       s("/api-keys", "core:apikeys.manage", ApiKeysPage),
       s("/webhooks", "core:webhooks.manage", WebhooksPage),
       s("/audit", "core:audit.read", AuditPage),
+      s("/support", "core:members.manage", ContactSupportPage),
     ]),
   ]),
 ]);

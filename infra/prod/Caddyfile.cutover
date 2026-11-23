@@ -1,0 +1,45 @@
+# The ROOT DOMAIN block. Add this to Caddyfile (or replace the {$WEB_HOST} block) ONLY at cutover, after:
+#   1. Office works on its temporary address,
+#   2. bibi.bibidesk.com serves Bibi's homepage from Vercel,
+#   3. the Namecheap A records for "@" and the CNAME "www" point at this server.
+# Then set WEB_HOST=bibidesk.com in .env (plus APP_URL, CORS_ORIGINS, Keycloak OFFICE_APP_URL) and redeploy.
+#
+# Office is served at "/". Bibi keeps these paths, forwarded to its Vercel project (bibi-livid.vercel.app), so the
+# Android app, the browser version, Bibi's payment page and the APK download keep working:
+#   /web  /proxy  /app  /downloads  /pay  /.well-known  and Bibi's own asset files under /assets/.
+# Office's own files under /assets/ (hashed names) are untouched.
+
+(bibi_upstream) {
+	reverse_proxy https://bibi-livid.vercel.app {
+		header_up Host bibi-livid.vercel.app
+		transport http {
+			tls_server_name bibi-livid.vercel.app
+		}
+	}
+}
+
+bibidesk.com, www.bibidesk.com {
+	encode zstd gzip
+
+	@bibi path /web /web/* /proxy/* /app /app/* /downloads/* /pay /pay/* /.well-known/*
+	handle @bibi {
+		import bibi_upstream
+	}
+
+	@bibiAssets path /assets/apple-touch-icon.png /assets/bibi-reel-poster.jpg /assets/bibi-reel.mp4 /assets/favicon-32.png /assets/figtree-latin-wght-normal.woff2 /assets/lake.jpg /assets/logo-icon.svg /assets/logo-mark.svg /assets/unbounded-latin-wght-normal.woff2 /assets/shots/*
+	handle @bibiAssets {
+		import bibi_upstream
+	}
+
+	# Everything else is Office.
+	handle {
+		root * /srv
+		header {
+			Strict-Transport-Security "max-age=31536000"
+			X-Content-Type-Options nosniff
+			Referrer-Policy strict-origin-when-cross-origin
+		}
+		try_files {path} /index.html
+		file_server
+	}
+}

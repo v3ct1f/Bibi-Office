@@ -29,6 +29,7 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      OFFICE_ADMIN_CLIENT_SECRET: dev-only-admin-secret
     ports: ["8080:8080"]
     volumes: [./keycloak:/opt/keycloak/data/import:ro]
 

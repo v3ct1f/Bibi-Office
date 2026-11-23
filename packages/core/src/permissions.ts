@@ -33,6 +33,11 @@ export const SYSTEM_ROLES: Record<string, { name: string; permissions: string[] 
   viewer: { name: "Viewer", permissions: [...DATA_READ] },
 };
 
+/** What a program owner may read inside any business (plus each feature's viewer grants). No secrets: no API keys or webhooks. */
+export const PROGRAM_OWNER_VIEW = [
+  ...DATA_READ, "core:members.read", "core:roles.read", "core:modules.read", "core:audit.read", "core:workflows.read",
+];
+
 /** Grants: "*" (all), "<module>:*" (all in module), or exact "<module>:<action>". */
 export function hasPermission(granted: ReadonlySet<string>, required: string): boolean {
   if (granted.has("*") || granted.has(required)) return true;

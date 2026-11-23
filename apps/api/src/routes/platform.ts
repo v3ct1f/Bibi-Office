@@ -36,6 +36,7 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
       return {
         tenant: { id: t.id, slug: t.slug, name: t.name, region: t.region, plan: t.plan, createdAt: t.createdAt },
         actor: { type: ctx.actor.type, id: ctx.actor.id },
+        viewing: ctx.actor.viewingAs === "program_owner",
         permissions: [...ctx.actor.permissions].sort(),
         modules: registry.all().filter((m) => enabled.has(m.manifest.key)).map((m) => ({
           key: m.manifest.key, name: m.manifest.name, version: m.manifest.version,
@@ -46,7 +47,7 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
 
   // ───── Modules (admin) ─────
   app.get("/modules", { config: AUTH, schema: { tags: ["modules"], headers: tenantHeader } },
-    (req) => inTenant(req, "core:modules.read", (tx) => listModules(tx, md)));
+    (req) => inTenant(req, "core:modules.read", (tx, ctx) => listModules(tx, md, ctx.tenantId)));
   app.post("/modules/:key/enable", { config: AUTH, schema: { tags: ["modules"], headers: tenantHeader, params: ModKey } },
     (req) => inTenant(req, "core:modules.manage", (tx, ctx) => enableModule(tx, ctx, md, req.params.key)));
   app.post("/modules/:key/disable", { config: AUTH, schema: { tags: ["modules"], headers: tenantHeader, params: ModKey } },

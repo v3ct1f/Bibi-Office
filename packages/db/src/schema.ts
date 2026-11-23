@@ -20,6 +20,16 @@ export const tenants = pgTable("tenants", {
   slug: text("slug").notNull(),
   name: text("name").notNull(),
   plan: text("plan").notNull().default("free"),
+  /** Features the program owner allows this business to turn on; null = all. */
+  allowedModules: text("allowed_modules").array(),
+  /** Set when the business came from a paid Stripe subscription. */
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  /** When the business was deleted (erased for good 30 days later), and when its paid subscription ended (erased 90 days later). */
+  deletedAt: ts("deleted_at"),
+  subscriptionEndedAt: ts("subscription_ended_at"),
+  /** Paused because a payment failed (cleared when it is paid). Not set for a pause by hand. */
+  billingPausedAt: ts("billing_paused_at"),
   region: text("region").notNull().default("eu"),
   status: text("status").$type<"active" | "suspended" | "deleted">().notNull().default("active"),
   settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
@@ -58,6 +68,23 @@ export const apiKeys = pgTable("api_keys", {
   expiresAt: ts("expires_at"),
   lastUsedAt: ts("last_used_at"),
   revokedAt: ts("revoked_at"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+/** Program owners of this installation (global; no tenant). */
+export const platformAdmins = pgTable("platform_admins", {
+  id: uuid("id").primaryKey(),
+  email: text("email").notNull(),
+  addedBy: text("added_by").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+/** History of program-owner changes (append-only). */
+export const platformAudit = pgTable("platform_audit", {
+  id: uuid("id").primaryKey(),
+  actor: text("actor").notNull(),
+  action: text("action").notNull(),
+  detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default({}),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 

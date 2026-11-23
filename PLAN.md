@@ -38,6 +38,8 @@
 | 13 | Module: AI email/meeting summaries (Claude with the company's own key; pasted notes or uploaded transcripts; action items → Tasks; follow-up email draft; support ticket recap + suggested reply; Contacts + Deals links; usage and monthly limit) | ✅ done (188 unit/integration + 62 E2E green) |
 | 14 | Module: KPI dashboard (shared boards, live numbers from every feature via the new metrics contract, week/month/quarter/year, compare with the period before or last year, targets, trend charts, hand-typed numbers, weekly email per board, dashboard widget) | ✅ done (202 unit/integration + 66 E2E green) |
 | 20 | Program owner: businesses created, listed, paused and reactivated by the program owner; self sign-up switch | ✅ done (217 unit/integration + 69 E2E green) |
+| 21 | Features per business, chosen by the program owner | ✅ done (218 unit/integration + 70 E2E green) |
+| 22 | Program owners managed in the app: co-owners, transfer, history | ✅ done (222 unit/integration + 71 E2E green) |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
@@ -55,6 +57,95 @@
 - Each module in `/modules/<name>` with its own README.
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
+
+## Session 31, hosting plan and files (nothing deployed yet)
+- Decision: **one small EU server** (about 4 GB, Ubuntu), everything in Docker: Postgres, NATS (the production worker needs it; Temporal stays optional), API, worker, Keycloak, Caddy (web app + automatic HTTPS). `infra/prod/` holds the recipe: `docker-compose.yml`, `Dockerfile.web`, `Caddyfile` (+ `Caddyfile.cutover` for bibidesk.com), `init-db.sh`, `.env.example`, `make-env.sh` (random secrets), `bootstrap-server.sh`, `deploy-from-pc.sh` (ships committed files only), `backup.sh`, `docker-compose.admin.yml`, `README.md`. A `.dockerignore` keeps `.env*` and `.dev-accounts.json` out of images.
+- Addresses: `office.bibidesk.com` (web), `office-api.bibidesk.com`, `office-auth.bibidesk.com` first; the root `bibidesk.com` at cutover (Office at `/`, Bibi's `/web /proxy /app /downloads /pay /.well-known` and its own `/assets/` files forwarded to Bibi's Vercel project). See `docs/domain-move.md`. Realm file allows both web addresses.
+- Email through Resend (already used by Bibi for hello@bibidesk.com); the Stripe live values go into the server's `.env` by the owner.
+- An SSH key pair for deployment was created on the owner's PC (`~/.ssh/bibi-office-deploy`; the private half never leaves it).
+- Checked: shell syntax of all scripts, the real builds of API, worker and web (web has the API address baked in). **Not run: Docker** (none on this PC), so the first server deployment is the real test; likely tweak points are the Keycloak start options and realm import.
+- Namecheap and Vercel were read, never changed. A copy of Bibi's public site is in `Desktop\bibidesk-site-backup`.
+
+## Session 30, failed payments pause the business
+- **Failed payment -> paused at once.** Webhook `invoice.payment_failed` suspends the business (`tenants.billing_paused_at`, migration 0012) and emails every owner (or the invoice's billing email if nobody accepted yet) a "Payment failed: <business> is paused" mail with Stripe's hosted invoice link to pay with another card. Stripe's retries don't re-send it. This pause does **not** start the 90-day erasure clock; that starts only when Stripe gives up (subscription `unpaid`/`canceled`).
+- **Paid -> back on.** `invoice.paid` (or the subscription turning `active`) switches a business paused for billing back on and emails the owners "<business> is active again". A business the program owner paused **by hand** is never changed by a payment, and a failed payment on it sends nothing.
+- Handles both Stripe invoice shapes (`subscription` and the newer `parent.subscription_details.subscription`). The webhook endpoint must also receive `invoice.payment_failed` and `invoice.paid` (the local listener started in Session 28 only forwards three events; restart it with the five).
+- Terms section 4/5 and the Privacy Policy describe it (version `2026-11-23.2`). New `docs/legal-checklist.md`: what is covered and what needs a gestor/lawyer.
+- Tests: billing 18.
+
+## Session 29, going-live pieces: legal pages, cancelling, Keycloak
+- **Terms of Service and Privacy Policy** at `/terms` and `/privacy` (public; linked from the sign-in screen and /start). Text is in `apps/web/src/pages/Legal.tsx`; the company details they print are in `apps/web/src/legal/company.ts`, still in [SQUARE BRACKETS] until filled in (the pages show a draft warning meanwhile). They say: for businesses only, monthly in advance, auto-renewing, **cancel any time and keep access until the paid month ends, no refunds** (except where the law forces one), data kept up to 90 days after ending, the program owner can look inside a business read-only.
+- **Consent**: /start has a required tickbox; the API refuses checkout without `acceptTerms: true`; the terms version and time are stored on the Stripe subscription (`TERMS_VERSION` in `routes/billing.ts` must match `COMPANY.version`).
+- **Cancelling**: Settings -> General -> **Manage subscription** (owners, paid businesses) opens Stripe's customer portal (`POST /billing/portal`). Cancel-at-period-end only sets a flag, so nothing is paused; the business pauses when Stripe ends the subscription at the end of the paid month (webhook `customer.subscription.deleted`). Needs the portal turned on in the Stripe dashboard.
+- **Keycloak** (`apps/api/src/keycloak.ts`): `Identity` adapter for production, chosen when `KEYCLOAK_URL`, `KEYCLOAK_ADMIN_CLIENT_ID` and `KEYCLOAK_ADMIN_CLIENT_SECRET` are set. Colleague accounts get a temporary password and an **unverified** email (so nobody can create an account in someone else's name); set-password emails are sent by Keycloak (needs SMTP in the realm); forgot-password never creates accounts. `infra/keycloak/realm.json` rewritten (no self-registration, 10-char passwords, lock-out, `office-admin` service account). See `docs/keycloak-setup.md`.
+- **Business use + contact form**: /start has a second required tickbox ("business or professional use, not a private consumer"; API field `businessUse`), because the Terms and the no-refund clause only hold for businesses. Public **/contact** form (`POST /contact`, honeypot, 5 per 15 min) emails `CONTACT_EMAIL` with the sender as reply-to: the second way to reach the operator that Spanish law (LSSI art. 10) asks for besides the email address. Operator name and tax ID are in `apps/web/src/legal/company.ts`; the **address is deliberately a placeholder** (the owner doesn't want a home address public; needs a business address before launch).
+- **Contact support is for owners and admins only** (changed from a public form): `POST /contact` needs sign-in and `core:members.manage` (the owner, plus any worker the owner gave the Admin role in Members or Colleagues). Ordinary workers get "ask your business owner". The email to `CONTACT_EMAIL` names the sender and the business. In the app: Settings -> Contact support. The public legal pages still show the email address (required). Removed the public /contact page.
+- **Permanent erasure** (migration 0011, `apps/api/src/erasure.ts`): a business **deleted** by the program owner is erased 30 days later; one whose paid **subscription ended** (cancelled/unpaid, `tenants.subscription_ended_at`, set by the Stripe webhook, cleared on payment) is erased 90 days after (what the Terms promise). Program admin -> Delete has an extra tickbox "erase all data permanently right now" for privacy requests (`erase: true`). Only the SQL function `erase_tenant` can do it (app role has no DELETE on tenants); it refuses any business that isn't due, never an active one. Everything cascades (records, files, audit rows); people who belong to no other business, and are not program owners, are erased too and their Keycloak accounts deleted (`Identity.deleteAccount`). Only `erasure_log` (id, reason, counts) and `platform_audit` keep a trace. A scheduler in `server.ts` runs it every 6 hours (max 20 per run). Returning customers within the 90 days: ask the program owner (reactivate by hand); a new payment makes a new business.
+- **Go-live checklist** in `docs/going-live.md`: Stripe live mode and **your bank account (entered only in Stripe)**, live price/webhook/portal, filling in the company details, lawyer review.
+- Tests: contact 6, erasure 8, keycloak 10, billing 12 (full run below).; the Keycloak adapter is tested against a pretend Keycloak only, **not a real one** (no Docker/Java 17 on this PC).
+- Still open: hosting (parked by the owner), VAT (Stripe Tax), a data processing agreement template.
+
+## Session 28, paid sign-up with Stripe
+- Public page **/start**: business name, web address (suggested from the name), email, region -> **Continue to payment** on Stripe's own Checkout page (monthly subscription). After paying, Stripe sends people to **/start/thanks**.
+- A **signed webhook** (`POST /api/v1/stripe/webhook`) does the real work. On `checkout.session.completed` it creates the business (`createBusiness`, audited as `platform:stripe`) and emails the owner invitation, the same as when the program owner creates one by hand. Repeats from Stripe never create a second business (unique `tenants.stripe_subscription_id`).
+- Subscription changes: cancelled / unpaid pauses the business, paying again reactivates it (`past_due` keeps working while Stripe retries the card). Only a real status change counts, so a manual pause by the program owner isn't undone by an unrelated update. Data is never deleted.
+- If the address was taken while the customer paid, they get a close variant (`name-ab12cd`) instead of losing their purchase. The address is also checked before paying.
+- Off until all four are set in `.env.local`: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`, `STRIPE_PRICE_LABEL` (text shown on the page). Without them the page says "Sign-up isn't open yet". Step by step: `docs/stripe-setup.md`.
+- No Stripe package: plain HTTPS calls plus our own signature check (`apps/api/src/billing.ts`). Migration 0010. `GET /platform/businesses` items now have `paid`.
+- Tests: api billing 8, all green (full run: api 178 in 18 files). Local Postgres on this PC is a portable copy in C:\Users\vecti\pgportable (start: pgsql\bin\pg_ctl.exe -D data -o "-p 55432" start). `office_owner` must NOT be a superuser, or row-level security is skipped.
+- Still to do: a real test payment with the Stripe CLI listener, a production sign-in service, hosting.
+- Not yet: customers cancelling / changing card themselves (Stripe customer portal), invoices with VAT (Stripe Tax), several price plans, a paid flag in the Program admin list.
+
+## Session 27, Colleagues
+- New **Colleagues** page in the main menu (anyone with `core:members.read`): the people who work in the business, their role and when they joined.
+- **Add colleague** (`core:members.manage`): name, email, role and a **starting password** (one is made up, or type your own; at least 10 characters). The account is created in the sign-in service and the person is a member straight away; the owner sees the email and password once to hand over. Office doesn't keep the password.
+- The first time the colleague signs in with it, the sign-in page asks them to **choose their own password** (not the same one) before going on.
+- An email that already has an Office account is refused (`409 account_exists`) with **Send invitation instead**, because an owner must not set someone else's password. Change role / remove link to the same actions; roles and invitations stay in Settings → Members.
+- API: `POST /members/accounts { name, email, password, roles }`. Checks permission, roles (no owner unless you are one; nothing you don't hold) and "already a member" before any account is made. `Identity.createAccount` (dev: `POST /dev-admin/accounts`; Keycloak: create user with a `temporary` credential). Audited as `member.added` with `accountCreated: true`.
+- Tests: api colleagues 6; E2E colleagues 3 flows.
+
+## Session 26, program owner can look inside businesses (read-only)
+- Program admin → click a business's name (or **⋯ → View business (read-only)**): you see its workspace like a viewer, with a banner "You're viewing … as the program owner: read-only. This visit is recorded in its history." Paused businesses can be viewed too.
+- Read-only twice over: only GET requests (anything else answers 403 `read_only`), and only read permissions (core reads incl. members, roles, features, history, workflows, plus each feature's viewer grants). No API keys or webhooks (secrets).
+- Every visit is written into the business's own history (`tenant.viewed_by_program_owner`, by `platform:<email>`), at most once per 30 minutes per owner, so the business owner can see who looked and when.
+- Privacy: this replaces "the program owner can't see inside a business". Say in the terms / privacy policy that the program owner may view business data for support and security.
+
+## Session 25, Leads
+- New feature **Leads** (`modules/leads`, category Sales): people who might become customers. Add them by hand, from the public **web form** or from a workflow; work them through New → Contacted → Qualified; **Convert to customer** or **Disqualify** (with a reason; can be reopened).
+- Logging a call, email or meeting on a new lead marks it contacted. Each lead has an owner, a follow-up date (red when due), a possible value and a timeline.
+- **Convert** reuses the contact with the same email and the company with the same name (or creates them). With CRM on, it can also open a deal: Leads emits `leads.lead.converted` with `deal`, and CRM (new handler) creates it, noted "Created from a lead". Neither feature imports the other.
+- **Web form** (Leads → Web form, `leads:form.manage`): off until turned on; a link to a public page (name, email, optional phone/company, message). Hidden honeypot field for bots; a second message from the same email goes on their open lead; "Get a new link" stops the old one.
+- Leads list (tabs To work on / Qualified / Converted / Disqualified / All, source filter, search, counters), dashboard widget, metrics (new, converted, conversion rate, open), 8 events, 3 workflow actions.
+- Tests: api leads 10; E2E leads 6 flows.
+
+## Session 24, deleting a business
+- Program admin → a business's **⋯ → Delete business…**: type the business name to confirm (`POST /platform/businesses/:id/delete {confirmName}`).
+- Later change: the extra password step (sign in again with `prompt=login`, API checking `auth_time`) was removed at the owner's request; it kept sending them to the sign-in page. Typing the name is the only confirmation. The token's `auth_time` is still read (Principal `authTime`) but nothing uses it now.
+- Deleted = `tenants.status = 'deleted'`: gone for everyone (not listed, members get 404, API keys and scheduled work stop, open invitations revoked). The records stay in the database; permanent erasure isn't built yet. Audited as `tenant.deleted`.
+- Pause / Reactivate (Session 20) is unchanged and is the reversible option.
+
+## Session 23, local accounts with passwords
+- The local sign-in server (`pnpm dev:oidc`) now uses real accounts: email + password (scrypt, 5 tries per 15 minutes, then locked for 15 minutes). Accounts and the signing key are kept in `.dev-accounts.json` (git-ignored), so sign-ins survive restarts. `DEV_OIDC_PASSWORDS=off` brings back the old any-email sign-in (E2E uses it).
+- Nobody types a password for someone else: people get a one-time **Set your password** link (7 days). It's added to emails for people without a password: business invitations, owner invitations, "you're now an owner" (co-owner added) and the new **"you're now the owner"** email on transfer.
+- **Forgot password** (`/forgot-password`, linked from the sign-in screen): `POST /auth/forgot-password` emails a link; it always answers the same, so it never shows which emails have accounts.
+- Office asks the sign-in service for links through `IDP_ADMIN_URL` + `IDP_ADMIN_SECRET` (`apps/api/src/identity.ts`); Office never sees passwords. A Keycloak version of the same interface is needed for production.
+- `pnpm --filter @office/api owner:welcome <email>` re-sends a program owner the ownership email with the link.
+- Tests: api 152 (password links 5); 227 unit/integration; 71 E2E.
+
+## Session 22, program owners managed in the app
+- Program owners live in the database (migration 0009 `platform_admins`, plus append-only `platform_audit`). `PLATFORM_ADMIN_EMAILS` only fills the list on first start (when it is empty); after that it's managed at Program admin → **Program owners**.
+- **Add co-owner** (by email; emailed; active once they sign in with that verified address), **Remove** / **Step down**, **Transfer ownership** (the new owner must have signed in once, so a typo can't lock everyone out; you step down). The program always keeps at least one owner who has signed in.
+- API: `GET/POST /platform/owners`, `DELETE /platform/owners/:id`, `POST /platform/owners/transfer`.
+- Local email: dev server reads `MAIL_SMTP_URL`/`MAIL_FROM` from `.env.local` (git-ignored); spaces in the SMTP URL are ignored (Google shows app passwords with spaces).
+- Tests: api 147 (owner 12); 222 unit/integration; 71 E2E.
+- Recovery if every owner is lost: insert a row into `platform_admins` as the database owner.
+
+## Session 21, features per business
+- Program admin → a business's **⋯ → Choose features**: "All features" (default, includes features added later) or a list. Ticking a feature also ticks what it needs. Saving turns off features the business was using that are no longer included (data kept) and says which.
+- The business sees those features as "Not included, ask the program owner" on Add features; turning one on answers 403 `feature_not_included`.
+- API: `GET /platform/features`, `PUT /platform/businesses/:id/features {features: string[] | null}`; `/modules` items have `allowed`; business list has `allowedFeatures`. Migration 0008 `tenants.allowed_modules` (null = all). Audited as `tenant.features_set`.
+- Tests: api 143; 218 unit/integration in total; 70 E2E.
+- Next: billing can build on this (a price per set of features).
 
 ## Session 20, program owner and businesses
 - The person running Office (the program owner) sets up each business; each business gets its own workspace, data and owner. Program owners are listed in `PLATFORM_ADMIN_EMAILS` (signed in with a verified email). `SELF_SIGNUP=false` (default) means only program owners create businesses; `true` keeps the old "anyone can create a workspace".

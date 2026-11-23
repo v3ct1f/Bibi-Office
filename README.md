@@ -12,7 +12,9 @@ pnpm dev:api                          # http://localhost:3000/docs
 pnpm dev:worker                       # outbox -> NATS relay
 ```
 
-Set `PLATFORM_ADMIN_EMAILS` to your own email: you're the program owner and set up each business at `/admin`. With `SELF_SIGNUP=false` (default), nobody else can create a business.
+Set `PLATFORM_ADMIN_EMAILS` to your own email before the first start: you're the program owner and set up each business at `/admin`, where you can also add co-owners or transfer ownership. With `SELF_SIGNUP=false` (default), nobody else can create a business.
+
+Local sign-in uses email + password accounts (`pnpm dev:oidc`). New people get a "Set your password" link in their invitation email; anyone can get one at `/forgot-password`. Put `MAIL_SMTP_URL` and `MAIL_FROM` in `.env.local` so those emails go out.
 
 ## Tests (real Postgres, no Docker needed)
 ```bash
