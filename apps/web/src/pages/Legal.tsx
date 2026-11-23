@@ -39,7 +39,7 @@ export function TermsPage() {
   return (
     <LegalPage title="Terms of Service">
       <S title="1. Who we are and what this is">
-        <p>{C.service} ("the Service") is online software for running a business: contacts, invoices, scheduling, support and more. It is provided by {C.name}, {C.address}, {C.country} (company number {C.registration}), referred to as "we". By creating an account or paying for the Service you agree to these Terms and to our <Link to="/privacy" className="underline">Privacy Policy</Link>.</p>
+        <p>{C.service} ("the Service") is online software for running a business: contacts, invoices, scheduling, support and more. It is provided by {C.name}, {C.address}, {C.country} (tax ID {C.registration}), referred to as "we". By creating an account or paying for the Service you agree to these Terms and to our <Link to="/privacy" className="underline">Privacy Policy</Link>.</p>
       </S>
       <S title="2. Who may use it">
         <p>The Service is for businesses and professionals, not for private consumers. You confirm that you sign up for a business or professional purpose and that you have the authority to accept these Terms for it.</p>
@@ -100,7 +100,7 @@ export function PrivacyPage() {
   return (
     <LegalPage title="Privacy Policy">
       <S title="1. Who is responsible">
-        <p>{C.name}, {C.address}, {C.country} (company number {C.registration}) runs {C.service}. Contact for anything about your data: {C.email}.</p>
+        <p>{C.name}, {C.address}, {C.country} (tax ID {C.registration}) runs {C.service}. Contact for anything about your data: {C.email}.</p>
         <p>We have two roles. For <strong>our customers' own account and billing details</strong> (section 2) we decide how the data is used, so we are the "controller". For <strong>the business data a customer puts into the Service</strong> (their contacts, invoices, staff records and so on, section 3) the customer is the controller and we are their "processor": we only handle it on their behalf and on their instructions. A data processing agreement is available on request.</p>
       </S>
       <S title="2. What we collect about customers and why">

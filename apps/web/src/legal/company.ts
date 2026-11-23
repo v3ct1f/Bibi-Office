@@ -6,20 +6,20 @@
 export const COMPANY = {
   /** The name customers see. */
   service: "Bibi Office",
-  /** Registered company name. */
-  name: "[COMPANY NAME]",
-  address: "[STREET AND NUMBER, POSTCODE, CITY]",
-  country: "[COUNTRY]",
-  /** Company number and VAT number. */
-  registration: "[COMPANY NUMBER / VAT NUMBER]",
+  /** Legal name of the person or company running the service. */
+  name: "Zias Van Campenhout",
+  address: "Calle Utrera, 5, [POSTCODE, CITY]",
+  country: "Spain",
+  /** Tax ID (NIF / NIE / company number) and VAT number if any. */
+  registration: "Y7815370F",
   /** Public contact for support and privacy requests. */
   email: "vectiff@gmail.com",
   /** Where the service runs once it is hosted (a processor named in the Privacy Policy). */
   hosting: "[HOSTING PROVIDER]",
   /** Country whose law governs the Terms, and whose courts decide disputes. */
-  law: "[COUNTRY]",
+  law: "Spain",
   /** The data protection authority customers can complain to (e.g. in Belgium: the Gegevensbeschermingsautoriteit). */
-  authority: "[DATA PROTECTION AUTHORITY]",
+  authority: "Agencia Española de Protección de Datos (AEPD, www.aepd.es)",
   /** Date of this text. Must equal TERMS_VERSION in apps/api/src/routes/billing.ts; change both when the text changes. */
   version: "2026-11-23",
   /** Days we keep a business's data after its subscription has ended. */
