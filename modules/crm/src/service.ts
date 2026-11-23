@@ -410,3 +410,20 @@ export async function addActivity(ctx: ModuleContext, dealId: string, input: z.i
   });
   return { id: a.id, kind: a.kind, body: a.body, createdBy: a.createdBy, createdAt: a.createdAt };
 }
+
+/** leads.lead.converted with `deal` set: open a deal for the new customer (the dispatcher delivers each event once). */
+export async function dealFromLead(ctx: ModuleContext, p: Record<string, unknown>) {
+  const deal = p.deal as { title?: unknown; valueCents?: unknown; currency?: unknown } | null | undefined;
+  if (!deal || typeof deal.title !== "string" || !deal.title.trim()) return;
+  const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+  const input = DealInput.parse({
+    title: deal.title.trim().slice(0, 300),
+    valueCents: Number.isInteger(deal.valueCents) && (deal.valueCents as number) >= 0 ? deal.valueCents : 0,
+    currency: typeof deal.currency === "string" && /^[A-Z]{3}$/.test(deal.currency) ? deal.currency : undefined,
+    companyId: str(p.companyId), contactId: str(p.contactId), ownerId: str(p.ownerId),
+  });
+  let d;
+  try { d = await createDeal(ctx, input); }
+  catch { d = await createDeal(ctx, { ...input, companyId: null, contactId: null }); } // the customer was deleted meanwhile
+  await log(ctx, d.id, "system", `Created from a lead${typeof p.name === "string" ? ` (${p.name})` : ""}`);
+}

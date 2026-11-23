@@ -149,16 +149,16 @@ export async function getLead(ctx: ModuleContext, id: string) {
 }
 
 export async function summary(ctx: ModuleContext) {
-  const weekAgo = new Date(Date.now() - 7 * 86_400_000);
-  const since90 = new Date(Date.now() - 90 * 86_400_000);
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const since90 = new Date(Date.now() - 90 * 86_400_000).toISOString();
   const [s] = await ctx.db.select({
     new: sql<number>`count(*) filter (where ${leads.status} = 'new')::int`,
     contacted: sql<number>`count(*) filter (where ${leads.status} = 'contacted')::int`,
     qualified: sql<number>`count(*) filter (where ${leads.status} = 'qualified')::int`,
-    addedThisWeek: sql<number>`count(*) filter (where ${leads.createdAt} >= ${weekAgo})::int`,
-    followUpsDue: sql<number>`count(*) filter (where ${leads.status} in ('new', 'contacted', 'qualified') and ${leads.followUpOn} <= ${today()})::int`,
-    converted90: sql<number>`count(*) filter (where ${leads.status} = 'converted' and ${leads.statusChangedAt} >= ${since90})::int`,
-    disqualified90: sql<number>`count(*) filter (where ${leads.status} = 'disqualified' and ${leads.statusChangedAt} >= ${since90})::int`,
+    addedThisWeek: sql<number>`count(*) filter (where ${leads.createdAt} >= ${weekAgo}::timestamptz)::int`,
+    followUpsDue: sql<number>`count(*) filter (where ${leads.status} in ('new', 'contacted', 'qualified') and ${leads.followUpOn} <= ${today()}::date)::int`,
+    converted90: sql<number>`count(*) filter (where ${leads.status} = 'converted' and ${leads.statusChangedAt} >= ${since90}::timestamptz)::int`,
+    disqualified90: sql<number>`count(*) filter (where ${leads.status} = 'disqualified' and ${leads.statusChangedAt} >= ${since90}::timestamptz)::int`,
   }).from(leads);
   const decided = (s?.converted90 ?? 0) + (s?.disqualified90 ?? 0);
   return {
@@ -343,7 +343,7 @@ export async function publicFormView(ctx: ModuleContext, token: string) {
 }
 
 /** Someone filled in the public form: a new lead, or a note on their open lead if they wrote before. */
-export async function publicSubmit(ctx: ModuleContext, token: string, body: z.infer<typeof PublicSubmit>, client: { ip: string; userAgent: string | null }) {
+export async function publicSubmit(ctx: ModuleContext, token: string, body: z.infer<typeof PublicSubmit>, _client: { ip: string; userAgent: string | null }) {
   const f = await liveForm(ctx, token);
   if (body.website) return { thanks: f.thanks }; // a bot; say thanks and keep nothing
   const parts = body.name.split(/\s+/).filter(Boolean);
@@ -360,6 +360,6 @@ export async function publicSubmit(ctx: ModuleContext, token: string, body: z.in
     firstName: parts[0] ?? null, lastName: parts.slice(1).join(" ") || null, email: body.email,
     phone: f.askPhone ? clean(body.phone) : null, companyName: f.askCompany ? clean(body.company) : null,
     message, source: "web_form", ownerId: null,
-  }, { firstNote: `Sent the web form${client.userAgent ? "" : ""}` });
+  }, { firstNote: "Sent the web form" });
   return { thanks: f.thanks };
 }

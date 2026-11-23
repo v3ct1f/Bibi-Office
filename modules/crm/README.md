@@ -45,6 +45,8 @@ Deal payload: `{ id, title, valueCents, currency, status, stage, stageId, pipeli
 `stage_changed` adds `fromStage`, `fromStageId`; `lost` adds `lostReason`; `updated` adds `changes` (field names).
 `crm.deal.won` is emitted every time a deal enters a won stage; Invoicing drafts at most one invoice per deal id.
 
+Subscribes to `leads.lead.converted`: when the payload has `deal: { title, valueCents, currency }`, CRM opens that deal in the first open stage for the new contact/company, with a "Created from a lead" note.
+
 ## Workflow actions
 
 - `crm.create_deal` `{ title, amount?, currency?, companyId?, contactId?, stage? }` → `{ dealId, stage }`

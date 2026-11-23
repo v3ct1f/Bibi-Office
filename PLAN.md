@@ -64,6 +64,14 @@
 - Deleted = `tenants.status = 'deleted'`: gone for everyone (not listed, members get 404, API keys and scheduled work stop, open invitations revoked). The records stay in the database; permanent erasure isn't built yet. Audited as `tenant.deleted`.
 - Pause / Reactivate (Session 20) is unchanged and is the reversible option.
 
+## Session 25, Leads
+- New feature **Leads** (`modules/leads`, category Sales): people who might become customers. Add them by hand, from the public **web form** or from a workflow; work them through New → Contacted → Qualified; **Convert to customer** or **Disqualify** (with a reason; can be reopened).
+- Logging a call, email or meeting on a new lead marks it contacted. Each lead has an owner, a follow-up date (red when due), a possible value and a timeline.
+- **Convert** reuses the contact with the same email and the company with the same name (or creates them). With CRM on, it can also open a deal: Leads emits `leads.lead.converted` with `deal`, and CRM (new handler) creates it, noted "Created from a lead". Neither feature imports the other.
+- **Web form** (Leads → Web form, `leads:form.manage`): off until turned on; a link to a public page (name, email, optional phone/company, message). Hidden honeypot field for bots; a second message from the same email goes on their open lead; "Get a new link" stops the old one.
+- Leads list (tabs To work on / Qualified / Converted / Disqualified / All, source filter, search, counters), dashboard widget, metrics (new, converted, conversion rate, open), 8 events, 3 workflow actions.
+- Tests: api leads 10; E2E leads 6 flows.
+
 ## Session 23, local accounts with passwords
 - The local sign-in server (`pnpm dev:oidc`) now uses real accounts: email + password (scrypt, 5 tries per 15 minutes, then locked for 15 minutes). Accounts and the signing key are kept in `.dev-accounts.json` (git-ignored), so sign-ins survive restarts. `DEV_OIDC_PASSWORDS=off` brings back the old any-email sign-in (E2E uses it).
 - Nobody types a password for someone else: people get a one-time **Set your password** link (7 days). It's added to emails for people without a password: business invitations, owner invitations, "you're now an owner" (co-owner added) and the new **"you're now the owner"** email on transfer.
