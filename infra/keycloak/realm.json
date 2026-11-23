@@ -1,20 +1,41 @@
 {
   "realm": "office",
   "enabled": true,
-  "registrationAllowed": true,
+  "displayName": "Bibi Office",
+  "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "verifyEmail": true,
+  "editUsernameAllowed": false,
+  "sslRequired": "external",
+  "passwordPolicy": "length(10) and notEmail(undefined,false)",
   "bruteForceProtected": true,
+  "failureFactor": 5,
+  "maxFailureWaitSeconds": 900,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
   "otpPolicyType": "totp",
+  "smtpServer": {
+    "host": "${KC_SMTP_HOST:localhost}",
+    "port": "${KC_SMTP_PORT:587}",
+    "from": "${KC_SMTP_FROM:no-reply@localhost}",
+    "fromDisplayName": "Bibi Office",
+    "auth": "true",
+    "starttls": "true",
+    "user": "${KC_SMTP_USER:}",
+    "password": "${KC_SMTP_PASSWORD:}"
+  },
   "clients": [
     {
       "clientId": "office-web",
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["http://localhost:5173/*"],
-      "webOrigins": ["http://localhost:5173"],
-      "attributes": { "pkce.code.challenge.method": "S256" },
+      "redirectUris": ["${OFFICE_APP_URL:http://localhost:5173}/*"],
+      "webOrigins": ["${OFFICE_APP_URL:http://localhost:5173}"],
+      "attributes": { "pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "${OFFICE_APP_URL:http://localhost:5173}/*" },
       "protocolMappers": [
         {
           "name": "office-api-audience",
@@ -23,6 +44,23 @@
           "config": { "included.custom.audience": "office-api", "access.token.claim": "true" }
         }
       ]
+    },
+    {
+      "clientId": "office-admin",
+      "name": "Office server (manages users only)",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "secret": "${OFFICE_ADMIN_CLIENT_SECRET:change-me-before-use}"
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-office-admin",
+      "enabled": true,
+      "serviceAccountClientId": "office-admin",
+      "clientRoles": { "realm-management": ["manage-users", "view-users", "query-users"] }
     }
   ]
 }

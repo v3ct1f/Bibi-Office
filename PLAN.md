@@ -58,6 +58,15 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 29, going-live pieces: legal pages, cancelling, Keycloak
+- **Terms of Service and Privacy Policy** at `/terms` and `/privacy` (public; linked from the sign-in screen and /start). Text is in `apps/web/src/pages/Legal.tsx`; the company details they print are in `apps/web/src/legal/company.ts`, still in [SQUARE BRACKETS] until filled in (the pages show a draft warning meanwhile). They say: for businesses only, monthly in advance, auto-renewing, **cancel any time and keep access until the paid month ends, no refunds** (except where the law forces one), data kept up to 90 days after ending, the program owner can look inside a business read-only.
+- **Consent**: /start has a required tickbox; the API refuses checkout without `acceptTerms: true`; the terms version and time are stored on the Stripe subscription (`TERMS_VERSION` in `routes/billing.ts` must match `COMPANY.version`).
+- **Cancelling**: Settings -> General -> **Manage subscription** (owners, paid businesses) opens Stripe's customer portal (`POST /billing/portal`). Cancel-at-period-end only sets a flag, so nothing is paused; the business pauses when Stripe ends the subscription at the end of the paid month (webhook `customer.subscription.deleted`). Needs the portal turned on in the Stripe dashboard.
+- **Keycloak** (`apps/api/src/keycloak.ts`): `Identity` adapter for production, chosen when `KEYCLOAK_URL`, `KEYCLOAK_ADMIN_CLIENT_ID` and `KEYCLOAK_ADMIN_CLIENT_SECRET` are set. Colleague accounts get a temporary password and an **unverified** email (so nobody can create an account in someone else's name); set-password emails are sent by Keycloak (needs SMTP in the realm); forgot-password never creates accounts. `infra/keycloak/realm.json` rewritten (no self-registration, 10-char passwords, lock-out, `office-admin` service account). See `docs/keycloak-setup.md`.
+- **Go-live checklist** in `docs/going-live.md`: Stripe live mode and **your bank account (entered only in Stripe)**, live price/webhook/portal, filling in the company details, lawyer review.
+- Tests: api 190 in 19 files (billing 11, keycloak 9); the Keycloak adapter is tested against a pretend Keycloak only, **not a real one** (no Docker/Java 17 on this PC).
+- Still open: hosting (parked by the owner), automatic deletion of data after a cancelled subscription (promised in the Terms), VAT (Stripe Tax), a data processing agreement template.
+
 ## Session 28, paid sign-up with Stripe
 - Public page **/start**: business name, web address (suggested from the name), email, region -> **Continue to payment** on Stripe's own Checkout page (monthly subscription). After paying, Stripe sends people to **/start/thanks**.
 - A **signed webhook** (`POST /api/v1/stripe/webhook`) does the real work. On `checkout.session.completed` it creates the business (`createBusiness`, audited as `platform:stripe`) and emails the owner invitation, the same as when the program owner creates one by hand. Repeats from Stripe never create a second business (unique `tenants.stripe_subscription_id`).

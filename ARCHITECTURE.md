@@ -431,3 +431,6 @@ office/
 
 ## 15. Paid sign-up (Session 28, as built)
 `apps/api/src/billing.ts` (Stripe Checkout call + webhook signature check, no SDK) and `routes/billing.ts` (`/signup/config`, `/signup/checkout`, `/stripe/webhook`; all public, the webhook keeps its body raw in its own plugin). The webhook is the only thing that creates a business from a payment; it acts as `{ userId: null, email: "stripe" }` through the normal `createBusiness` / `setBusinessStatus`, so audit and owner invitation work as for hand-made businesses. `tenants.stripe_subscription_id` (unique) makes it idempotent and links a subscription to its business.
+
+## 16. Going-live pieces (Session 29, as built)
+`apps/api/src/keycloak.ts` implements `Identity` for Keycloak's admin API (service account, client credentials, token cached); `server.ts` picks it over the dev sign-in server when `KEYCLOAK_*` is set. Billing gained `portalUrl` (Stripe customer portal) behind `POST /billing/portal` (needs `core:tenant.manage`) and the checkout requires `acceptTerms`. Legal text lives in the web app (`pages/Legal.tsx`, `legal/company.ts`) because it is public and versioned with the code.
