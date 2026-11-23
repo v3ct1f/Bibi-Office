@@ -312,3 +312,45 @@ export function DatePicker({ value, onChange, id, name, min, max, disabled, requ
     </P.Root>
   );
 }
+
+// ───────── DateTimePicker ─────────
+
+export interface DateTimePickerProps extends Omit<DatePickerProps, "value" | "onChange" | "min" | "max"> {
+  /** "YYYY-MM-DDTHH:mm" (same as <input type="datetime-local">), or "". */
+  value: string;
+  onChange: (value: string) => void;
+  /** Earliest/latest moment, "YYYY-MM-DDTHH:mm" or "YYYY-MM-DD"; only the day part limits the calendar. */
+  min?: string;
+  max?: string;
+  /** Time used when a day is picked before any time is set. */
+  defaultTime?: string;
+}
+
+/** Date + time in one field: the app's calendar for the day, a time box for the hour. */
+export function DateTimePicker({ value, onChange, min, max, defaultTime = "09:00", disabled, className, ...rest }: DateTimePickerProps) {
+  const [day = "", rawTime = ""] = value ? value.split("T") : [];
+  const [time, setTime] = useState(rawTime.slice(0, 5));
+  useEffect(() => { if (rawTime) setTime(rawTime.slice(0, 5)); }, [rawTime]);
+
+  return (
+    <div className={cn("flex gap-2", className)}>
+      <DatePicker
+        {...rest}
+        className="min-w-0 flex-1"
+        disabled={disabled}
+        value={day}
+        min={min?.slice(0, 10)}
+        max={max?.slice(0, 10)}
+        onChange={(iso) => onChange(iso ? `${iso}T${time || defaultTime}` : "")}
+      />
+      <input
+        type="time"
+        aria-label="Time"
+        disabled={disabled}
+        value={time}
+        className={cn(fieldClass, "h-9 w-28 shrink-0 tabular-nums")}
+        onChange={(e) => { setTime(e.target.value); if (day && e.target.value) onChange(`${day}T${e.target.value}`); }}
+      />
+    </div>
+  );
+}

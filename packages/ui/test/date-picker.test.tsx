@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DatePicker, Field, parseTypedDate, toIsoDate } from "../src/index.ts";
+import { DatePicker, DateTimePicker, Field, parseTypedDate, toIsoDate } from "../src/index.ts";
 
 describe("parseTypedDate", () => {
   it("reads ISO, month names and empty text", () => {
@@ -51,5 +51,22 @@ describe("DatePicker", () => {
     expect(day("2026-11-09").disabled).toBe(true);
     expect(day("2026-11-15").disabled).toBe(false);
     expect(day("2026-11-21").disabled).toBe(true);
+  });
+});
+
+describe("DateTimePicker", () => {
+  function DT() {
+    const [v, setV] = useState("");
+    return <><Field label="Remind me at">{(a) => <DateTimePicker {...a} value={v} onChange={setV} />}</Field><output data-testid="out">{v}</output></>;
+  }
+  it("joins the typed day with the time", async () => {
+    const u = userEvent.setup();
+    render(<DT />);
+    await u.type(screen.getByLabelText("Remind me at"), "2026-12-01");
+    expect(screen.getByTestId("out").textContent).toBe("2026-12-01T09:00");
+    const time = screen.getByLabelText("Time");
+    await u.clear(time);
+    await u.type(time, "14:30");
+    expect(screen.getByTestId("out").textContent).toBe("2026-12-01T14:30");
   });
 });
