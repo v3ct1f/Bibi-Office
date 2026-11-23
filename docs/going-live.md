@@ -1,5 +1,17 @@
 # Going live: checklist
 
+## Status of the Stripe live account (2026-11-23)
+Done in the Stripe dashboard (live mode):
+- Account activated, bank account (payouts) connected, two-step sign-in on, identity verified.
+- Business name **Bibi Office**, statement descriptor `BIBI OFFICE`, industry Software as a service. Website: an Instagram page for now; **replace it with the real site once hosted** (Settings -> Business -> Business details), and Stripe may review the site (price, Terms, Privacy, cancellation).
+- Live product **Bibi Office** with the monthly price EUR 49.99: `STRIPE_PRICE_ID` for live = `price_1UexwLAPelOwzevDIymU46pk` (not a secret).
+- Customer portal saved in live mode: customers can update their payment method, see invoices, and **cancel at the end of the billing period**.
+- Failed payments: first failure leaves the subscription past-due (Office pauses the business itself and emails the owner); when every retry fails Stripe **cancels** the subscription (starts the 90-day erasure clock).
+- Left off on purpose: Stripe Tax (waiting for the gestor), Climate donation. Radar fraud screening is on (EUR 0.05 per screened payment).
+
+Still to do for live mode (needs hosting): the live webhook endpoint and its signing secret, the live secret key in the API's settings, and a real test payment. **Office still runs on the test keys.**
+
+
 Hosting is not covered here yet (decided to wait). Everything below is what has to be true before real customers pay.
 
 ## 1. Money: Stripe live mode and your bank account  (you do this; it can't be done for you)
