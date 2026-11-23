@@ -65,7 +65,8 @@
 - If the address was taken while the customer paid, they get a close variant (`name-ab12cd`) instead of losing their purchase. The address is also checked before paying.
 - Off until all four are set in `.env.local`: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`, `STRIPE_PRICE_LABEL` (text shown on the page). Without them the page says "Sign-up isn't open yet". Step by step: `docs/stripe-setup.md`.
 - No Stripe package: plain HTTPS calls plus our own signature check (`apps/api/src/billing.ts`). Migration 0010. `GET /platform/businesses` items now have `paid`.
-- Tests: api billing 7 (written and type-checked; **not run** yet, no Postgres on the machine they were written on).
+- Tests: api billing 8, all green (full run: api 178 in 18 files). Local Postgres on this PC is a portable copy in C:\Users\vecti\pgportable (start: pgsql\bin\pg_ctl.exe -D data -o "-p 55432" start). `office_owner` must NOT be a superuser, or row-level security is skipped.
+- Still to do: a real test payment with the Stripe CLI listener, a production sign-in service, hosting.
 - Not yet: customers cancelling / changing card themselves (Stripe customer portal), invoices with VAT (Stripe Tax), several price plans, a paid flag in the Program admin list.
 
 ## Session 27, Colleagues
