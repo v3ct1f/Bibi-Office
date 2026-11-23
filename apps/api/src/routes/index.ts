@@ -92,7 +92,7 @@ export const registerRoutes: FastifyPluginAsync<{
     return reply.status(202).send({ ok: true, available: !!(o.mailer && o.identity) });
   });
 
-  await registerContactRoutes(app, { mailer: o.mailer, contactEmail: o.contactEmail });
+  await registerContactRoutes(app, { db, mailer: o.mailer, contactEmail: o.contactEmail, inTenant });
   await registerBillingRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, billing: o.billing, inTenant });
   await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, platformAdmin, modules: o.modules });
 

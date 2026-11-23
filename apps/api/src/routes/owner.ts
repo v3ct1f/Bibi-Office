@@ -3,10 +3,10 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { and, eq, ne } from "drizzle-orm";
 import {
-  addPlatformAdmin, createBusiness, deleteBusiness, forbidden, listPlatformAdmins, removePlatformAdmin, transferPlatformOwnership, INVITATION_DAYS, inviteBusinessOwner, listBusinesses, notFound, platformContext, setBusinessStatus,
+  addPlatformAdmin, createBusiness, deleteBusiness, eraseBusiness, forbidden, listPlatformAdmins, removePlatformAdmin, transferPlatformOwnership, INVITATION_DAYS, inviteBusinessOwner, listBusinesses, notFound, platformContext, setBusinessStatus,
   type PlatformAdmin,
 } from "@office/core";
-import { tenants, withTenant, type Db } from "@office/db";
+import { platformAudit, tenants, uuidv7, withTenant, type Db } from "@office/db";
 import { setAllowedModules, type ModuleDeps } from "@office/platform";
 import { invitationEmail, ownerAddedEmail, ownershipTransferredEmail, type Mailer } from "../mail.ts";
 import type { Identity } from "../identity.ts";
@@ -155,12 +155,23 @@ export async function registerOwnerRoutes(
     return reply.status(201).send({ invitation: await deliver(req, tenant, invite) });
   });
 
-  /** Deleting needs the business name typed in to confirm. */
+  /**
+   * Deleting needs the business name typed in to confirm. It is erased for good after 30 days, or at once with
+   * `erase: true` (a privacy request): then its records, files and the accounts of people who belonged to no
+   * other business are removed, and only a record that it happened is kept.
+   */
   app.post("/platform/businesses/:id/delete", {
-    config: AUTH, schema: { tags: ["platform"], params: Id, body: z.object({ confirmName: z.string().max(300) }).strict() },
+    config: AUTH, schema: { tags: ["platform"], params: Id, body: z.object({ confirmName: z.string().max(300), erase: z.boolean().optional() }).strict() },
   }, async (req) => {
     const a = await admin(req);
-    return deleteBusiness(o.db, a, req.params.id, req.body.confirmName, meta(req));
+    const r = await deleteBusiness(o.db, a, req.params.id, req.body.confirmName, meta(req));
+    if (!req.body.erase) return { ...r, erased: false };
+    const subs = await eraseBusiness(o.db, r.id, { now: true });
+    await o.db.insert(platformAudit).values({ id: uuidv7(), actor: a.email, action: "tenant.erased", detail: { tenantId: r.id, accountsErased: subs.length } });
+    for (const sub of subs) {
+      try { await o.identity?.deleteAccount?.(sub); } catch (e) { req.log.warn({ err: e }, "sign-in account could not be deleted"); }
+    }
+    return { ...r, erased: true };
   });
 
   for (const [path, status] of [["pause", "suspended"], ["resume", "active"]] as const) {

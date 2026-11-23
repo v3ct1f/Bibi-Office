@@ -45,6 +45,12 @@ beforeAll(async () => {
     const m = p.match(/^\/users\/([^/]+)\/(credentials|execute-actions-email)$/);
     if (m && m[2] === "credentials") return send(200, users.find((x) => x.id === m[1])?.password ? [{ type: "password" }] : []);
     if (m && m[2] === "execute-actions-email") return failEmail ? send(500, {}) : send(204);
+    if (req.method === "DELETE" && p.startsWith("/users/")) {
+      const id = p.split("/")[2];
+      const known = users.some((x) => x.id === id);
+      users = users.filter((x) => x.id !== id);
+      return known ? send(204) : send(id === "boom" ? 500 : 404, {});
+    }
     return send(404, {});
   }).listen(0);
   await new Promise((r) => server.once("listening", r));
@@ -112,6 +118,15 @@ describe("Keycloak sign-in service", () => {
     expect(await kc().passwordLink("nobody@example.com")).toEqual({ link: null, hasPassword: false });
     expect(users.map((u) => u.email)).toEqual(["old@example.com"]);
     expect(sent()).toHaveLength(1);
+  });
+
+  it("deletes an erased person's account; one that is already gone is fine; other errors are reported", async () => {
+    users.push({ id: "kc-5", email: "gone@example.com" });
+    await kc().deleteAccount!("kc-5");
+    expect(users).toHaveLength(0);
+    expect(calls[0]).toMatchObject({ method: "DELETE", path: "/admin/realms/office/users/kc-5" });
+    await expect(kc().deleteAccount!("kc-5")).resolves.toBeUndefined();   // already gone (404)
+    await expect(kc().deleteAccount!("boom")).rejects.toThrow(/answered 500/);
   });
 
   it("returns null (and logs) when Keycloak can't send the email, so Office's own emails still go out", async () => {

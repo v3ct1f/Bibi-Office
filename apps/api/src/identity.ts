@@ -12,6 +12,8 @@ export interface Identity {
    * (Keycloak: a "temporary" credential). Returns the account's subject, or "exists" if the email already has one.
    */
   createAccount(a: { email: string; name: string; password: string }): Promise<{ sub: string } | "exists">;
+  /** Deletes a sign-in account when its person is erased from Office. Missing = already gone. Optional: the dev server has nothing to delete. */
+  deleteAccount?(sub: string): Promise<void>;
 }
 
 /** IDP_ADMIN_URL (e.g. http://localhost:8081/dev-admin) + IDP_ADMIN_SECRET; null when not set up. */

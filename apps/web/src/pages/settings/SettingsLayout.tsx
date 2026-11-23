@@ -1,5 +1,5 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Building, KeyRound, ScrollText, Shield, Users, Webhook } from "lucide-react";
+import { Building, KeyRound, LifeBuoy, ScrollText, Shield, Users, Webhook } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, PageHeader, cn } from "@office/ui";
 import { request } from "../../api/client.ts";
@@ -13,6 +13,7 @@ export const SETTINGS_NAV = [
   { path: "/api-keys", label: "API keys", icon: KeyRound, perm: "core:apikeys.manage" },
   { path: "/webhooks", label: "Webhooks", icon: Webhook, perm: "core:webhooks.manage" },
   { path: "/audit", label: "Audit log", icon: ScrollText, perm: "core:audit.read" },
+  { path: "/support", label: "Contact support", icon: LifeBuoy, perm: "core:members.manage" },
 ];
 
 export function SettingsLayout() {

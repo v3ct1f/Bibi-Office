@@ -12,7 +12,6 @@ function LegalPage({ title, children }: { title: string; children: ReactNode }) 
           <Link to="/" className="hover:text-foreground">Home</Link>
           <Link to="/terms" className="hover:text-foreground">Terms</Link>
           <Link to="/privacy" className="hover:text-foreground">Privacy Policy</Link>
-          <Link to="/contact" className="hover:text-foreground">Contact</Link>
         </nav>
         {legalIncomplete && (
           <p role="alert" className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
@@ -63,7 +62,7 @@ export function TermsPage() {
       </S>
       <S title="5. Cancelling">
         <p>You can cancel at any time yourself: in the Service go to Settings, then General, then "Manage subscription". Cancelling stops the next renewal. You keep full use of the Service until the end of the month you have already paid for. After that the account is paused and you are not charged again.</p>
-        <p>After the subscription ends we keep the business's data for up to {C.keepDays} days so you can come back. After that we may delete it. You can ask for a copy or for deletion earlier at any time by emailing {C.email}.</p>
+        <p>After the subscription ends we keep the business's data for up to {C.keepDays} days so you can come back. After that we permanently delete it. You can ask for a copy or for deletion earlier at any time by emailing {C.email}.</p>
       </S>
       <S title="6. No refunds">
         <p>Payments are not refundable. This includes the current month when you cancel part-way, and any unused time. This does not take away any right that the law gives you and that cannot be excluded by contract. We may, at our own choice, make a refund in a particular case; doing so once does not oblige us to do it again.</p>
@@ -91,7 +90,8 @@ export function TermsPage() {
         <p>These Terms are governed by the law of {C.law}. Disputes go to the competent courts of {C.law}, unless mandatory law says otherwise.</p>
       </S>
       <S title="14. Contact">
-        <p>{C.name}, {C.address}, {C.country}. Tax ID: {C.registration}. Email: {C.email}. Or use the <Link to="/contact" className="underline">contact form</Link>.</p>
+        <p>{C.name}, {C.address}, {C.country}. Tax ID: {C.registration}. Email: {C.email}.</p>
+        <p>Support inside the Service is for the business owner and for the people the owner has given an admin role (Settings, then Contact support). Other users of a business should ask their business owner, who can contact us.</p>
       </S>
     </LegalPage>
   );
@@ -129,7 +129,7 @@ export function PrivacyPage() {
       </S>
       <S title="5. How long we keep it">
         <ul>
-          <li>Account and business data: while your subscription is active, and up to {C.keepDays} days after it ends, then it may be deleted.</li>
+          <li>Account and business data: while your subscription is active, and up to {C.keepDays} days after it ends, then it is permanently deleted, together with the sign-in accounts of people who belong to no other business.</li>
           <li>Invoices and payment records of ours: as long as tax and accounting law requires.</li>
           <li>Security logs: for a limited time, normally up to 12 months.</li>
         </ul>

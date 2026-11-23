@@ -16,7 +16,7 @@ Your bank details are entered **only in Stripe**, never in Office. Stripe pays o
 
 ## 2. Legal pages
 1. Open `apps/web/src/legal/company.ts` and replace everything still in [SQUARE BRACKETS]: the **business address** (Spanish law expects a service provider to show one; use a business address, not your home, if you prefer; ask your gestor whether you can register one) and the hosting provider. Name, tax ID, Spanish governing law and the AEPD are filled in. While any bracket is left, the pages show a draft warning.
-   Also set `CONTACT_EMAIL` where the API runs, so the contact form works (it needs mail set up too).
+   Also set `CONTACT_EMAIL` where the API runs, so "Contact support" (owners and admins only) works; it needs mail set up too.
 2. Have a lawyer (or at least an experienced person) read the Terms and Privacy Policy once. They are a careful draft, not legal advice.
 3. If you change the text, change the date `version` in `company.ts` **and** `TERMS_VERSION` in `apps/api/src/routes/billing.ts`. The version a customer agreed to is stored on their Stripe subscription.
 4. Stripe also asks for links to your terms and privacy policy: use `https://YOUR-APP/terms` and `https://YOUR-APP/privacy`.
@@ -28,5 +28,5 @@ See `docs/keycloak-setup.md`. Needs working outgoing email.
 
 ## 4. Still open
 - **Hosting** (API, worker, web app, Keycloak, database): decided to wait.
-- **Deleting data after a cancelled subscription** (the Terms say up to 90 days): there is no automatic erasure yet; deleting a business only hides it. Build it before relying on that promise.
+- **Deleting data** is automatic now (30 days after a business is deleted, 90 days after a subscription ended), checked every 6 hours while the API runs. Test it once on the real server with a throwaway business (delete it, backdate `deleted_at`, wait for the run).
 - VAT on invoices to your customers (Stripe Tax) and a Data Processing Agreement to hand to customers who ask.

@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or, lte, sql } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
 import {
   invitations, memberRoles, memberships, roles, tenantModules, tenants, users, uuidv7, withTenant, type Db, type Tx,
@@ -106,9 +106,16 @@ export async function inviteBusinessOwner(db: Db, admin: PlatformAdmin, tenantId
 }
 
 /** Pause (nobody can use it; data is kept) or reactivate a business. */
-export async function setBusinessStatus(db: Db, admin: PlatformActor, tenantId: string, status: "active" | "suspended", meta: Meta) {
+export async function setBusinessStatus(
+  db: Db, admin: PlatformActor, tenantId: string, status: "active" | "suspended", meta: Meta,
+  /** subscriptionEnded: the pause is because the paid subscription ended, which starts the 90-day countdown to erasure. */
+  opts: { subscriptionEnded?: boolean } = {},
+) {
   return withTenant(db, tenantId, async (tx) => {
-    const [t] = await tx.update(tenants).set({ status })
+    const [t] = await tx.update(tenants).set({
+      status,
+      ...(status === "active" ? { subscriptionEndedAt: null } : opts.subscriptionEnded ? { subscriptionEndedAt: sql`coalesce(${tenants.subscriptionEndedAt}, now())` } : {}),
+    })
       .where(and(eq(tenants.id, tenantId), ne(tenants.status, "deleted"))).returning();
     if (!t) throw notFound("Business");
     await audit(tx, platformContext(tenantId, admin, meta), status === "suspended" ? "tenant.paused" : "tenant.resumed", { type: "tenant", id: tenantId });
@@ -125,9 +132,33 @@ export async function deleteBusiness(db: Db, admin: PlatformAdmin, tenantId: str
     const [t] = await tx.select().from(tenants).where(and(eq(tenants.id, tenantId), ne(tenants.status, "deleted"))).for("update");
     if (!t) throw notFound("Business");
     if (confirmName.trim().toLowerCase() !== t.name.trim().toLowerCase()) throw badRequest("Type the business name exactly to confirm");
-    await tx.update(tenants).set({ status: "deleted" }).where(eq(tenants.id, tenantId));
+    await tx.update(tenants).set({ status: "deleted", deletedAt: new Date() }).where(eq(tenants.id, tenantId));
     await tx.update(invitations).set({ revokedAt: new Date() }).where(and(isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
     await audit(tx, platformContext(tenantId, admin, meta), "tenant.deleted", { type: "tenant", id: tenantId }, { name: t.name, slug: t.slug, was: t.status });
     return { id: t.id, name: t.name, status: "deleted" as const };
   });
+}
+
+// ───── Permanent erasure ─────
+/** Days a deleted business is kept before it is erased, and days a business is kept after its subscription ended (the Terms say 90). */
+export const ERASE_DELETED_AFTER_DAYS = 30;
+export const ERASE_ENDED_AFTER_DAYS = 90;
+
+/** Businesses that are due to be erased now (the same rules as the database function that does it). */
+export async function listErasableBusinesses(db: Db, limit = 20): Promise<string[]> {
+  const rows = await db.select({ id: tenants.id }).from(tenants).where(or(
+    and(eq(tenants.status, "deleted"), lte(tenants.deletedAt, sql`now() - ${`${ERASE_DELETED_AFTER_DAYS} days`}::interval`)),
+    and(ne(tenants.status, "active"), lte(tenants.subscriptionEndedAt, sql`now() - ${`${ERASE_ENDED_AFTER_DAYS} days`}::interval`)),
+  )).limit(limit);
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Erases a business and everything in it, for good. The database refuses unless it is due (deleted for 30 days,
+ * subscription ended 90 days ago) or `now` is set for a business that is already deleted (a privacy request).
+ * Returns the sign-in subjects of people who belonged to no other business and were erased with it.
+ */
+export async function eraseBusiness(db: Db, tenantId: string, opts: { now?: boolean } = {}): Promise<string[]> {
+  const rows = await db.execute<{ idp_subject: string }>(sql`select idp_subject from erase_tenant(${tenantId}::uuid, ${!!opts.now})`);
+  return [...rows].map((r) => r.idp_subject);
 }

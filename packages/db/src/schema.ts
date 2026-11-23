@@ -25,6 +25,9 @@ export const tenants = pgTable("tenants", {
   /** Set when the business came from a paid Stripe subscription. */
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
+  /** When the business was deleted (erased for good 30 days later), and when its paid subscription ended (erased 90 days later). */
+  deletedAt: ts("deleted_at"),
+  subscriptionEndedAt: ts("subscription_ended_at"),
   region: text("region").notNull().default("eu"),
   status: text("status").$type<"active" | "suspended" | "deleted">().notNull().default("active"),
   settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),

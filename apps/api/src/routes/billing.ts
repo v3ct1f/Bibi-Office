@@ -154,7 +154,7 @@ export async function registerBillingRoutes(
         // past_due keeps working while Stripe retries the card; the rest of the "not paying" states pause it.
         const want = status === "active" || status === "trialing" || status === "past_due" ? "active"
           : status === "canceled" || status === "unpaid" || status === "incomplete_expired" ? "suspended" : t.status;
-        if (want !== t.status) await setBusinessStatus(o.db, STRIPE_ACTOR, t.id, want as "active" | "suspended", meta);
+        if (want !== t.status) await setBusinessStatus(o.db, STRIPE_ACTOR, t.id, want as "active" | "suspended", meta, { subscriptionEnded: want === "suspended" });
         return reply.send({ ok: true });
       }
       return reply.send({ ignored: true });

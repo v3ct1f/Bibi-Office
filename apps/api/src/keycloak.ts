@@ -86,6 +86,11 @@ export function keycloakIdentity(o: Partial<KeycloakOptions>): Identity | null {
       return { sub };
     },
 
+    async deleteAccount(sub) {
+      const r = await admin(`/users/${encodeURIComponent(sub)}`, { method: "DELETE" });
+      if (r.status !== 204 && r.status !== 404) throw new Error(`Keycloak answered ${r.status} when deleting an account`);
+    },
+
     async passwordLink(emailIn, next) {
       try {
         const email = emailIn.trim().toLowerCase();
