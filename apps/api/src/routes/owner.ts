@@ -8,7 +8,8 @@ import {
 } from "@office/core";
 import { tenants, withTenant, type Db } from "@office/db";
 import { setAllowedModules, type ModuleDeps } from "@office/platform";
-import { invitationEmail, type Mailer } from "../mail.ts";
+import { invitationEmail, ownerAddedEmail, ownershipTransferredEmail, type Mailer } from "../mail.ts";
+import type { Identity } from "../identity.ts";
 
 const AUTH = { auth: "authenticated" } as const;
 const Id = z.object({ id: z.uuid() });
@@ -19,7 +20,7 @@ const Id = z.object({ id: z.uuid() });
  */
 export async function registerOwnerRoutes(
   app0: FastifyInstance,
-  o: { db: Db; appUrl: string; mailer: Mailer | null; platformAdmin: (req: FastifyRequest) => Promise<PlatformAdmin | null>; modules: ModuleDeps },
+  o: { db: Db; appUrl: string; mailer: Mailer | null; identity: Identity | null; platformAdmin: (req: FastifyRequest) => Promise<PlatformAdmin | null>; modules: ModuleDeps },
 ) {
   const app = app0.withTypeProvider<ZodTypeProvider>();
   const admin = async (req: FastifyRequest) => {
@@ -28,6 +29,11 @@ export async function registerOwnerRoutes(
     return a;
   };
   const meta = (req: FastifyRequest) => ({ requestId: req.id, ip: req.ip });
+  /** A "set your password" link for people who don't have a password yet (null otherwise). */
+  const passwordLink = async (email: string, next: string) => {
+    const pw = await o.identity?.passwordLink(email, next);
+    return pw && !pw.hasPassword ? pw.link : null;
+  };
 
   /** Emails the owner invitation if mail is set up; the link is always returned to copy. */
   async function deliver(req: FastifyRequest, tenant: { id: string; name: string }, inv: { email: string; token: string; expiresAt: Date }) {
@@ -36,7 +42,10 @@ export async function registerOwnerRoutes(
     let emailError: string | null = null;
     if (o.mailer) {
       try {
-        await o.mailer.send({ to: inv.email, ...invitationEmail({ tenantName: tenant.name, inviterName: null, link, days: INVITATION_DAYS }) });
+        await o.mailer.send({
+          to: inv.email,
+          ...invitationEmail({ tenantName: tenant.name, inviterName: null, link, days: INVITATION_DAYS, passwordLink: await passwordLink(inv.email, link) }),
+        });
         emailed = true;
       } catch (e) {
         req.log.warn({ err: e }, "owner invitation email failed");
@@ -60,15 +69,8 @@ export async function registerOwnerRoutes(
     let emailed = false;
     if (o.mailer) {
       try {
-        await o.mailer.send({
-          to: added.email, subject: "You're now an owner of Office",
-          text: [
-            `${a.email} made you a program owner of Office.`, "",
-            `Sign in with this email address and open Program admin: ${o.appUrl}/admin`, "",
-            "Program owners create and pause businesses and choose their features. They can't see inside a business.",
-            "If you weren't expecting this, tell the person who added you.",
-          ].join("\n"),
-        });
+        const adminUrl = `${o.appUrl}/admin`;
+        await o.mailer.send({ to: added.email, ...ownerAddedEmail({ by: a.email, adminUrl, passwordLink: await passwordLink(added.email, adminUrl) }) });
         emailed = true;
       } catch (e) { req.log.warn({ err: e }, "owner email failed"); }
     }
@@ -84,7 +86,16 @@ export async function registerOwnerRoutes(
     config: AUTH, schema: { tags: ["platform"], body: z.object({ email: z.email().max(320) }).strict() },
   }, async (req) => {
     const a = await admin(req);
-    return transferPlatformOwnership(o.db, a, req.body.email);
+    const r = await transferPlatformOwnership(o.db, a, req.body.email);
+    let emailed = false;
+    if (o.mailer) {
+      try {
+        const adminUrl = `${o.appUrl}/admin`;
+        await o.mailer.send({ to: r.to, ...ownershipTransferredEmail({ by: a.email, adminUrl, passwordLink: await passwordLink(r.to, adminUrl) }) });
+        emailed = true;
+      } catch (e) { req.log.warn({ err: e }, "transfer email failed"); }
+    }
+    return { ...r, emailed };
   });
 
   /** Every feature this installation has, for choosing what each business may use. */

@@ -4,11 +4,13 @@ import { createRegistry } from "@office/modules";
 import { buildApp } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { smtpMailer } from "./mail.ts";
+import { devIdentity } from "./identity.ts";
 
 const config = loadConfig();
 const { db, close } = createDb(config.DATABASE_URL_APP, { max: 20 });
 const app = await buildApp({
   db, config, mailer: smtpMailer(config.MAIL_SMTP_URL, config.MAIL_FROM),
+  identity: devIdentity(config.IDP_ADMIN_URL, config.IDP_ADMIN_SECRET, (e) => console.warn("password link failed:", e)),
   platformAdmins: config.PLATFORM_ADMIN_EMAILS, selfSignup: config.SELF_SIGNUP, platform: { registry: createRegistry(), secrets: new SecretBox(config.SECRETS_KEY) },
 });
 

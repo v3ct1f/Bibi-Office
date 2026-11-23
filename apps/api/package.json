@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "dev:oidc": "tsx scripts/dev-oidc.ts",
-    "dev:local": "tsx scripts/dev-local.ts"
+    "dev:local": "tsx scripts/dev-local.ts",
+    "owner:welcome": "tsx scripts/owner-welcome.ts"
   },
   "dependencies": {
     "@fastify/cors": "11.1.0",

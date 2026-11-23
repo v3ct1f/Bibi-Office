@@ -215,7 +215,7 @@ describe("program owners", () => {
     expect((await h.client(boss).post("/platform/owners/transfer", { email: "nobody@example.com" })).status).toBe(409);
     expect((await h.client(boss).post("/platform/owners/transfer", { email: "boss@example.com" })).status).toBe(400);
 
-    expect((await h.client(boss).post("/platform/owners/transfer", { email: "olivia@example.com" })).body).toEqual({ to: "olivia@example.com" });
+    expect((await h.client(boss).post("/platform/owners/transfer", { email: "olivia@example.com" })).body).toEqual({ to: "olivia@example.com", emailed: false });
     expect((await h.client(boss).get("/me")).body.platformAdmin).toBe(false);
     expect((await h.client(boss).get("/platform/owners")).status).toBe(403);
     expect(await owners(olivia)).toEqual([expect.objectContaining({ email: "olivia@example.com", you: true })]);

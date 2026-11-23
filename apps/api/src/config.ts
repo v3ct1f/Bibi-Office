@@ -17,6 +17,9 @@ const Env = z.object({
   /** Platform email for invitations, e.g. smtps://user:pass@smtp.example.com:465. Without it, invite links are shown to copy. */
   MAIL_SMTP_URL: z.string().optional(),
   MAIL_FROM: z.string().optional(),
+  /** Sign-in service admin endpoint for "set your password" links (local dev sign-in server for now). */
+  IDP_ADMIN_URL: z.string().optional(),
+  IDP_ADMIN_SECRET: z.string().optional(),
   /** Program owners (comma-separated emails): they see every business, create businesses and pause them. */
   PLATFORM_ADMIN_EMAILS: z.string().default("").transform((s) => s.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean)),
   /** true = anyone who signs in may create their own business. false (default) = only program owners create businesses. */

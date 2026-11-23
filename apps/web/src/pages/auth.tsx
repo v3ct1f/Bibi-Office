@@ -32,6 +32,7 @@ export function SignIn() {
           <Button className="w-full" size="lg" loading={busy} onClick={() => { setBusy(true); void signIn().catch(() => setBusy(false)); }}>
             <LogIn /> Sign in
           </Button>
+          <Button asChild variant="link" className="mt-2 w-full text-muted-foreground"><a href="/forgot-password">Forgot your password or never set one?</a></Button>
         </CardContent>
       </Card>
     </FullPage>

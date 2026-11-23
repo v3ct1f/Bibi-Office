@@ -9,7 +9,8 @@ import {
   forbidden, isPlatformAdmin, CORE_PERMISSIONS, type EntityKey, type RequestContext,
 } from "@office/core";
 import { auditLog, tenants, users, withTenant, type Db, type Tx } from "@office/db";
-import { invitationEmail, type Mailer } from "../mail.ts";
+import { invitationEmail, passwordResetEmail, type Mailer } from "../mail.ts";
+import type { Identity } from "../identity.ts";
 import { registerOwnerRoutes } from "./owner.ts";
 
 type InTenant = <T>(req: import("fastify").FastifyRequest, perm: string | null,
@@ -25,7 +26,7 @@ const Page = z.object({
 const tenantHeader = z.object({ "x-tenant-id": z.uuid().optional() }).loose();
 
 export const registerRoutes: FastifyPluginAsync<{
-  db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null; selfSignup: boolean;
+  db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null; identity: Identity | null; selfSignup: boolean;
   modules: import("@office/platform").ModuleDeps;
 }> = async (app0, o) => {
   const app = app0.withTypeProvider<ZodTypeProvider>();
@@ -69,7 +70,25 @@ export const registerRoutes: FastifyPluginAsync<{
     (req) => inTenant(req, null, async (_tx, ctx) => getTenant(db, ctx.tenantId)));
 
   // ───── Program owner (all businesses; never their data) ─────
-  await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, platformAdmin, modules: o.modules });
+  /**
+   * Forgot password / never set one: emails a one-time link from the sign-in service. Always answers the same,
+   * so nobody can find out which emails have accounts.
+   */
+  app.post("/auth/forgot-password", {
+    config: { auth: "public", rateLimit: { max: 5, timeWindow: "15 minutes" } },
+    schema: { tags: ["auth"], body: z.object({ email: z.email().max(320) }).strict() },
+  }, async (req, reply) => {
+    const email = req.body.email.trim().toLowerCase();
+    if (o.mailer && o.identity) {
+      try {
+        const pw = await o.identity.passwordLink(email);
+        if (pw?.link) await o.mailer.send({ to: email, ...passwordResetEmail({ link: pw.link, hasPassword: pw.hasPassword }) });
+      } catch (e) { req.log.warn({ err: e }, "password email failed"); }
+    }
+    return reply.status(202).send({ ok: true, available: !!(o.mailer && o.identity) });
+  });
+
+  await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, platformAdmin, modules: o.modules });
 
   // ───── Members ─────
   app.get("/members", { config: AUTH, schema: { tags: ["members"], headers: tenantHeader } },
@@ -94,7 +113,9 @@ export const registerRoutes: FastifyPluginAsync<{
     let emailed = false, emailError: string | null = null;
     if (o.mailer) {
       try {
-        await o.mailer.send({ to: inv.email, ...invitationEmail({ tenantName, inviterName: inviter, link, days: INVITATION_DAYS }) });
+        const pw = await o.identity?.passwordLink(inv.email, link);
+        const passwordLink = pw && !pw.hasPassword ? pw.link : null;
+        await o.mailer.send({ to: inv.email, ...invitationEmail({ tenantName, inviterName: inviter, link, days: INVITATION_DAYS, passwordLink }) });
         emailed = true;
       } catch (e) {
         req.log.warn({ err: e }, "invitation email failed");

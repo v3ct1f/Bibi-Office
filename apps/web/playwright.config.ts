@@ -29,7 +29,7 @@ export default defineConfig({
     {
       command: "pnpm --filter @office/api dev:oidc",
       url: `${issuer}/.well-known/openid-configuration`,
-      env: { DEV_OIDC_PORT: String(OIDC), DEV_OIDC_REDIRECTS: `http://localhost:${WEB}/` },
+      env: { DEV_OIDC_PORT: String(OIDC), DEV_OIDC_REDIRECTS: `http://localhost:${WEB}/`, DEV_OIDC_PASSWORDS: "off" },
       reuseExistingServer: false,
     },
     {

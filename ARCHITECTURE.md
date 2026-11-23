@@ -403,7 +403,8 @@ office/
 - `GET /api/v1/me/access` (new): tenant, actor, sorted permissions, enabled modules with the UI slots the caller may see. UI gating mirrors `hasPermission`; the API still enforces everything.
 - Slot host (`apps/web/src/modules`): build-time registry of module UI packages (`defineModuleUi` contract in `@office/ui/module-ui`) renders `nav.main`, `entity.tab:<type>`, `dashboard.widget`, `global.create` slots for enabled modules only.
 - Workflow builder: trigger picker from `/workflow-catalog`, condition rows <-> JSONLogic (falls back to raw "advanced" mode for anything rows cannot show, so no definition is lost), action steps with `{{payload.x}}` templating, runs tab.
-- Dev OIDC (`apps/api/scripts/dev-oidc.ts`, `pnpm dev:oidc`): Keycloak-shaped paths, any email signs in, refuses `NODE_ENV=production`. Used by local dev and E2E so no Docker is needed.
+- Dev OIDC (`apps/api/scripts/dev-oidc.ts`, `pnpm dev:oidc`): Keycloak-shaped paths, refuses `NODE_ENV=production`. Local dev signs in with email + password (accounts and signing key in git-ignored `.dev-accounts.json`); E2E sets `DEV_OIDC_PASSWORDS=off` so any email signs in. No Docker needed.
+- Passwords belong to the sign-in service, never to Office. Office only asks it for one-time "set your password" links (`Identity.passwordLink`, `IDP_ADMIN_URL` + `IDP_ADMIN_SECRET`; dev: `POST /dev-admin/password-link` with `x-dev-admin-secret`) and puts them in emails to people who have no password yet. `POST /auth/forgot-password` is public, rate-limited (5 per 15 min) and answers the same for every email.
 - CORS: explicit methods/headers (`x-tenant-id`, `idempotency-key`), preflight cached 10 min.
 - Tests: web unit (`apps/web/test`, vitest+jsdom), UI unit (`packages/ui`), full-stack E2E (`apps/web/e2e`, Playwright: real API + Postgres + dev OIDC + Vite; 9 flows). CI runs E2E as its own job.
 

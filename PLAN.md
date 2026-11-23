@@ -58,6 +58,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 23, local accounts with passwords
+- The local sign-in server (`pnpm dev:oidc`) now uses real accounts: email + password (scrypt, 5 tries per 15 minutes, then locked for 15 minutes). Accounts and the signing key are kept in `.dev-accounts.json` (git-ignored), so sign-ins survive restarts. `DEV_OIDC_PASSWORDS=off` brings back the old any-email sign-in (E2E uses it).
+- Nobody types a password for someone else: people get a one-time **Set your password** link (7 days). It's added to emails for people without a password: business invitations, owner invitations, "you're now an owner" (co-owner added) and the new **"you're now the owner"** email on transfer.
+- **Forgot password** (`/forgot-password`, linked from the sign-in screen): `POST /auth/forgot-password` emails a link; it always answers the same, so it never shows which emails have accounts.
+- Office asks the sign-in service for links through `IDP_ADMIN_URL` + `IDP_ADMIN_SECRET` (`apps/api/src/identity.ts`); Office never sees passwords. A Keycloak version of the same interface is needed for production.
+- `pnpm --filter @office/api owner:welcome <email>` re-sends a program owner the ownership email with the link.
+- Tests: api 152 (password links 5); 227 unit/integration; 71 E2E.
+
 ## Session 22, program owners managed in the app
 - Program owners live in the database (migration 0009 `platform_admins`, plus append-only `platform_audit`). `PLATFORM_ADMIN_EMAILS` only fills the list on first start (when it is empty); after that it's managed at Program admin → **Program owners**.
 - **Add co-owner** (by email; emailed; active once they sign in with that verified address), **Remove** / **Step down**, **Transfer ownership** (the new owner must have signed in once, so a typo can't lock everyone out; you step down). The program always keeps at least one owner who has signed in.

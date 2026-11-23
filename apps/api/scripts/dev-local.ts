@@ -45,6 +45,9 @@ const defaults: Record<string, string> = {
   // Locally, the default dev user is the program owner, and businesses are created from the admin page.
   PLATFORM_ADMIN_EMAILS: "dev@example.com",
   SELF_SIGNUP: "false",
+  // The local sign-in server (dev-oidc) hands out "set your password" links for emails.
+  IDP_ADMIN_URL: "http://localhost:8081/dev-admin",
+  IDP_ADMIN_SECRET: "dev-idp-admin-secret",
 };
 // Your own email settings for local testing live in the repo's .env.local (git-ignored, never committed).
 // Only the mail keys are read from it, so other settings there can't change the dev setup.

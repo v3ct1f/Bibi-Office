@@ -21,6 +21,7 @@ import { ModulePage, PublicModulePage } from "./modules/SlotHost.tsx";
 import { useTenant } from "./lib/tenant.tsx";
 import { InvitePage } from "./pages/Invite.tsx";
 import { AdminPage } from "./pages/Admin.tsx";
+import { ForgotPasswordPage } from "./pages/ForgotPassword.tsx";
 
 type AnyCfg = EntityConfig<{ id: string } & Record<string, unknown>>;
 const cfg = (c: unknown) => c as AnyCfg;
@@ -54,6 +55,7 @@ function PublicRoute() {
 }
 const admin = createRoute({ getParentRoute: () => root, path: "/admin", component: () => <Authed><AdminPage /></Authed> });
 const invite = createRoute({ getParentRoute: () => root, path: "/invite/$tenantId/$token", component: () => <Authed><InvitePage /></Authed> });
+const forgot = createRoute({ getParentRoute: () => root, path: "/forgot-password", component: ForgotPasswordPage });
 const publicPage = createRoute({ getParentRoute: () => root, path: "/p/$tenantId/$module/$", component: PublicRoute });
 const tenant = createRoute({ getParentRoute: () => root, path: "/t/$slug", component: () => <Authed><TenantLayout /></Authed> });
 
@@ -76,7 +78,7 @@ function ModuleRoute() {
 }
 
 const tree = root.addChildren([
-  index, callback, onboarding, admin, invite, publicPage,
+  index, callback, onboarding, admin, invite, forgot, publicPage,
   tenant.addChildren([
     t("/", Dashboard),
     t("/contacts", () => <Gate perm="core:contacts.read"><EntityList key="contacts" cfg={cfg(contactsConfig)} /></Gate>, newSearch),
