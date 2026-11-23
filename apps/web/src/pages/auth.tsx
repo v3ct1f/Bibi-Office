@@ -54,7 +54,8 @@ export function AuthCallback() {
   const [error, setError] = useState<unknown>(null);
   useEffect(() => {
     pending ??= userManager.signinRedirectCallback().then((u) => safeReturn((u.state as { returnTo?: string } | undefined)?.returnTo));
-    pending.then((to) => navigate({ to, replace: true })).catch((e) => { pending = null; setError(e); });
+    // Cleared once used, so a later sign-in in the same visit (e.g. confirming the password) is handled too.
+    pending.then((to) => { pending = null; navigate({ to, replace: true }); }).catch((e) => { pending = null; setError(e); });
   }, [navigate]);
   if (error) {
     return <FullPage><Card className="w-full max-w-md"><ErrorState title="Sign-in failed" error={error} onRetry={() => navigate({ to: "/" })} /></Card></FullPage>;

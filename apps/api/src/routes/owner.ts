@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { and, eq, ne } from "drizzle-orm";
 import {
-  addPlatformAdmin, createBusiness, forbidden, listPlatformAdmins, removePlatformAdmin, transferPlatformOwnership, INVITATION_DAYS, inviteBusinessOwner, listBusinesses, notFound, platformContext, setBusinessStatus,
+  addPlatformAdmin, AppError, createBusiness, deleteBusiness, forbidden, listPlatformAdmins, removePlatformAdmin, transferPlatformOwnership, INVITATION_DAYS, inviteBusinessOwner, listBusinesses, notFound, platformContext, setBusinessStatus,
   type PlatformAdmin,
 } from "@office/core";
 import { tenants, withTenant, type Db } from "@office/db";
@@ -13,6 +13,8 @@ import type { Identity } from "../identity.ts";
 
 const AUTH = { auth: "authenticated" } as const;
 const Id = z.object({ id: z.uuid() });
+/** How recently the password must have been entered to delete a business. */
+export const REAUTH_SECONDS = 5 * 60;
 
 /**
  * /platform/*: the program owner's area. Lists businesses and creates, pauses and reactivates them.
@@ -153,6 +155,21 @@ export async function registerOwnerRoutes(
     const a = await admin(req);
     const { tenant, invite } = await inviteBusinessOwner(o.db, a, req.params.id, req.body.email, meta(req));
     return reply.status(201).send({ invitation: await deliver(req, tenant, invite) });
+  });
+
+  /**
+   * Deleting needs the business name typed in AND the password entered again in the last few minutes (OIDC
+   * re-authentication: the app sends the person to the sign-in page with prompt=login; we check auth_time).
+   */
+  app.post("/platform/businesses/:id/delete", {
+    config: AUTH, schema: { tags: ["platform"], params: Id, body: z.object({ confirmName: z.string().max(300) }).strict() },
+  }, async (req) => {
+    const a = await admin(req);
+    const p = req.principal as { authTime?: number | null };
+    if (!p.authTime || Date.now() / 1000 - p.authTime > REAUTH_SECONDS) {
+      throw new AppError(403, "reauth_required", "Enter your password again to delete a business");
+    }
+    return deleteBusiness(o.db, a, req.params.id, req.body.confirmName, meta(req));
   });
 
   for (const [path, status] of [["pause", "suspended"], ["resume", "active"]] as const) {

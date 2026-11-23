@@ -111,3 +111,32 @@ test("the program owner adds a co-owner, who sees Program admin, then removes th
   await boss.getByRole("dialog").getByRole("button", { name: "Remove" }).click();
   await expect(list).not.toContainText("Cleo");
 });
+
+test("deleting a business needs its name typed and the password again", async () => {
+  await boss.goto("/admin");
+  await boss.getByRole("button", { name: "New business" }).first().click();
+  const d = boss.getByRole("dialog");
+  await d.getByLabel("Business name").fill("Short Lived");
+  await d.getByLabel("Owner's email").fill("sid@example.com");
+  await d.getByRole("button", { name: "Create and invite" }).click();
+  await d.getByRole("button", { name: "Done" }).click();
+  const table = boss.getByRole("table", { name: "Businesses" });
+  await expect(table.getByRole("row", { name: /Short Lived/ })).toBeVisible();
+
+  await boss.getByRole("button", { name: "Actions for Short Lived" }).click();
+  await boss.getByRole("menuitem", { name: "Delete business…" }).click();
+  const del = boss.getByRole("dialog", { name: "Delete Short Lived?" });
+  const go = del.getByRole("button", { name: "Continue with password" });
+  await expect(go).toBeDisabled();
+  await del.getByLabel('Type "Short Lived" to confirm').fill("short lived");
+  await go.click();
+
+  // The sign-in page asks again (E2E runs the sign-in server without passwords, so it asks for the email).
+  await boss.getByLabel("Email").fill("boss@example.com");
+  await boss.getByLabel("Name").fill("Bea Boss");
+  await boss.getByRole("button", { name: "Sign in" }).click();
+
+  await expect(boss.getByText("Short Lived was deleted")).toBeVisible();
+  await expect(table.getByRole("row", { name: /Short Lived/ })).toHaveCount(0);
+  await expect(table.getByRole("row", { name: /Corner Bakery/ })).toBeVisible();
+});

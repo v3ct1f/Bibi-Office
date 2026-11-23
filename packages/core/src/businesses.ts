@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import {
   invitations, memberRoles, memberships, roles, tenantModules, tenants, users, uuidv7, withTenant, type Db, type Tx,
 } from "@office/db";
-import { conflict, notFound } from "./errors.ts";
+import { badRequest, conflict, notFound } from "./errors.ts";
 import { audit } from "./audit.ts";
 import { emitEvent } from "./events.ts";
 import { seedSystemRoles } from "./identity.ts";
@@ -107,5 +107,21 @@ export async function setBusinessStatus(db: Db, admin: PlatformAdmin, tenantId: 
     if (!t) throw notFound("Business");
     await audit(tx, platformContext(tenantId, admin, meta), status === "suspended" ? "tenant.paused" : "tenant.resumed", { type: "tenant", id: tenantId });
     return { id: t.id, status: t.status };
+  });
+}
+
+/**
+ * Deletes a business: it disappears for everyone (members, API keys, invitations, scheduled work) and can't be
+ * reopened from the app. Its records stay in the database. The caller must type the business name to confirm.
+ */
+export async function deleteBusiness(db: Db, admin: PlatformAdmin, tenantId: string, confirmName: string, meta: Meta) {
+  return withTenant(db, tenantId, async (tx) => {
+    const [t] = await tx.select().from(tenants).where(and(eq(tenants.id, tenantId), ne(tenants.status, "deleted"))).for("update");
+    if (!t) throw notFound("Business");
+    if (confirmName.trim().toLowerCase() !== t.name.trim().toLowerCase()) throw badRequest("Type the business name exactly to confirm");
+    await tx.update(tenants).set({ status: "deleted" }).where(eq(tenants.id, tenantId));
+    await tx.update(invitations).set({ revokedAt: new Date() }).where(and(isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
+    await audit(tx, platformContext(tenantId, admin, meta), "tenant.deleted", { type: "tenant", id: tenantId }, { name: t.name, slug: t.slug, was: t.status });
+    return { id: t.id, name: t.name, status: "deleted" as const };
   });
 }

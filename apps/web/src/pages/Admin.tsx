@@ -12,6 +12,7 @@ import { fmtDate } from "../lib/format.ts";
 import { useMe } from "../shell/AppShell.tsx";
 import { FullPage, Loading, slugify } from "./auth.tsx";
 import { ProgramOwners } from "./AdminOwners.tsx";
+import { DeleteBusinessDialog, usePendingBusinessDelete } from "./AdminDelete.tsx";
 
 interface Business {
   id: string; name: string; slug: string; region: string; status: "active" | "suspended"; createdAt: string; members: number;
@@ -46,6 +47,8 @@ export function AdminPage() {
     queryFn: () => request<{ items: Business[] }>("GET", "/platform/businesses"),
   });
   const refresh = () => qc.invalidateQueries({ queryKey: ["platform", "businesses"] });
+  usePendingBusinessDelete(() => void refresh());
+  const [deleting, setDeleting] = useState<Business | null>(null);
 
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -164,6 +167,7 @@ export function AdminPage() {
                           <DropdownMenuItem onSelect={() => openChoose(b)}>Choose features</DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => { setReEmail(b.ownerInvite?.email ?? b.owners[0]?.email ?? ""); setReinvite(b); }}>Send new owner invitation</DropdownMenuItem>
                           <DropdownMenuItem destructive={b.status === "active"} onSelect={() => setToggling(b)}>{b.status === "active" ? "Pause business" : "Reactivate business"}</DropdownMenuItem>
+                          <DropdownMenuItem destructive onSelect={() => setDeleting(b)}>Delete business…</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TD>
@@ -262,6 +266,7 @@ export function AdminPage() {
           ? "Nobody in this business can sign in to it, and its automations stop. Nothing is deleted; you can reactivate it any time."
           : "Its people can use it again, and its automations start again."}
         onConfirm={() => toggle.mutateAsync(toggling!)} />
+      <DeleteBusinessDialog business={deleting} email={me.data.email} onClose={() => setDeleting(null)} />
     </div>
   );
 }

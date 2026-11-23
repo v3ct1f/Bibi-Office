@@ -229,3 +229,47 @@ describe("program owners", () => {
     expect(log.map((l) => l.action)).toEqual(["owners.seeded", "owner.added", "owner.removed", "owner.added", "owner.removed", "ownership.transferred", "ownership.transferred"]);
   });
 });
+
+describe("deleting a business", () => {
+  const now = () => Math.floor(Date.now() / 1000);
+
+  it("needs the name typed and the password entered again in the last 5 minutes", async () => {
+    const r = await h.client(boss).post("/platform/businesses", { name: "Doomed Deli", slug: "doomed-deli", ownerEmail: "dina@example.com" });
+    const id = r.body.business.id;
+    const link = r.body.invitation.link as string;
+    const dina = await h.token("dina");
+    await h.client(dina).post("/invitations/accept", { tenantId: id, token: tokenOf(link) });
+    expect((await h.client(dina, id).get("/me/access")).status).toBe(200);
+    const pending = (await h.client(boss).post(`/platform/businesses/${id}/owner-invite`, { email: "dan@example.com" })).body.invitation.link as string;
+
+    // Not signed in with a password recently (or the sign-in service doesn't say): refused.
+    const plain = await h.client(boss).post(`/platform/businesses/${id}/delete`, { confirmName: "Doomed Deli" });
+    expect(plain.status).toBe(403);
+    expect(plain.body.code ?? plain.body.error?.code).toBe("reauth_required");
+    const stale = await h.token("boss", "boss@example.com", { auth_time: now() - 10 * 60 });
+    expect((await h.client(stale).post(`/platform/businesses/${id}/delete`, { confirmName: "Doomed Deli" })).status).toBe(403);
+
+    const fresh = await h.token("boss", "boss@example.com", { auth_time: now() - 30 });
+    // Only program owners, even with a fresh password.
+    const dinaFresh = await h.token("dina", "dina@example.com", { auth_time: now() });
+    expect((await h.client(dinaFresh).post(`/platform/businesses/${id}/delete`, { confirmName: "Doomed Deli" })).status).toBe(403);
+    // The name must match.
+    expect((await h.client(fresh).post(`/platform/businesses/${id}/delete`, { confirmName: "Doomed" })).status).toBe(400);
+
+    const del = await h.client(fresh).post(`/platform/businesses/${id}/delete`, { confirmName: "  doomed deli " });
+    expect(del.status).toBe(200);
+    expect(del.body).toMatchObject({ id, status: "deleted" });
+
+    // Gone for everyone: not listed, members can't open it, the open invitation is dead, can't be paused or deleted again.
+    expect((await h.client(boss).get("/platform/businesses")).body.items.some((b: { id: string }) => b.id === id)).toBe(false);
+    expect((await h.client(dina, id).get("/me/access")).status).toBe(404);
+    expect((await h.client(dina).get("/me")).body.tenants.some((t: { id: string }) => t.id === id)).toBe(false);
+    const dan = await h.token("dan");
+    expect((await h.client(dan).post("/invitations/accept", { tenantId: id, token: tokenOf(pending) })).status).toBeGreaterThanOrEqual(400);
+    expect((await h.client(fresh).post(`/platform/businesses/${id}/pause`, undefined)).status).toBe(404);
+    expect((await h.client(fresh).post(`/platform/businesses/${id}/delete`, { confirmName: "Doomed Deli" })).status).toBe(404);
+
+    const [a] = await h.asOwner(id, (tx) => tx`select action, actor_id from audit_log where action = 'tenant.deleted'`);
+    expect(a).toMatchObject({ action: "tenant.deleted", actor_id: "platform:boss@example.com" });
+  });
+});

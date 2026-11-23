@@ -58,6 +58,12 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 24, deleting a business
+- Program admin → a business's **⋯ → Delete business…**: type the business name, then **enter your password again** on the sign-in page ("Confirm it's you"); the business is deleted as soon as you come back.
+- Office never sees the password: the app asks the sign-in service to sign in again (`prompt=login`, `max_age=0`) and the API only accepts `POST /platform/businesses/:id/delete {confirmName}` when the token's `auth_time` is less than 5 minutes old (else 403 `reauth_required`). The dev sign-in server now sets `auth_time`.
+- Deleted = `tenants.status = 'deleted'`: gone for everyone (not listed, members get 404, API keys and scheduled work stop, open invitations revoked). The records stay in the database; permanent erasure isn't built yet. Audited as `tenant.deleted`.
+- Pause / Reactivate (Session 20) is unchanged and is the reversible option.
+
 ## Session 23, local accounts with passwords
 - The local sign-in server (`pnpm dev:oidc`) now uses real accounts: email + password (scrypt, 5 tries per 15 minutes, then locked for 15 minutes). Accounts and the signing key are kept in `.dev-accounts.json` (git-ignored), so sign-ins survive restarts. `DEV_OIDC_PASSWORDS=off` brings back the old any-email sign-in (E2E uses it).
 - Nobody types a password for someone else: people get a one-time **Set your password** link (7 days). It's added to emails for people without a password: business invitations, owner invitations, "you're now an owner" (co-owner added) and the new **"you're now the owner"** email on transfer.

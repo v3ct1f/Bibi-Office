@@ -84,7 +84,8 @@ const failed = (email: string) => {
   failures.set(email, { n: fresh ? 1 : f!.n + 1, until: fresh ? Date.now() + 15 * 60_000 : f!.until });
 };
 
-interface Grant { email: string; name: string; nonce?: string | undefined }
+/** authTime: when the password was typed (seconds); kept across refreshes, like a real OIDC provider's auth_time. */
+interface Grant { email: string; name: string; nonce?: string | undefined; authTime: number }
 const codes = new Map<string, Grant & { challenge: string; redirectUri: string; exp: number }>();
 const refresh = new Map<string, Grant>();
 
@@ -97,9 +98,9 @@ async function tokens(g: Grant) {
   const sign = (claims: Record<string, unknown>, aud: string) => new SignJWT(claims)
     .setProtectedHeader({ alg: "RS256", kid: "dev-1" }).setIssuer(ISSUER).setAudience(aud).setSubject(s)
     .setIssuedAt().setExpirationTime(`${TTL}s`).sign(privateKey);
-  const profile = { email: g.email, email_verified: true, name: g.name, preferred_username: g.email };
+  const profile = { email: g.email, email_verified: true, name: g.name, preferred_username: g.email, auth_time: g.authTime };
   const rt = randomBytes(32).toString("base64url");
-  refresh.set(rt, { email: g.email, name: g.name });
+  refresh.set(rt, { email: g.email, name: g.name, authTime: g.authTime });
   return {
     access_token: await sign({ ...profile, azp: CLIENT_ID, scope: "openid profile email" }, AUDIENCE),
     id_token: await sign({ ...profile, ...(g.nonce ? { nonce: g.nonce } : {}) }, CLIENT_ID),
@@ -132,8 +133,9 @@ const page = (title: string, inner: string) => `<!doctype html><html><head><meta
 <meta name="viewport" content="width=device-width,initial-scale=1">${STYLE}</head><body>${inner}</body></html>`;
 
 /** Email + password sign-in (passwords mode). appOrigin comes from the already-checked redirect_uri. */
-const passwordLoginPage = (q: URLSearchParams, appOrigin: string, error?: string, email = "") => page("Sign in to Office", `
-<form method="post" action="${P}/auth"><strong>Sign in to Office</strong>
+const passwordLoginPage = (q: URLSearchParams, appOrigin: string, error?: string, email = q.get("login_hint") ?? "") => page("Sign in to Office", `
+<form method="post" action="${P}/auth"><strong>${q.get("prompt") === "login" ? "Confirm it's you" : "Sign in to Office"}</strong>
+${q.get("prompt") === "login" && !error ? `<p>For your security, enter your password again to continue.</p>` : ""}
 ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ""}
 ${[...q].filter(([k]) => !["email", "password", "name"].includes(k)).map(([k, v]) => `<input type="hidden" name="${esc(k)}" value="${esc(v)}">`).join("")}
 <label>Email<br><input name="email" type="email" required autocomplete="username" value="${esc(email)}" autofocus></label>
@@ -192,7 +194,7 @@ const server = createServer(async (req, res) => {
       } else if (req.method !== "POST" || !email) return send(res, 200, loginPage(q));
       const code = randomBytes(24).toString("base64url");
       codes.set(code, {
-        email, name, nonce: q.get("nonce") ?? undefined,
+        email, name, nonce: q.get("nonce") ?? undefined, authTime: Math.floor(Date.now() / 1000),
         challenge: q.get("code_challenge")!, redirectUri, exp: Date.now() + 60_000,
       });
       const back = new URL(redirectUri);
