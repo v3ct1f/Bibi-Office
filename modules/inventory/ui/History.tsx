@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowLeft, X } from "lucide-react";
-import { Badge, Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Select, Skeleton, Table, TBody, TD, TH, THead, TR, cn } from "@office/ui";
+import { Badge, Button, Card, EmptyState, ErrorState, DatePicker, Field, PageHeader, Select, Skeleton, Table, TBody, TD, TH, THead, TR, cn } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import { REASONS, fmtDateTime, fmtQty, fmtSigned, useLoad, type Movement, type Reason } from "./shared.tsx";
 
@@ -65,8 +65,8 @@ export function History(_: PageProps) {
             <option value="">All items</option>{items.data?.data.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
           </Select>
         )}</Field>
-        <Field label="From">{(a) => <Input {...a} type="date" value={from} onChange={(e) => set(setFrom)(e.target.value)} />}</Field>
-        <Field label="To">{(a) => <Input {...a} type="date" value={to} onChange={(e) => set(setTo)(e.target.value)} />}</Field>
+        <Field label="From">{(a) => <DatePicker {...a} value={from} onChange={(iso) => set(setFrom)(iso)} />}</Field>
+        <Field label="To">{(a) => <DatePicker {...a} value={to} onChange={(iso) => set(setTo)(iso)} />}</Field>
         {filtered && <Button variant="ghost" size="sm" onClick={reset}><X /> Clear filters</Button>}
       </div>
       {list.error ? <Card><ErrorState error={list.error} onRetry={() => void list.reload()} /></Card>

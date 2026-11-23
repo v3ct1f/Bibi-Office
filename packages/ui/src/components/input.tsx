@@ -2,18 +2,18 @@ import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type Selec
 import * as LabelPrimitive from "@radix-ui/react-label";
 import { cn } from "../lib.ts";
 
-const field =
+export const fieldClass =
   "w-full rounded-md border border-input bg-surface px-3 text-sm shadow-xs transition-colors " +
   "placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 " +
   "focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-destructive";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, ...p }, ref) => <input ref={ref} className={cn(field, "h-9", className)} {...p} />,
+  ({ className, ...p }, ref) => <input ref={ref} className={cn(fieldClass, "h-9", className)} {...p} />,
 );
 Input.displayName = "Input";
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
-  ({ className, ...p }, ref) => <textarea ref={ref} className={cn(field, "min-h-20 py-2", className)} {...p} />,
+  ({ className, ...p }, ref) => <textarea ref={ref} className={cn(fieldClass, "min-h-20 py-2", className)} {...p} />,
 );
 Textarea.displayName = "Textarea";
 
@@ -22,7 +22,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
   ({ className, ...p }, ref) => (
     <select
       ref={ref}
-      className={cn(field, "h-9 appearance-none bg-[length:16px] bg-[right_8px_center] bg-no-repeat pr-8", className)}
+      className={cn(fieldClass, "h-9 appearance-none bg-[length:16px] bg-[right_8px_center] bg-no-repeat pr-8", className)}
       style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")" }}
       {...p}
     />

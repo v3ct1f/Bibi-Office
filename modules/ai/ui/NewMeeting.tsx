@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { ArrowLeft, FileUp, Handshake, Sparkles, User, X } from "lucide-react";
-import { Button, Card, Field, Input, PageHeader, Select, Skeleton, Textarea, toast } from "@office/ui";
+import { Button, Card, DatePicker, Field, Input, PageHeader, Select, Skeleton, Textarea, toast } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import { ACCEPT, fileToText, TranscriptError } from "./transcript.ts";
 import { errorMessage, fmtNum, SetupNotice, today, useCrmOn, useDebounced, useLoad, type Config, type Detail } from "./shared.tsx";
@@ -135,7 +135,7 @@ export function NewMeeting(_: PageProps) {
         <div className="grid content-start gap-4">
           <Card className="grid gap-3 p-4">
             <Field label="Meeting name" hint="Leave empty and Claude picks one">{(a) => <Input {...a} value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />}</Field>
-            <Field label="Date">{(a) => <Input {...a} type="date" value={date} onChange={(e) => setDate(e.target.value)} />}</Field>
+            <Field label="Date">{(a) => <DatePicker {...a} value={date} onChange={(iso) => setDate(iso)} />}</Field>
             <div className="grid gap-1.5">
               <p className="text-sm font-medium">Who was there</p>
               {attendees.length > 0 && (

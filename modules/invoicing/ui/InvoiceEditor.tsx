@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowLeft, Building2, Plus, Trash2, User, X } from "lucide-react";
-import { Button, Card, ErrorState, Field, Input, PageHeader, Select, Skeleton, Textarea, toast } from "@office/ui";
+import { Button, Card, ErrorState, DatePicker, Field, Input, PageHeader, Select, Skeleton, Textarea, toast } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import { addDays, invoiceTotals, lineTotals } from "../src/money.ts";
 import {
@@ -258,16 +258,16 @@ export function InvoiceEditor({ params }: PageProps) {
 
       <Step n={2} title="Invoice details" description="Dates, payment terms and any reference your customer asked for.">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Issue date">{(a) => <Input {...a} type="date" value={issueDate} onChange={(e) => changeIssue(e.target.value)} required />}</Field>
+          <Field label="Issue date">{(a) => <DatePicker {...a} value={issueDate} onChange={(iso) => changeIssue(iso)} required />}</Field>
           <Field label="Payment terms">{(a) => (
             <Select {...a} value={terms} onChange={(e) => changeTerms(e.target.value)}>
               {TERMS.map((d) => <option key={d} value={d}>{d === 0 ? "Due on receipt" : `${d} days`}</option>)}
               <option value="custom">Custom due date</option>
             </Select>
           )}</Field>
-          <Field label="Due date">{(a) => <Input {...a} type="date" value={dueDate} min={issueDate} onChange={(e) => { setDueDate(e.target.value); setTerms("custom"); }} />}</Field>
+          <Field label="Due date">{(a) => <DatePicker {...a} value={dueDate} min={issueDate} onChange={(iso) => { setDueDate(iso); setTerms("custom"); }} />}</Field>
           <Field label="Delivery / service date" hint="Optional. When the work was done or goods delivered.">
-            {(a) => <Input {...a} type="date" value={serviceDate} onChange={(e) => setServiceDate(e.target.value)} />}
+            {(a) => <DatePicker {...a} value={serviceDate} onChange={(iso) => setServiceDate(iso)} />}
           </Field>
           <Field label="Customer reference / PO number" hint="Optional. Many companies require their PO number on invoices.">
             {(a) => <Input {...a} value={reference} onChange={(e) => setReference(e.target.value)} maxLength={100} />}

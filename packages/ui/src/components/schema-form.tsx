@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Field, Input, Select, Textarea } from "./input.tsx";
 import { Switch } from "./controls.tsx";
 import { Badge } from "./badge.tsx";
+import { DatePicker } from "./date-picker.tsx";
 
 /** JSON Schema subset rendered by SchemaForm (what module settings and action inputs use). */
 export interface JsonSchema {
@@ -165,6 +166,8 @@ export function SchemaForm({ schema, value, onChange, secretsSet = [], template,
           <Field key={k} label={label} hint={hint ?? (template ? "Text or {{payload.field}}" : undefined)} error={err} required={isReq}>
             {(a) => long
               ? <Textarea {...a} disabled={disabled} value={shown} onChange={(e) => onText(e.target.value)} />
+              : inputType === "date"
+              ? <DatePicker {...a} disabled={disabled} value={shown} onChange={onText} />
               : <Input {...a} type={inputType} disabled={disabled} value={shown}
                   {...(numeric && !template ? { min: s.minimum, max: s.maximum, step: t === "integer" ? 1 : "any" } : {})}
                   placeholder={s.default !== undefined ? String(s.default) : undefined}

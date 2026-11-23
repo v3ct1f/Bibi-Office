@@ -8,3 +8,4 @@ export * from "./components/overlay.tsx";
 export * from "./components/controls.tsx";
 export * from "./components/feedback.tsx";
 export * from "./components/schema-form.tsx";
+export * from "./components/date-picker.tsx";

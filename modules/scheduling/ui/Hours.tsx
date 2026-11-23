@@ -1,7 +1,7 @@
 import { Fragment, useState, type FormEvent } from "react";
 import { ChevronDown, ChevronRight, Download, Pencil, Plus, Trash2 } from "lucide-react";
 import {
-  Badge, Button, Card, ConfirmDialog, Dialog, DialogContent, DialogFooter, EmptyState, ErrorState, Field, Input, PageHeader, Select, Skeleton,
+  Badge, Button, Card, ConfirmDialog, Dialog, DialogContent, DialogFooter, EmptyState, ErrorState, DatePicker, Field, Input, PageHeader, Select, Skeleton,
   Table, TBody, TD, TH, THead, TR, cn, toast,
 } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
@@ -61,8 +61,8 @@ function Sheet({ cfg }: { cfg: Config }) {
         </div>
         {mode === "week" ? <WeekNav start={start} today={cfg.today} onChange={setStart} /> : (
           <div className="flex flex-wrap items-end gap-3">
-            <Field label="From">{(a) => <Input {...a} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />}</Field>
-            <Field label="To" error={rangeError}>{(a) => <Input {...a} type="date" value={to} onChange={(e) => setTo(e.target.value)} />}</Field>
+            <Field label="From">{(a) => <DatePicker {...a} value={from} onChange={(iso) => setFrom(iso)} />}</Field>
+            <Field label="To" error={rangeError}>{(a) => <DatePicker {...a} value={to} onChange={(iso) => setTo(iso)} />}</Field>
           </div>
         )}
       </div>
@@ -174,7 +174,7 @@ function EntryDialog({ people, draft, onClose, onSaved }: { people: Row[]; draft
             {(a) => <Select {...a} value={f.employeeId} disabled={!!f.id} onChange={set("employeeId")}>{people.map((p) => <option key={p.employeeId} value={p.employeeId}>{p.name}</option>)}</Select>}
           </Field>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Day" required>{(a) => <Input {...a} type="date" value={f.date} onChange={set("date")} />}</Field>
+            <Field label="Day" required>{(a) => <DatePicker {...a} value={f.date} onChange={(iso) => setF({ ...f, date: iso })} />}</Field>
             <Field label="Clock in" required>{(a) => <Input {...a} type="time" value={f.in} onChange={set("in")} />}</Field>
             <Field label="Clock out" required>{(a) => <Input {...a} type="time" value={f.out} onChange={set("out")} />}</Field>
           </div>

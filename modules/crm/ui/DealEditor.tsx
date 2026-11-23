@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
-import { Button, Card, ErrorState, Field, Input, PageHeader, Select, Skeleton, Textarea, toast } from "@office/ui";
+import { Button, Card, ErrorState, DatePicker, Field, Input, PageHeader, Select, Skeleton, Textarea, toast } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import {
   centsToInput, CURRENCIES, CustomerPicker, errorMessage, parseMoney, useLoad, type Customer, type DealDetail, type Pipeline,
@@ -150,7 +150,7 @@ export function DealEditor({ params }: PageProps) {
             )}</Field>
           )}
           <Field label="Expected close date" hint="When you hope to win it.">
-            {(a) => <Input {...a} type="date" value={expectedClose} onChange={(e) => setExpectedClose(e.target.value)} />}
+            {(a) => <DatePicker {...a} value={expectedClose} onChange={(iso) => setExpectedClose(iso)} />}
           </Field>
         </div>
       </Section>
@@ -160,7 +160,7 @@ export function DealEditor({ params }: PageProps) {
           <Field label="Next step" hint="e.g. “Send proposal” or “Follow-up call”">
             {(a) => <Input {...a} value={nextStep} onChange={(e) => setNextStep(e.target.value)} maxLength={300} />}
           </Field>
-          <Field label="Next step date">{(a) => <Input {...a} type="date" value={nextStepDate} onChange={(e) => setNextStepDate(e.target.value)} />}</Field>
+          <Field label="Next step date">{(a) => <DatePicker {...a} value={nextStepDate} onChange={(iso) => setNextStepDate(iso)} />}</Field>
           <Field label="Notes" className="sm:col-span-2" hint="Background, requirements, who decides. Log calls and meetings on the deal page.">
             {(a) => <Textarea {...a} rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={10_000} />}
           </Field>

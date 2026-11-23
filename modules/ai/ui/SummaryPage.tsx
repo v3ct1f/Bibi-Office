@@ -3,7 +3,7 @@ import {
   ArrowLeft, Check, Copy, FileText, Handshake, Headphones, ListChecks, Lock, Mail, Pencil, Plus, RefreshCw, Trash2, User, X,
 } from "lucide-react";
 import {
-  Button, Card, Checkbox, ConfirmDialog, Dialog, DialogContent, DialogFooter, ErrorState, Field, Input, Select, Skeleton, Textarea, toast,
+  Button, Card, Checkbox, ConfirmDialog, Dialog, DialogContent, DialogFooter, ErrorState, DatePicker, Field, Input, Select, Skeleton, Textarea, toast,
 } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import { errorMessage, fmtDate, fmtDateTime, fmtNum, plural, useCopy, useLoad, type ActionItem, type Config, type Detail } from "./shared.tsx";
@@ -153,7 +153,7 @@ function EditDialog({ d, cfg, open, onOpenChange, onSaved }: { d: Detail; cfg: C
       <DialogContent title="Edit summary" wide>
         <div className="grid max-h-[70vh] gap-3 overflow-y-auto pr-1">
           <Field label="Name">{(a) => <Input {...a} value={f.title} maxLength={200} onChange={(e) => set({ title: e.target.value })} />}</Field>
-          {d.kind === "meeting" && <Field label="Date">{(a) => <Input {...a} type="date" value={f.meetingDate} onChange={(e) => set({ meetingDate: e.target.value })} />}</Field>}
+          {d.kind === "meeting" && <Field label="Date">{(a) => <DatePicker {...a} value={f.meetingDate} onChange={(iso) => set({ meetingDate: iso })} />}</Field>}
           <Field label="Summary">{(a) => <Textarea {...a} rows={6} value={f.summary} onChange={(e) => set({ summary: e.target.value })} />}</Field>
           {lines("Key points", "keyPoints")}
           {d.kind === "meeting" && <>{lines("Decisions", "decisions")}{lines("Open questions", "openQuestions")}</>}
@@ -166,7 +166,7 @@ function EditDialog({ d, cfg, open, onOpenChange, onSaved }: { d: Detail; cfg: C
                   <option value="">{i.ownerName && !i.ownerUserId ? `${i.ownerName} (not in team)` : "No owner"}</option>
                   {cfg.people.map((p) => <option key={p.userId} value={p.userId}>{p.name}</option>)}
                 </Select>
-                <Input aria-label="Due" type="date" disabled={i.locked} value={i.dueOn ?? ""} onChange={(e) => setItem(n, { dueOn: e.target.value || null })} />
+                <DatePicker aria-label="Due" disabled={i.locked} value={i.dueOn ?? ""} onChange={(iso) => setItem(n, { dueOn: iso || null })} />
                 {i.locked ? <span className="self-center text-xs text-muted-foreground">Task</span>
                   : <Button size="icon" variant="ghost" aria-label="Remove action item" onClick={() => setItems(items.filter((_, j) => j !== n))}><X /></Button>}
               </div>
