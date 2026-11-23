@@ -147,7 +147,7 @@ export function AdminPage() {
               <TBody>
                 {items.map((b) => (
                   <TR key={b.id}>
-                    <TD><div className="font-medium">{b.name}</div><div className="text-xs text-muted-foreground">{b.slug} · {b.region.toUpperCase()}</div></TD>
+                    <TD><Link to="/t/$slug" params={{ slug: b.slug }} className="font-medium hover:underline" title="View this business (read-only)">{b.name}</Link><div className="text-xs text-muted-foreground">{b.slug} · {b.region.toUpperCase()}</div></TD>
                     <TD>
                       {b.owners.length ? b.owners.map((o) => <div key={o.email} className="text-sm">{o.name || o.email}{o.name && <span className="block text-xs text-muted-foreground">{o.email}</span>}</div>)
                         : b.ownerInvite ? <div className="text-sm">{b.ownerInvite.email}<span className="block text-xs text-muted-foreground">{b.ownerInvite.expired ? "Invitation expired" : `Invited, until ${fmtDate(b.ownerInvite.expiresAt)}`}</span></div>
@@ -164,6 +164,7 @@ export function AdminPage() {
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`Actions for ${b.name}`}><MoreHorizontal /></Button></DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem asChild><Link to="/t/$slug" params={{ slug: b.slug }}>View business (read-only)</Link></DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => openChoose(b)}>Choose features</DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => { setReEmail(b.ownerInvite?.email ?? b.owners[0]?.email ?? ""); setReinvite(b); }}>Send new owner invitation</DropdownMenuItem>
                           <DropdownMenuItem destructive={b.status === "active"} onSelect={() => setToggling(b)}>{b.status === "active" ? "Pause business" : "Reactivate business"}</DropdownMenuItem>

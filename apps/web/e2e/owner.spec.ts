@@ -140,3 +140,19 @@ test("deleting a business needs its name typed and the password again", async ()
   await expect(table.getByRole("row", { name: /Short Lived/ })).toHaveCount(0);
   await expect(table.getByRole("row", { name: /Corner Bakery/ })).toBeVisible();
 });
+
+test("the program owner can look inside a business, read-only", async () => {
+  await boss.goto("/admin");
+  await boss.getByRole("table", { name: "Businesses" }).getByRole("link", { name: "Corner Bakery" }).click();
+  await expect(boss).toHaveURL(/\/t\/corner-bakery/);
+  const banner = boss.getByRole("status").filter({ hasText: "as the program owner" });
+  await expect(banner).toContainText("read-only");
+  await expect(banner).toContainText("This visit is recorded in its history");
+
+  await boss.goto("/t/corner-bakery/contacts");
+  await expect(boss.getByRole("heading", { name: "Contacts" })).toBeVisible();
+  await expect(boss.getByRole("button", { name: "New contact" })).toHaveCount(0);
+
+  await banner.getByRole("link", { name: "Back to Program admin" }).click();
+  await expect(boss.getByRole("heading", { name: "Businesses" })).toBeVisible();
+});

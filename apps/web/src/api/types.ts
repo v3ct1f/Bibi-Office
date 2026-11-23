@@ -6,6 +6,8 @@ export interface UiSlot { slot: string; label?: string; icon?: string; route?: s
 export interface Access {
   tenant: { id: string; slug: string; name: string; region: string; plan: string; createdAt: string };
   actor: { type: string; id: string };
+  /** A program owner looking in read-only (not a member). */
+  viewing?: boolean;
   permissions: string[];
   modules: { key: string; name: string; version: string; slots: UiSlot[] }[];
 }

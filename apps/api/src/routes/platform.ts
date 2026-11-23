@@ -36,6 +36,7 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
       return {
         tenant: { id: t.id, slug: t.slug, name: t.name, region: t.region, plan: t.plan, createdAt: t.createdAt },
         actor: { type: ctx.actor.type, id: ctx.actor.id },
+        viewing: ctx.actor.viewingAs === "program_owner",
         permissions: [...ctx.actor.permissions].sort(),
         modules: registry.all().filter((m) => enabled.has(m.manifest.key)).map((m) => ({
           key: m.manifest.key, name: m.manifest.name, version: m.manifest.version,

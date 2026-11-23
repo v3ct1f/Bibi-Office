@@ -58,6 +58,12 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 26, program owner can look inside businesses (read-only)
+- Program admin → click a business's name (or **⋯ → View business (read-only)**): you see its workspace like a viewer, with a banner "You're viewing … as the program owner: read-only. This visit is recorded in its history." Paused businesses can be viewed too.
+- Read-only twice over: only GET requests (anything else answers 403 `read_only`), and only read permissions (core reads incl. members, roles, features, history, workflows, plus each feature's viewer grants). No API keys or webhooks (secrets).
+- Every visit is written into the business's own history (`tenant.viewed_by_program_owner`, by `platform:<email>`), at most once per 30 minutes per owner, so the business owner can see who looked and when.
+- Privacy: this replaces "the program owner can't see inside a business". Say in the terms / privacy policy that the program owner may view business data for support and security.
+
 ## Session 25, Leads
 - New feature **Leads** (`modules/leads`, category Sales): people who might become customers. Add them by hand, from the public **web form** or from a workflow; work them through New → Contacted → Qualified; **Convert to customer** or **Disqualify** (with a reason; can be reopened).
 - Logging a call, email or meeting on a new lead marks it contacted. Each lead has an owner, a follow-up date (red when due), a possible value and a timeline.

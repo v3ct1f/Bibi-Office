@@ -63,11 +63,12 @@ describe("program owner", () => {
     expect(audit.find((a) => a.action === "tenant.created")!.actor_id).toBe("platform:boss@example.com");
   });
 
-  it("can't open a business's data", async () => {
+  it("can look at a business's data but not change it (see 'program owner viewing a business')", async () => {
     const asBoss = h.client(boss, bizId);
-    expect((await asBoss.get("/contacts")).status).toBe(404);
-    expect((await asBoss.get("/members")).status).toBe(404);
-    expect((await asBoss.get("/me/access")).status).toBe(404);
+    expect((await asBoss.get("/contacts")).status).toBe(200);
+    expect((await asBoss.get("/members")).status).toBe(200);
+    expect((await asBoss.get("/me/access")).body.viewing).toBe(true);
+    expect((await asBoss.post("/contacts", { firstName: "X" })).status).toBe(403);
   });
 
   it("a new owner invitation replaces the open one", async () => {
@@ -271,5 +272,49 @@ describe("deleting a business", () => {
 
     const [a] = await h.asOwner(id, (tx) => tx`select action, actor_id from audit_log where action = 'tenant.deleted'`);
     expect(a).toMatchObject({ action: "tenant.deleted", actor_id: "platform:boss@example.com" });
+  });
+});
+
+describe("program owner viewing a business", () => {
+  it("can look inside any business read-only, and each visit is logged in its history", async () => {
+    const r = await h.client(boss).post("/platform/businesses", { name: "Glass House", slug: "glass-house", ownerEmail: "gina@example.com" });
+    const id = r.body.business.id;
+    const gina = await h.token("gina");
+    await h.client(gina).post("/invitations/accept", { tenantId: id, token: tokenOf(r.body.invitation.link) });
+    const contact = (await h.client(gina, id).post("/contacts", { firstName: "Carl", lastName: "Customer" })).body;
+
+    const B = h.client(boss, id);
+    const access = (await B.get("/me/access")).body;
+    expect(access).toMatchObject({ viewing: true, tenant: { name: "Glass House" } });
+    expect(access.permissions).toContain("core:contacts.read");
+    expect(access.permissions.some((p: string) => p.endsWith(".write") || p.endsWith(".manage") || p === "*")).toBe(false);
+    expect((await B.get("/contacts")).body.data.map((c: { id: string }) => c.id)).toContain(contact.id);
+    expect((await B.get(`/contacts/${contact.id}`)).status).toBe(200);
+
+    // Nothing can be changed, even where a read permission would be enough to reach the route.
+    const post = await B.post("/contacts", { firstName: "Sneaky" });
+    expect(post.status).toBe(403);
+    expect(post.body.code ?? post.body.error?.code).toBe("read_only");
+    expect((await B.patch(`/contacts/${contact.id}`, { firstName: "Changed" })).status).toBe(403);
+    expect((await B.del(`/contacts/${contact.id}`)).status).toBe(403);
+    // No secrets: API keys need a manage permission the viewer never has.
+    expect((await B.get("/api-keys")).status).toBe(403);
+
+    // One history entry per visit (not per request), visible to the business.
+    const log = (await h.client(gina, id).get("/audit")).body;
+    const visits = (log.data ?? log.items ?? log).filter((a: { action: string }) => a.action === "tenant.viewed_by_program_owner");
+    expect(visits).toHaveLength(1);
+    expect(visits[0].actorId ?? visits[0].actor_id ?? visits[0].actor?.id).toBe("platform:boss@example.com");
+
+    // Others still can't tell the business exists; an unverified email never counts.
+    const stranger = await h.token("stranger");
+    expect((await h.client(stranger, id).get("/me/access")).status).toBe(404);
+    const unverified = await h.token("boss", "boss@example.com", { email_verified: undefined });
+    expect((await h.client(unverified, id).get("/me/access")).status).toBe(404);
+
+    // Paused: members are shut out, the program owner can still look.
+    await h.client(boss).post(`/platform/businesses/${id}/pause`, undefined);
+    expect((await h.client(gina, id).get("/contacts")).status).toBe(403);
+    expect((await B.get("/contacts")).status).toBe(200);
   });
 });

@@ -115,7 +115,7 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   });
 
   await seedPlatformAdmins(d.db, d.platformAdmins ?? []);
-  const inTenant = makeTenantRunner(d.db);
+  const inTenant = makeTenantRunner(d.db, d.platform.registry.all().flatMap((m) => m.manifest.roles.viewer ?? []));
   await app.register(registerRoutes, {
     prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER, mailer: d.mailer ?? null, identity: d.identity ?? null,
     selfSignup: d.selfSignup ?? false, modules: d.platform,
