@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 import { Card, CardContent } from "@office/ui";
-import { COMPANY as C, legalIncomplete } from "../legal/company.ts";
+import { COMPANY as C, legalIncomplete, legalMissing } from "../legal/company.ts";
 
 function LegalPage({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -16,7 +16,7 @@ function LegalPage({ title, children }: { title: string; children: ReactNode }) 
         {legalIncomplete && (
           <p role="alert" className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-            Draft: the company details in [square brackets] are not filled in yet. Don't take payments until they are, and have a lawyer read this text.
+            Draft: still missing in apps/web/src/legal/company.ts: {legalMissing.join(", ")}. Don't take payments until they are filled in, and have a lawyer read this text.
           </p>
         )}
         <Card>

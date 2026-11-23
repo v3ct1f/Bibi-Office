@@ -8,7 +8,7 @@ export const COMPANY = {
   service: "Bibi Office",
   /** Legal name of the person or company running the service. */
   name: "Zias Van Campenhout",
-  address: "[BUSINESS ADDRESS]",
+  address: "Calle Utrera, 5, 03730 Jávea",
   country: "Spain",
   /** Tax ID (NIF / NIE / company number) and VAT number if any. */
   registration: "Y7815370F",
@@ -26,4 +26,6 @@ export const COMPANY = {
   keepDays: 90,
 } as const;
 
-export const legalIncomplete = Object.values(COMPANY).some((v) => typeof v === "string" && v.includes("["));
+/** Names of the details still in [SQUARE BRACKETS]. */
+export const legalMissing = Object.entries(COMPANY).filter(([, v]) => typeof v === "string" && v.includes("[")).map(([k]) => k);
+export const legalIncomplete = legalMissing.length > 0;
