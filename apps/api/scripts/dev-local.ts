@@ -50,11 +50,11 @@ const defaults: Record<string, string> = {
   IDP_ADMIN_SECRET: "dev-idp-admin-secret",
 };
 // Your own email settings for local testing live in the repo's .env.local (git-ignored, never committed).
-// Only the mail keys are read from it, so other settings there can't change the dev setup.
+// Only the mail and Stripe (paid sign-up, test keys) settings are read from it, so other settings there can't change the dev setup.
 const localEnv = new URL("../../../.env.local", import.meta.url);
 if (existsSync(localEnv)) {
   const vars = parseEnv(readFileSync(localEnv, "utf8"));
-  for (const k of ["MAIL_SMTP_URL", "MAIL_FROM"]) if (vars[k]) process.env[k] ??= vars[k];
+  for (const k of ["MAIL_SMTP_URL", "MAIL_FROM", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PRICE_ID", "STRIPE_PRICE_LABEL"]) if (vars[k]) process.env[k] ??= vars[k];
   if (process.env.MAIL_SMTP_URL) console.log(`email: invitations are sent from ${process.env.MAIL_FROM ?? "(MAIL_FROM missing)"}`);
 }
 const portArg = process.argv.indexOf("--port");
