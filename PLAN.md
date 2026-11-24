@@ -58,14 +58,25 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
-## Session 32, plans, landing page and test payments
-- **Three plans** (one place: `packages/core/src/plans.ts`): **Starter** EUR 29/month (EUR 290/year), 15 people: Invoicing, Leads, CRM. **Business** EUR 79 (790), 30 people: + Expenses, Scheduling & time clock, HR, Inventory, Docs & e-sign, KPI. **Complete** EUR 149 (1,490), 60 people: + Support inbox, AI summaries, API keys & webhooks, workflows. Yearly = 2 months free. Extra-person prices (4/3/2) are in the data but not charged or sold yet: at the limit people are simply refused with "upgrade".
+## Session 34, plans, landing page and test payments
+- **Three plans** (one place: `packages/core/src/plans.ts`): **Starter** EUR 29/month (EUR 290/year), 15 people: Invoicing, Leads, CRM. **Business** EUR 79 (790), 30 people: + Messages (chat), Expenses, Scheduling & time clock, HR, Inventory, Docs & e-sign, KPI. **Complete** EUR 149 (1,490), 60 people: + Support inbox, AI summaries, API keys & webhooks, workflows. Yearly = 2 months free. Extra-person prices (4/3/2) are in the data but not charged or sold yet: at the limit people are simply refused with "upgrade".
 - **Public landing page `/plans`**: the three plans, monthly/yearly switch, what each feature does. A plan button goes to `/start?plan=...&interval=...`, which (test mode) asks for business name, address, email, terms, and "pays" with one click: `POST /signup/test-checkout` creates the business on that plan and emails the owner the same invitation link as a real payment. `/start` with no plan goes to `/plans`.
 - **Test mode** = `TEST_PAYMENTS=true` (on in `pnpm dev:local` and the browser tests; **off by default** on a real server, set it in `.env` to let visitors try). Businesses made this way have `plan_test = true` (migration 0014: `plan_interval`, `plan_test`, `plan_changed_at`). When Stripe is live, add one Stripe price per plan and swap the test checkout for the real one; the rest stays.
 - **The plan decides what works**: the plan sets `tenants.allowed_modules` (the existing program-owner feature switch), so Add features shows "Not part of your plan" with a link to the plan page. API keys, webhooks and workflows can't be *created* below Complete (HTTP 402 `plan_feature`; existing ones stay). Inviting or adding people counts members plus waiting invitations and stops at the limit (402 `plan_limit`). Older businesses (plan "free"/"paid") have no limits.
 - **Settings -> Plan** (everyone sees it; owners/admins change it): current plan, people used, compare plans, Upgrade/Switch with a confirm dialog that lists what you get and what switches off (data kept). `GET /billing/plan`, `POST /billing/plan` (test mode only; a Stripe-paid business is sent to Manage subscription). Going down is refused while the team is bigger than the new plan. Audited as `tenant.plan_changed`.
 - Dates: all date fields use the new calendar (`DatePicker`, `DateTimePicker` in `@office/ui`).
 - Tests: api plans 15, ui date picker 6, browser plans 3. Not yet: real payment per plan, extra people, plan shown in the Program admin list, emails mentioning the plan.
+
+## Session 33, Messages: WhatsApp-style extras
+- The **+** button in a chat now offers Document, Photos & videos, Camera (take a picture with the webcam), Audio, Contact (from Contacts, a colleague, or typed in), Poll (one or several answers, live vote counts), Event (Going / Maybe / Can't go, add to your calendar), New sticker (from a picture). A smiley button opens Emoji, GIFs and Stickers; a microphone records voice messages.
+- Files up to **16 MB**, sent and fetched in 4 MB parts (migration `0002_rich_messages.sql`: `messages_file_parts`, poll votes, event answers, message `data` and `updated_at`). Unfinished uploads are cleaned every 6 hours.
+- GIF search uses GIPHY and needs a free key in Add features → Messages → Settings (`giphyApiKey`); without it people can still send GIF files.
+- Tests: messages 15 (6 new) + 5 E2E (1 new: emoji, sticker, document, poll vote, contact card).
+
+## Session 32, Messages (chat between colleagues)
+- New feature **Messages** (`modules/messages`, see its README): one-to-one chats and named groups (rename, add people, managers remove people, anyone leaves), photos and files up to 5 MB, edit/delete your own messages, unread counts. Only the people in a chat can read it, not even the owner. Every role can use it once the business adds it.
+- Updates arrive by asking every few seconds (no websockets yet). New manifest slot field `badge` (nav.main): a module-relative GET path answering `{ count }`, shown next to the menu item and refreshed every 10 s or when a page fires `office:refresh-badges`.
+- Owner flow test now counts 12 features ("11 of 12 included"). 221 unit/integration green (9 new) + 4 new E2E green.
 
 ## Session 31, hosting plan and files (nothing deployed yet)
 - Decision: **one small EU server** (about 4 GB, Ubuntu), everything in Docker: Postgres, NATS (the production worker needs it; Temporal stays optional), API, worker, Keycloak, Caddy (web app + automatic HTTPS). `infra/prod/` holds the recipe: `docker-compose.yml`, `Dockerfile.web`, `Caddyfile` (+ `Caddyfile.cutover` for bibidesk.com), `init-db.sh`, `.env.example`, `make-env.sh` (random secrets), `bootstrap-server.sh`, `deploy-from-pc.sh` (ships committed files only), `backup.sh`, `docker-compose.admin.yml`, `README.md`. A `.dockerignore` keeps `.env*` and `.dev-accounts.json` out of images.
