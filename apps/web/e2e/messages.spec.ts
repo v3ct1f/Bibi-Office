@@ -101,3 +101,58 @@ test("create a group, rename it, and see who's in it", async () => {
   await expect(people).toContainText("Mia Manager (you)");
   await expect(people).toContainText("Sam Staff");
 });
+
+test("emoji, stickers, files, polls and contacts in the group", async () => {
+  test.setTimeout(90_000);
+  await mia.keyboard.press("Escape");
+  await chats(sam).getByRole("button", { name: /Morning team/ }).click();
+  const box = mia.getByLabel("Message", { exact: true });
+  // Emoji go into the text; a sticker is sent right away.
+  await box.fill("Morning ");
+  await mia.getByRole("button", { name: "Emoji, GIFs and stickers" }).click();
+  const panel = mia.getByRole("dialog", { name: "Emoji, GIFs and stickers" });
+  await panel.getByRole("button", { name: "😀" }).first().click();
+  await expect(box).toHaveValue("Morning 😀");
+  await panel.getByRole("tab", { name: "GIFs" }).click();
+  await expect(panel).toContainText("GIF search is off");
+  await panel.getByRole("tab", { name: "Stickers" }).click();
+  await panel.getByRole("button", { name: "Send sticker 👍" }).click();
+  await expect(thread(mia).getByRole("img", { name: "Sticker 👍" })).toBeVisible();
+  await box.press("Enter");
+  await expect(thread(mia)).toContainText("Morning 😀");
+
+  // A document, sent in parts, downloads on the other side.
+  await mia.getByRole("button", { name: "Attach" }).click();
+  const chooser = mia.waitForEvent("filechooser");
+  await mia.getByRole("menuitem", { name: "Document" }).click();
+  await (await chooser).setFiles({ name: "rota.txt", mimeType: "text/plain", buffer: Buffer.from("Mon: Sam\nTue: Mia\n") });
+  await box.fill("This week's rota");
+  await box.press("Enter");
+  await expect(thread(mia)).toContainText("rota.txt");
+  await expect(thread(mia)).toContainText("This week's rota");
+
+  // A poll others can vote on.
+  await mia.getByRole("button", { name: "Attach" }).click();
+  await mia.getByRole("menuitem", { name: "Poll" }).click();
+  const poll = mia.getByRole("dialog");
+  await poll.getByLabel("Question").fill("Team lunch?");
+  await poll.getByLabel("Option 1").fill("Pizza");
+  await poll.getByLabel("Option 2").fill("Sushi");
+  await poll.getByRole("button", { name: "Send poll" }).click();
+  const samPoll = thread(sam).getByRole("group", { name: "Poll: Team lunch?" });
+  await expect(samPoll).toBeVisible({ timeout: 10_000 });
+  await samPoll.getByRole("button", { name: /Sushi/ }).click();
+  await expect(samPoll.getByRole("button", { name: /Sushi/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(thread(mia).getByRole("group", { name: "Poll: Team lunch?" }).getByRole("button", { name: /Sushi/ })).toContainText("1", { timeout: 10_000 });
+  await expect(thread(sam)).toContainText("rota.txt");
+
+  // A contact card typed in by hand.
+  await sam.getByRole("button", { name: "Attach" }).click();
+  await sam.getByRole("menuitem", { name: "Contact" }).click();
+  const c = sam.getByRole("dialog");
+  await c.getByRole("tab", { name: "Type it in" }).click();
+  await c.getByLabel("Name").fill("Pat Plumber");
+  await c.getByLabel("Phone").fill("+1 555 0100");
+  await c.getByRole("button", { name: "Send contact" }).click();
+  await expect(thread(mia).getByRole("group", { name: "Contact: Pat Plumber" })).toContainText("+1 555 0100", { timeout: 10_000 });
+});

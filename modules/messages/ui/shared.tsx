@@ -7,12 +7,19 @@ export interface Member { userId: string; name: string; email: string | null; ro
 export interface Conversation {
   id: string; kind: "direct" | "group"; name: string; members: Member[]; myRole: "manager" | "member"; createdBy: string | null;
   unread: number; lastMessageAt: string;
-  lastMessage: { kind: "text" | "system"; senderName: string; mine: boolean; preview: string } | null;
+  lastMessage: { kind: MessageKind; senderName: string; mine: boolean; preview: string } | null;
 }
-export interface FileRef { id: string; name: string; contentType: string; sizeBytes: number }
+export interface FileRef { id: string; name: string; contentType: string; sizeBytes: number; partCount: number }
+export type MessageKind = "text" | "system" | "poll" | "event" | "contact" | "sticker" | "gif";
+export interface PollData { question: string; multiple: boolean; voters: number; options: { id: string; text: string; votes: number; voters: string[]; mine: boolean }[] }
+export interface EventData {
+  title: string; startsAt: string; endsAt: string | null; location: string | null; description: string | null;
+  going: string[]; maybe: string[]; no: string[]; myAnswer: "going" | "maybe" | "no" | null;
+}
+export interface ContactData { name: string; phone: string | null; email: string | null; company: string | null; jobTitle: string | null }
 export interface Message {
-  id: string; conversationId: string; kind: "text" | "system"; senderId: string | null; senderName: string; mine: boolean;
-  body: string; file: FileRef | null; editedAt: string | null; deletedAt: string | null; createdAt: string;
+  id: string; conversationId: string; kind: MessageKind; senderId: string | null; senderName: string; mine: boolean;
+  body: string; file: FileRef | null; data: Record<string, unknown> | null; editedAt: string | null; deletedAt: string | null; createdAt: string;
 }
 export interface MessagePage { data: Message[]; changed: Message[]; hasMore: boolean; now: string }
 export interface Person { userId: string; name: string; email: string }
@@ -70,38 +77,71 @@ export function usePoll(fn: () => void, ms: number, deps: unknown[]) {
   }, [ms, ...deps]);
 }
 
-/** Loads a file of a message as an object URL (images are shown inline). */
-export function useFileUrl(get: () => Promise<{ data: string; contentType: string }>, enabled: boolean, key: string) {
+// ── Files: sent and fetched in parts of 4 MB ─────────────────────────────────
+type Api = { get<T>(p: string, q?: Record<string, string | number | boolean | undefined>): Promise<T>; post<T>(p: string, b?: unknown): Promise<T>; put<T>(p: string, b?: unknown): Promise<T> };
+
+const b64ToBytes = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+function bytesToB64(bytes: Uint8Array) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+/** Downloads every part of a file and joins them into one Blob. */
+export async function fetchFile(api: Api, f: FileRef): Promise<Blob> {
+  const parts = await Promise.all(Array.from({ length: f.partCount || 1 }, (_, part) =>
+    api.get<{ data: string }>(`/files/${f.id}`, { part }).then((r) => b64ToBytes(r.data))));
+  return new Blob(parts as BlobPart[], { type: f.contentType });
+}
+
+/** Uploads a file into a chat, part by part; returns its id for the message. */
+export async function uploadFile(api: Api, conversationId: string, file: Blob, name: string, contentType: string, onProgress?: (share: number) => void) {
+  const up = await api.post<{ id: string; partSize: number; partCount: number }>(`/conversations/${conversationId}/uploads`, { name, contentType, sizeBytes: file.size });
+  for (let i = 0; i < up.partCount; i++) {
+    const chunk = new Uint8Array(await file.slice(i * up.partSize, (i + 1) * up.partSize).arrayBuffer());
+    await api.put(`/uploads/${up.id}/parts/${i}`, { data: bytesToB64(chunk) });
+    onProgress?.((i + 1) / up.partCount);
+  }
+  return up.id;
+}
+
+/** An object URL for a message's file, fetched when `enabled` (revoked when no longer shown). */
+export function useFileUrl(api: Api, f: FileRef | null, enabled: boolean) {
   const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState(false);
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !f) return;
     let alive = true, made: string | null = null;
-    void get().then((f) => {
-      if (!alive) return;
-      made = URL.createObjectURL(new Blob([Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0))], { type: f.contentType }));
-      setUrl(made);
-    }).catch(() => {});
+    fetchFile(api, f).then((b) => { if (!alive) return; made = URL.createObjectURL(b); setUrl(made); }).catch(() => { if (alive) setError(true); });
     return () => { alive = false; if (made) URL.revokeObjectURL(made); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, key]);
-  return url;
+  }, [enabled, f?.id]);
+  return { url, error };
 }
 
-export function readAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result).split(",", 2)[1] ?? "");
-    r.onerror = () => reject(new Error("Could not read the file"));
-    r.readAsDataURL(file);
-  });
+export async function saveBlob(blob: Blob, name: string) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }
 
-export const FILE_ACCEPT = ".jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.csv,.docx,.xlsx,.pptx";
 const EXT_TYPES: Record<string, string> = {
-  jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", pdf: "application/pdf", txt: "text/plain", csv: "text/csv",
+  jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif",
+  mp4: "video/mp4", m4v: "video/mp4", webm: "video/webm", mov: "video/quicktime",
+  mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/mp4", ogg: "audio/ogg", oga: "audio/ogg", opus: "audio/ogg", wav: "audio/wav", weba: "audio/webm",
+  pdf: "application/pdf", txt: "text/plain", csv: "text/csv",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 };
 export const fileType = (name: string) => EXT_TYPES[name.split(".").pop()?.toLowerCase() ?? ""] ?? null;
-export const MAX_FILE_BYTES = 5 * 1024 * 1024;
+export const ACCEPT = {
+  documents: ".pdf,.txt,.csv,.docx,.xlsx,.pptx",
+  media: ".jpg,.jpeg,.png,.webp,.gif,.mp4,.m4v,.webm,.mov",
+  audio: ".mp3,.m4a,.aac,.ogg,.oga,.opus,.wav,.weba",
+  images: ".jpg,.jpeg,.png,.webp,.gif",
+};
+export const MAX_FILE_BYTES = 16 * 1024 * 1024;
+export const fmtDuration = (ms: number) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };

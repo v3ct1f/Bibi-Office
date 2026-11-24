@@ -58,6 +58,12 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 33, Messages: WhatsApp-style extras
+- The **+** button in a chat now offers Document, Photos & videos, Camera (take a picture with the webcam), Audio, Contact (from Contacts, a colleague, or typed in), Poll (one or several answers, live vote counts), Event (Going / Maybe / Can't go, add to your calendar), New sticker (from a picture). A smiley button opens Emoji, GIFs and Stickers; a microphone records voice messages.
+- Files up to **16 MB**, sent and fetched in 4 MB parts (migration `0002_rich_messages.sql`: `messages_file_parts`, poll votes, event answers, message `data` and `updated_at`). Unfinished uploads are cleaned every 6 hours.
+- GIF search uses GIPHY and needs a free key in Add features → Messages → Settings (`giphyApiKey`); without it people can still send GIF files.
+- Tests: messages 15 (6 new) + 5 E2E (1 new: emoji, sticker, document, poll vote, contact card).
+
 ## Session 32, Messages (chat between colleagues)
 - New feature **Messages** (`modules/messages`, see its README): one-to-one chats and named groups (rename, add people, managers remove people, anyone leaves), photos and files up to 5 MB, edit/delete your own messages, unread counts. Only the people in a chat can read it, not even the owner. Every role can use it once the business adds it.
 - Updates arrive by asking every few seconds (no websockets yet). New manifest slot field `badge` (nav.main): a module-relative GET path answering `{ count }`, shown next to the menu item and refreshed every 10 s or when a page fires `office:refresh-badges`.

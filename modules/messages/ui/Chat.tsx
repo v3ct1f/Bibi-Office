@@ -1,15 +1,15 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import {
-  ArrowLeft, Download, FileText, MessagesSquare, MoreVertical, Paperclip, Pencil, Plus, Search, SendHorizontal, Trash2, Users, X,
-} from "lucide-react";
+import { ArrowLeft, MessagesSquare, MoreVertical, Pencil, Plus, Search, Trash2, Users, X } from "lucide-react";
 import {
   Button, ConfirmDialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, EmptyState, ErrorState, Input,
-  Skeleton, Spinner, Textarea, cn, toast,
+  Skeleton, Textarea, cn, toast,
 } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
+import { ContactCard, EventCard, FileView, GifView, PollCard, StickerView } from "./bubbles.tsx";
+import { Composer, type Outgoing } from "./composer.tsx";
 import { MembersDialog, NewChatDialog, RenameDialog } from "./dialogs.tsx";
 import {
-  Avatar, errorMessage, FILE_ACCEPT, fileType, fmtDay, fmtSize, fmtTime, fmtWhen, MAX_FILE_BYTES, readAsBase64, refreshBadges, useFileUrl, usePoll,
+  Avatar, errorMessage, fmtDay, fmtTime, fmtWhen, refreshBadges, uploadFile, usePoll,
   type Conversation, type Message, type MessagePage,
 } from "./shared.tsx";
 
@@ -34,7 +34,7 @@ function ConversationList({ items, selected, onOpen, onNew }: { items: Conversat
         {shown.map((c) => {
           const unread = c.unread > 0;
           const lm = c.lastMessage;
-          const who = lm && lm.kind === "text" ? (lm.mine ? "You: " : c.kind === "group" ? `${lm.senderName.split(" ")[0]}: ` : "") : "";
+          const who = lm && lm.kind !== "system" ? (lm.mine ? "You: " : c.kind === "group" ? `${lm.senderName.split(" ")[0]}: ` : "") : "";
           return (
             <li key={c.id}>
               <button type="button" onClick={() => onOpen(c)} aria-current={c.id === selected ? "true" : undefined}
@@ -61,39 +61,8 @@ function ConversationList({ items, selected, onOpen, onNew }: { items: Conversat
 }
 
 // ── One message ──────────────────────────────────────────────────────────────
-function Attachment({ m }: { m: Message }) {
-  const host = useModuleHost();
-  const f = m.file!;
-  const image = f.contentType.startsWith("image/");
-  const get = () => host.api.get<{ data: string; contentType: string }>(`/files/${f.id}`);
-  const url = useFileUrl(get, image, f.id);
-  const download = async () => {
-    try {
-      const r = await get();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0))], { type: r.contentType }));
-      a.download = f.name; a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
-    } catch (e) { toast.error(errorMessage(e)); }
-  };
-  if (image) {
-    return (
-      <button type="button" onClick={() => void download()} className="block cursor-pointer overflow-hidden rounded-md border bg-muted" aria-label={`Download ${f.name}`}>
-        {url ? <img src={url} alt={f.name} className="max-h-64 max-w-full object-contain" /> : <div className="grid h-32 w-48 place-items-center"><Spinner /></div>}
-      </button>
-    );
-  }
-  return (
-    <button type="button" onClick={() => void download()} className="flex max-w-xs cursor-pointer items-center gap-2 rounded-md border bg-surface px-3 py-2 text-left text-foreground hover:bg-accent">
-      <FileText className="size-5 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{f.name}</span><span className="block text-xs text-muted-foreground">{fmtSize(f.sizeBytes)}</span></span>
-      <Download className="size-4 shrink-0 text-muted-foreground" />
-    </button>
-  );
-}
-
-function MessageRow({ m, showName, group, onEdit, onDelete }: {
-  m: Message; showName: boolean; group: boolean; onEdit: (m: Message, body: string) => Promise<void>; onDelete: (m: Message) => void;
+function MessageRow({ m, showName, group, onEdit, onDelete, onChange }: {
+  m: Message; showName: boolean; group: boolean; onEdit: (m: Message, body: string) => Promise<void>; onDelete: (m: Message) => void; onChange: (m: Message) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(m.body);
@@ -128,8 +97,13 @@ function MessageRow({ m, showName, group, onEdit, onDelete }: {
           <p className="rounded-2xl border border-dashed px-3 py-1.5 text-sm italic text-muted-foreground">This message was deleted</p>
         ) : (
           <>
-            {m.file && <Attachment m={m} />}
-            {m.body && (
+            {m.kind === "poll" ? <PollCard m={m} onChange={onChange} />
+              : m.kind === "event" ? <EventCard m={m} onChange={onChange} />
+              : m.kind === "contact" ? <ContactCard m={m} />
+              : m.kind === "sticker" ? <StickerView m={m} />
+              : m.kind === "gif" ? <GifView m={m} />
+              : m.file ? <FileView m={m} /> : null}
+            {m.kind === "text" && m.body && (
               <p className={cn("whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-sm",
                 m.mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted text-foreground")}>
                 {m.body}
@@ -141,62 +115,11 @@ function MessageRow({ m, showName, group, onEdit, onDelete }: {
       </div>
       {m.mine && !deleted && !editing && (
         <span className="flex shrink-0 gap-0.5 self-center opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-          {m.body && <Button variant="ghost" size="icon" className="size-7" aria-label="Edit message" onClick={() => { setText(m.body); setEditing(true); }}><Pencil className="size-3.5" /></Button>}
+          {m.kind === "text" && m.body && !(m.data as { voice?: boolean } | null)?.voice && <Button variant="ghost" size="icon" className="size-7" aria-label="Edit message" onClick={() => { setText(m.body); setEditing(true); }}><Pencil className="size-3.5" /></Button>}
           <Button variant="ghost" size="icon" className="size-7" aria-label="Delete message" onClick={() => onDelete(m)}><Trash2 className="size-3.5" /></Button>
         </span>
       )}
     </li>
-  );
-}
-
-// ── Composer ─────────────────────────────────────────────────────────────────
-function Composer({ name, onSend }: { name: string; onSend: (body: string, file: File | null) => Promise<void> }) {
-  const [text, setText] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const area = useRef<HTMLTextAreaElement>(null);
-  useLayoutEffect(() => {
-    const el = area.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  }, [text]);
-
-  const pick = (f: File | undefined) => {
-    if (fileRef.current) fileRef.current.value = "";
-    if (!f) return;
-    if (!fileType(f.name)) return toast.error("Send a photo, PDF, text, Word, Excel or PowerPoint file");
-    if (f.size > MAX_FILE_BYTES) return toast.error("Files can be at most 5 MB");
-    setFile(f);
-  };
-  const send = async () => {
-    if (busy || (!text.trim() && !file)) return;
-    setBusy(true);
-    try { await onSend(text, file); setText(""); setFile(null); area.current?.focus(); }
-    catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
-  };
-  const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); }
-  };
-  return (
-    <div className="border-t p-3">
-      {file && (
-        <div className="mb-2 flex w-fit max-w-full items-center gap-2 rounded-md border bg-muted px-2.5 py-1.5 text-sm">
-          <Paperclip className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{file.name}</span>
-          <span className="shrink-0 text-xs text-muted-foreground">{fmtSize(file.size)}</span>
-          <button type="button" aria-label="Remove file" className="cursor-pointer rounded p-0.5 hover:bg-accent" onClick={() => setFile(null)}><X className="size-3.5" /></button>
-        </div>
-      )}
-      <div className="flex items-end gap-2 rounded-2xl border bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring/40">
-        <input ref={fileRef} type="file" accept={FILE_ACCEPT} className="hidden" aria-label="Attach a file" onChange={(e) => pick(e.target.files?.[0])} />
-        <Button variant="ghost" size="icon" className="size-8 shrink-0 rounded-full" aria-label="Attach a photo or file" onClick={() => fileRef.current?.click()}><Paperclip /></Button>
-        <textarea ref={area} aria-label="Message" rows={1} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={onKey} maxLength={10_000}
-          placeholder={`Message ${name}`} className="max-h-40 min-h-8 flex-1 resize-none bg-transparent py-1.5 text-sm outline-none placeholder:text-muted-foreground" />
-        <Button size="icon" className="size-8 shrink-0 rounded-full" aria-label="Send" loading={busy} disabled={!text.trim() && !file} onClick={() => void send()}><SendHorizontal /></Button>
-      </div>
-      <p className="mt-1 hidden px-2 text-[11px] text-muted-foreground sm:block">Enter to send · Shift + Enter for a new line</p>
-    </div>
   );
 }
 
@@ -277,8 +200,9 @@ function ConversationView({ id, onBack, onChanged, onLeft }: { id: string; onBac
     } catch (e) { loadingOlder.current = false; toast.error(errorMessage(e)); }
   };
 
-  const send = async (body: string, file: File | null) => {
-    const payload = file ? { body, file: { name: file.name, contentType: fileType(file.name)!, data: await readAsBase64(file) } } : { body };
+  const replace = useCallback((r: Message) => setMsgs((cur) => cur?.map((x) => (x.id === r.id ? r : x)) ?? cur), []);
+  const upload = (file: Blob, name: string, contentType: string, onProgress: (s: number) => void) => uploadFile(host.api, id, file, name, contentType, onProgress);
+  const send = async (payload: Outgoing) => {
     const m = await host.api.post<Message>(`/conversations/${id}/messages`, payload);
     stick.current = true;
     setMsgs((cur) => (cur && !cur.some((x) => x.id === m.id) ? [...cur, m] : cur));
@@ -292,7 +216,7 @@ function ConversationView({ id, onBack, onChanged, onLeft }: { id: string; onBac
     if (!toDelete) return;
     try {
       await host.api.del(`/messages/${toDelete.id}`);
-      setMsgs((cur) => cur?.map((x) => (x.id === toDelete.id ? { ...x, body: "", file: null, deletedAt: new Date().toISOString() } : x)) ?? cur);
+      setMsgs((cur) => cur?.map((x) => (x.id === toDelete.id ? { ...x, body: "", file: null, data: null, deletedAt: new Date().toISOString() } : x)) ?? cur);
       onChanged();
     } catch (e) { toast.error(errorMessage(e)); throw e; }
   };
@@ -344,7 +268,7 @@ function ConversationView({ id, onBack, onChanged, onLeft }: { id: string; onBac
             return (
               <Fragment key={m.id}>
                 {newDay && <li className="sticky top-0 z-10 my-2 flex justify-center"><span className="rounded-full border bg-surface px-3 py-0.5 text-xs text-muted-foreground shadow-xs">{fmtDay(m.createdAt)}</span></li>}
-                <MessageRow m={m} showName={showName} group={group} onEdit={edit} onDelete={setToDelete} />
+                <MessageRow m={m} showName={showName} group={group} onEdit={edit} onDelete={setToDelete} onChange={replace} />
               </Fragment>
             );
           })}
@@ -352,7 +276,7 @@ function ConversationView({ id, onBack, onChanged, onLeft }: { id: string; onBac
       </div>
       {!group && other?.active === false
         ? <p className="border-t p-4 text-center text-sm text-muted-foreground">{other.name} is no longer part of this business, so you can't send new messages.</p>
-        : <Composer name={conv.name} onSend={send} />}
+        : <Composer name={conv.name} send={send} upload={upload} />}
       <RenameDialog conv={conv} open={dialog === "rename"} onOpenChange={(o) => setDialog(o ? "rename" : null)} onDone={(c) => { setConv(c); onChanged(); }} />
       <MembersDialog conv={conv} open={dialog === "members"} onOpenChange={(o) => setDialog(o ? "members" : null)}
         onChanged={(c) => { setConv(c); onChanged(); }} onLeft={onLeft} />
