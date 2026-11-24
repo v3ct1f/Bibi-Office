@@ -6,6 +6,7 @@ import { audit } from "./audit.ts";
 import { emitEvent } from "./events.ts";
 import { assertHolds, resolveMembership, rolePerms } from "./identity.ts";
 import { hasPermission } from "./permissions.ts";
+import { assertRoomForPerson } from "./plans.ts";
 import type { RequestContext } from "./context.ts";
 
 /**
@@ -44,6 +45,7 @@ export async function checkGrantableRoles(tx: Tx, ctx: RequestContext, input: { 
  */
 export async function addCreatedColleague(tx: Tx, ctx: RequestContext, input: { userId: string; email: string; roles: string[] }) {
   const { found, keys } = await checkGrantableRoles(tx, ctx, input);
+  await assertRoomForPerson(tx, ctx.tenantId, input.email.trim().toLowerCase());
   const membershipId = uuidv7();
   await tx.insert(memberships).values({ id: membershipId, tenantId: ctx.tenantId, userId: input.userId });
   await tx.insert(memberRoles).values(found.map((r) => ({ tenantId: ctx.tenantId, membershipId, roleId: r.id })));
@@ -56,6 +58,7 @@ export async function addCreatedColleague(tx: Tx, ctx: RequestContext, input: { 
 
 export async function createInvitation(tx: Tx, ctx: RequestContext, input: { email: string; roles: string[] }) {
   const { email, keys } = await checkGrantableRoles(tx, ctx, input);
+  await assertRoomForPerson(tx, ctx.tenantId, email);
 
   // A new invitation replaces an open one for the same address (its link stops working).
   await tx.update(invitations).set({ revokedAt: new Date() }).where(and(eq(invitations.email, email), open()));

@@ -76,7 +76,11 @@ export async function listBusinesses(db: Db) {
 /** Creates a business with no members yet and invites its owner (they become owner by accepting). */
 export async function createBusiness(
   db: Db, admin: PlatformActor,
-  input: { name: string; slug: string; region?: Region | undefined; ownerEmail: string; stripe?: { customerId: string | null; subscriptionId: string } },
+  input: {
+    name: string; slug: string; region?: Region | undefined; ownerEmail: string; stripe?: { customerId: string | null; subscriptionId: string };
+    /** A subscription plan (see plans.ts): its key, billing interval, whether the payment was only a pretend one, and the features it allows. */
+    plan?: { key: string; interval: "monthly" | "yearly"; test: boolean; features: string[] };
+  },
   meta: Meta,
 ) {
   const tenantId = uuidv7();
@@ -85,11 +89,12 @@ export async function createBusiness(
     if (dupe) throw conflict("That web address is already taken");
     const [t] = await tx.insert(tenants).values({ id: tenantId, slug: input.slug, name: input.name, region: input.region ?? "eu",
       ...(input.stripe ? { stripeCustomerId: input.stripe.customerId, stripeSubscriptionId: input.stripe.subscriptionId, plan: "paid" } : {}),
+      ...(input.plan ? { plan: input.plan.key, planInterval: input.plan.interval, planTest: input.plan.test, allowedModules: input.plan.features, planChangedAt: new Date() } : {}),
     }).returning();
     await seedSystemRoles(tx, tenantId);
     const inv = await ownerInvite(tx, tenantId, input.ownerEmail.trim().toLowerCase(), admin);
     const ctx = platformContext(tenantId, admin, meta);
-    await audit(tx, ctx, "tenant.created", { type: "tenant", id: tenantId }, { slug: input.slug, name: input.name, by: "platform", ownerEmail: inv.email, ...(input.stripe ? { paid: true } : {}) });
+    await audit(tx, ctx, "tenant.created", { type: "tenant", id: tenantId }, { slug: input.slug, name: input.name, by: "platform", ownerEmail: inv.email, ...(input.stripe ? { paid: true } : {}), ...(input.plan ? { plan: input.plan.key, testPayment: input.plan.test } : {}) });
     await emitEvent(tx, ctx, "core.tenant.created", { id: tenantId, slug: input.slug });
     return { tenant: t!, invite: inv };
   });

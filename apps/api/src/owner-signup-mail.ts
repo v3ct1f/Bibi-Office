@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from "fastify";
 import type { Db } from "@office/db";
+import { planByKey } from "@office/core";
 import { ownerSignupEmail, type Mailer } from "./mail.ts";
 import type { Identity } from "./identity.ts";
 
@@ -10,7 +11,7 @@ import type { Identity } from "./identity.ts";
  */
 export async function sendOwnerSignupEmail(
   o: { db: Db; appUrl: string; mailer: Mailer | null; identity: Identity | null; contact: string; log: FastifyBaseLogger },
-  signup: { email: string; source: "stripe" | "program_owner" },
+  signup: { email: string; source: "stripe" | "program_owner" | "demo"; plan?: string | null },
 ): Promise<{ link: string; emailed: boolean; emailError: string | null }> {
   const link = `${o.appUrl}/new-business`;
   if (!o.mailer) {
@@ -21,7 +22,7 @@ export async function sendOwnerSignupEmail(
     const pw = await o.identity?.passwordLink(signup.email, link);
     await o.mailer.send({
       to: signup.email,
-      ...ownerSignupEmail({ paid: signup.source === "stripe", link, passwordLink: pw && !pw.hasPassword ? pw.link : null, contact: o.contact }),
+      ...ownerSignupEmail({ paid: signup.source !== "program_owner", demo: signup.source === "demo", planName: planByKey(signup.plan)?.name ?? null, link, passwordLink: pw && !pw.hasPassword ? pw.link : null, contact: o.contact }),
     });
     return { link, emailed: true, emailError: null };
   } catch (err) {

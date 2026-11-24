@@ -1,5 +1,5 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Building, KeyRound, LifeBuoy, ScrollText, Shield, Users, Webhook } from "lucide-react";
+import { Building, KeyRound, LifeBuoy, ScrollText, Shield, Sparkles, Users, Webhook } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, PageHeader, cn } from "@office/ui";
 import { request } from "../../api/client.ts";
@@ -8,6 +8,7 @@ import { fmtDate } from "../../lib/format.ts";
 
 export const SETTINGS_NAV = [
   { path: "", label: "General", icon: Building, perm: undefined },
+  { path: "/plan", label: "Plan", icon: Sparkles, perm: undefined },
   { path: "/members", label: "Members", icon: Users, perm: "core:members.read" },
   { path: "/roles", label: "Roles", icon: Shield, perm: "core:roles.read" },
   { path: "/api-keys", label: "API keys", icon: KeyRound, perm: "core:apikeys.manage" },

@@ -1,5 +1,6 @@
 import { defineModuleUi } from "@office/ui/module-ui";
 import { FormSettings } from "./FormSettings.tsx";
+import { ImportLeads } from "./ImportLeads.tsx";
 import { LeadDetail } from "./LeadDetail.tsx";
 import { LeadEditor } from "./LeadEditor.tsx";
 import { LeadList } from "./LeadList.tsx";
@@ -11,6 +12,7 @@ export default defineModuleUi({
   pages: {
     "/leads": LeadList,
     "/leads/new": LeadEditor,
+    "/leads/import": ImportLeads,
     "/leads/:id": LeadDetail,
     "/leads/:id/edit": LeadEditor,
     "/form": FormSettings,

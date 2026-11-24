@@ -12,7 +12,7 @@ pnpm dev:api                          # http://localhost:3000/docs
 pnpm dev:worker                       # outbox -> NATS relay
 ```
 
-Set `PLATFORM_ADMIN_EMAILS` to your own email before the first start: you're the program owner at `/admin`, where you can also add co-owners or transfer ownership. Business owners set up their own business: they pay on `/start` (Stripe, see `docs/stripe-setup.md`) or you invite them from `/admin` (**Invite business owner**); either way they get an email to create their account, sign in and create their business (name, web address, region) at `/new-business`. With `SELF_SIGNUP=false` (default), nobody else can create a business.
+Set `PLATFORM_ADMIN_EMAILS` to your own email before the first start: you're the program owner at `/admin`, where you can also add co-owners or transfer ownership. Business owners set up their own business: they choose a plan on `/plans` and pay on `/start` (Stripe, see `docs/stripe-setup.md`; locally, without Stripe keys, a demo payment page where nothing is charged) or you invite them from `/admin` (**Invite business owner**); either way they get an email to create their account, sign in and create their business (name, web address, region) at `/new-business`. With `SELF_SIGNUP=false` (default), nobody else can create a business.
 
 Local sign-in uses email + password accounts (`pnpm dev:oidc`). New people get a "Set your password" link in their invitation email; anyone can get one at `/forgot-password`. Put `MAIL_SMTP_URL` and `MAIL_FROM` in `.env.local` so those emails go out.
 

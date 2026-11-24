@@ -19,7 +19,7 @@ export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => request<M
 
 export const SETTINGS_PERMS = ["core:members.read", "core:roles.read", "core:modules.read", "core:apikeys.manage", "core:webhooks.manage", "core:audit.read"];
 
-function NavItem({ to, icon: Icon, children, exact, onNavigate }: { to: string; icon: React.ComponentType<{ className?: string }>; children: ReactNode; exact?: boolean; onNavigate?: () => void }) {
+function NavItem({ to, icon: Icon, children, exact, onNavigate, badge }: { to: string; icon: React.ComponentType<{ className?: string }>; children: ReactNode; exact?: boolean; onNavigate?: () => void; badge?: ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const active = exact ? path === to || path === `${to}/` : path === to || path.startsWith(`${to}/`);
   return (
@@ -30,9 +30,31 @@ function NavItem({ to, icon: Icon, children, exact, onNavigate }: { to: string; 
         active ? "bg-surface font-medium text-foreground shadow-xs ring-1 ring-border" : "text-muted-foreground hover:bg-accent hover:text-foreground",
       )}
     >
-      <Icon className="size-4 shrink-0" />{children}
+      <Icon className="size-4 shrink-0" /><span className="min-w-0 flex-1 truncate">{children}</span>{badge}
     </Link>
   );
+}
+
+/**
+ * Count next to a feature in the menu (manifest slot `badge`, e.g. unread messages). Refreshed every 10 seconds,
+ * when the window regains focus, and when a page fires `window.dispatchEvent(new Event("office:refresh-badges"))`.
+ */
+function NavBadge({ module, path }: { module: string; path: string }) {
+  const { tenant } = useTenant();
+  const q = useQuery({
+    queryKey: ["nav-badge", tenant.id, module, path],
+    queryFn: () => request<{ count: number }>("GET", `/m/${module}${path}`, { tenantId: tenant.id }),
+    refetchInterval: 10_000, refetchOnWindowFocus: true, retry: false,
+  });
+  const { refetch } = q;
+  useEffect(() => {
+    const on = () => void refetch();
+    window.addEventListener("office:refresh-badges", on);
+    return () => window.removeEventListener("office:refresh-badges", on);
+  }, [refetch]);
+  const n = q.data?.count ?? 0;
+  if (!n) return null;
+  return <span className="ml-auto rounded-full bg-primary px-1.5 py-px text-[11px] font-semibold tabular-nums text-primary-foreground" aria-label={`${n} unread`}>{n > 99 ? "99+" : n}</span>;
 }
 
 const Group = ({ label, children }: { label: string; children: ReactNode }) => (
@@ -155,7 +177,10 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         {data.length > 0 && <Group label="Data">{data.map((d) => <NavItem key={d.to} to={d.to} icon={d.icon} {...p}>{d.label}</NavItem>)}</Group>}
         {(moduleNav.length > 0 || can("core:modules.manage")) && (
           <Group label="Features">
-            {moduleNav.map((m) => <NavItem key={`${m.module}${m.slot.route}`} to={`${base}/m/${m.module}${m.slot.route}`} icon={moduleIcon(m.slot.icon)} {...p}>{m.slot.label ?? m.moduleName}</NavItem>)}
+            {moduleNav.map((m) => (
+              <NavItem key={`${m.module}${m.slot.route}`} to={`${base}/m/${m.module}${m.slot.route}`} icon={moduleIcon(m.slot.icon)} {...p}
+                badge={m.slot.badge ? <NavBadge module={m.module} path={m.slot.badge} /> : undefined}>{m.slot.label ?? m.moduleName}</NavItem>
+            ))}
             {can("core:modules.manage") && <NavItem to={`${base}/features`} icon={PackagePlus} {...p}>Add features</NavItem>}
           </Group>
         )}

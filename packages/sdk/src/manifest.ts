@@ -51,6 +51,8 @@ export const ManifestSchema = z.object({
     slots: z.array(z.object({
       slot, label: z.string().optional(), icon: z.string().optional(), route: z.string().optional(),
       component: z.string().optional(), permission: permission.optional(),
+      /** nav.main only: module-relative GET path answering { count } (e.g. unread messages), shown next to the label and refreshed every few seconds. */
+      badge: z.string().regex(/^\/[a-z0-9/_-]*$/).optional(),
     })).default([]),
   }).default({ slots: [] }),
   /** JSON Schema (draft 2020-12 subset) for tenant settings; "x-secret": true marks secrets. */

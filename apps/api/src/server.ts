@@ -21,7 +21,7 @@ const app = await buildApp({
     secretKey: config.STRIPE_SECRET_KEY, webhookSecret: config.STRIPE_WEBHOOK_SECRET, priceId: config.STRIPE_PRICE_ID, label: config.STRIPE_PRICE_LABEL,
   }),
   contactEmail: config.CONTACT_EMAIL,
-  platformAdmins: config.PLATFORM_ADMIN_EMAILS, selfSignup: config.SELF_SIGNUP, platform: { registry: createRegistry(), secrets: new SecretBox(config.SECRETS_KEY) },
+  platformAdmins: config.PLATFORM_ADMIN_EMAILS, selfSignup: config.SELF_SIGNUP, testPayments: config.TEST_PAYMENTS, platform: { registry: createRegistry(), secrets: new SecretBox(config.SECRETS_KEY) },
 });
 
 const shutdown = async (sig: string) => {

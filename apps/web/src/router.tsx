@@ -23,7 +23,9 @@ import { useTenant } from "./lib/tenant.tsx";
 import { InvitePage } from "./pages/Invite.tsx";
 import { AdminPage } from "./pages/Admin.tsx";
 import { ForgotPasswordPage } from "./pages/ForgotPassword.tsx";
-import { StartPage, StartThanksPage } from "./pages/Start.tsx";
+import { DemoPayPage, StartPage, StartThanksPage } from "./pages/Start.tsx";
+import { PlansPage } from "./pages/Plans.tsx";
+import { PlanPage } from "./pages/settings/Plan.tsx";
 import { PrivacyPage, TermsPage } from "./pages/Legal.tsx";
 import { ContactSupportPage } from "./pages/settings/ContactSupport.tsx";
 
@@ -61,8 +63,21 @@ function PublicRoute() {
 const admin = createRoute({ getParentRoute: () => root, path: "/admin", component: () => <Authed><AdminPage /></Authed> });
 const invite = createRoute({ getParentRoute: () => root, path: "/invite/$tenantId/$token", component: () => <Authed><InvitePage /></Authed> });
 const forgot = createRoute({ getParentRoute: () => root, path: "/forgot-password", component: ForgotPasswordPage });
-const start = createRoute({ getParentRoute: () => root, path: "/start", component: StartPage });
-const startThanks = createRoute({ getParentRoute: () => root, path: "/start/thanks", component: StartThanksPage });
+const start = createRoute({
+  getParentRoute: () => root, path: "/start", component: StartPage,
+  validateSearch: (s: Record<string, unknown>): { plan?: string; interval?: string } => ({
+    ...(typeof s.plan === "string" ? { plan: s.plan } : {}), ...(typeof s.interval === "string" ? { interval: s.interval } : {}),
+  }),
+});
+const startThanks = createRoute({
+  getParentRoute: () => root, path: "/start/thanks", component: StartThanksPage,
+  validateSearch: (s: Record<string, unknown>): { demo?: string; emailed?: string } => ({
+    ...(typeof s.demo === "string" ? { demo: s.demo } : {}), ...(typeof s.emailed === "string" ? { emailed: s.emailed } : {}),
+  }),
+});
+/** The pretend checkout page (demo payments, only on servers without real Stripe). */
+const startDemoPay = createRoute({ getParentRoute: () => root, path: "/start/demo-pay/$id", component: DemoPayPage });
+const plansPage = createRoute({ getParentRoute: () => root, path: "/plans", component: PlansPage });
 const terms = createRoute({ getParentRoute: () => root, path: "/terms", component: TermsPage });
 const privacy = createRoute({ getParentRoute: () => root, path: "/privacy", component: PrivacyPage });
 const publicPage = createRoute({ getParentRoute: () => root, path: "/p/$tenantId/$module/$", component: PublicRoute });
@@ -87,7 +102,7 @@ function ModuleRoute() {
 }
 
 const tree = root.addChildren([
-  index, callback, onboarding, newBusiness, admin, invite, forgot, start, startThanks, terms, privacy, publicPage,
+  index, callback, onboarding, newBusiness, admin, invite, forgot, start, startThanks, startDemoPay, plansPage, terms, privacy, publicPage,
   tenant.addChildren([
     t("/", Dashboard),
     t("/contacts", () => <Gate perm="core:contacts.read"><EntityList key="contacts" cfg={cfg(contactsConfig)} /></Gate>, newSearch),
@@ -103,6 +118,7 @@ const tree = root.addChildren([
     t("/m/$module/$", ModuleRoute),
     settings.addChildren([
       s("/", null, GeneralSettings),
+      s("/plan", null, PlanPage),
       s("/members", "core:members.read", MembersPage),
       s("/roles", "core:roles.read", RolesPage),
       s("/modules", null, OldModulesRedirect),

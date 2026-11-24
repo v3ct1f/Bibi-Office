@@ -8,7 +8,7 @@ import { buildApp } from "../src/app.ts";
 export const ISSUER = "https://idp.test/realms/office";
 export const AUDIENCE = "office-api";
 
-export async function setup(modules: ModuleDefinition[] = [], opts: { authFailuresPerMin?: number; mailer?: import("../src/mail.ts").Mailer; identity?: import("../src/identity.ts").Identity; selfSignup?: boolean; billing?: import("../src/billing.ts").Billing | null; contactEmail?: string } = {}) {
+export async function setup(modules: ModuleDefinition[] = [], opts: { authFailuresPerMin?: number; mailer?: import("../src/mail.ts").Mailer; identity?: import("../src/identity.ts").Identity; selfSignup?: boolean; billing?: import("../src/billing.ts").Billing | null; contactEmail?: string; testPayments?: boolean; nodeEnv?: "test" | "production" } = {}) {
   const tdb = await createTestDatabase();
   const registry = new ModuleRegistry(modules);
   if (modules.length) await installModules(tdb.ownerUrl, registry, () => {});
@@ -21,7 +21,7 @@ export async function setup(modules: ModuleDefinition[] = [], opts: { authFailur
     db: app_.db, logger: false, selfSignup: true, platformAdmins: ["boss@example.com"], ...opts, jwks: createLocalJWKSet({ keys: [jwk] }), platform: { registry, secrets },
     config: {
       OIDC_ISSUER: ISSUER, OIDC_AUDIENCE: AUDIENCE, API_KEY_PEPPER: "x".repeat(32),
-      CORS_ORIGINS: [], RATE_LIMIT_PER_MIN: 10_000, TRUST_PROXY: false, NODE_ENV: "test",
+      CORS_ORIGINS: [], RATE_LIMIT_PER_MIN: 10_000, TRUST_PROXY: false, NODE_ENV: opts.nodeEnv ?? "test",
     },
   });
 

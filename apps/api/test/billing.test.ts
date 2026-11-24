@@ -42,7 +42,7 @@ const waiting = async () => (await h.client(boss).get("/platform/owner-signups")
 
 describe("paid sign-up", () => {
   it("shows the price and starts checkout with only an email, without signing in", async () => {
-    expect((await h.client().get("/signup/config")).body).toEqual({ open: true, price: "€29 per month" });
+    expect((await h.client().get("/signup/config")).body).toEqual({ open: true, price: "€29 per month", testMode: false });
     const r = await h.client().post("/signup/checkout", { email: "Maria@Example.com", acceptTerms: true, businessUse: true });
     expect(r.status).toBe(200);
     expect(r.body.url).toBe("https://checkout.stripe.test/c/abc");
@@ -305,7 +305,7 @@ describe("sign-up closed", () => {
   it("says so when Stripe isn't set up", async () => {
     const closed = await setup([], {});
     try {
-      expect((await closed.client().get("/signup/config")).body).toEqual({ open: false, price: "" });
+      expect((await closed.client().get("/signup/config")).body).toEqual({ open: false, price: "", testMode: false });
       expect((await closed.client().post("/signup/checkout", { email: "x@example.com", acceptTerms: true, businessUse: true })).status).toBe(503);
     } finally { await closed.teardown(); }
   });

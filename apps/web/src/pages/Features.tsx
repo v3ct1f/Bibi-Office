@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, Blocks, Check, Lock, Plus, Settings2 } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Badge, Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, ConfirmDialog, Dialog, DialogContent, DialogFooter,
@@ -95,7 +95,7 @@ export function FeaturesPage() {
                     {m.dependsOn.length > 0 && (
                       <p>Needs: {m.dependsOn.map((d) => <Badge key={d} variant={enabledKeys.has(d) ? "success" : "warning"} className="mr-1">{nameOf(d)}</Badge>)}</p>
                     )}
-                    {!m.allowed && <p>Not included for this business. Ask the program owner if you need it.</p>}
+                    {!m.allowed && <p>Not part of your plan. <Link to={`/t/${tenant.slug}/settings/plan`} className="font-medium text-primary underline">{manage ? "See plans and upgrade" : "See the plans"}</Link></p>}
                     {m.enabled && m.enabledAt && <p>Added {fmtDate(m.enabledAt)}{m.enabledBy ? ` by ${m.enabledBy.name}` : ""}</p>}
                     {!m.enabled && m.disabledAt && <p>Removed {fmtDate(m.disabledAt)}{m.disabledBy ? ` by ${m.disabledBy.name}` : ""}. Its data is kept and comes back when you add it again.</p>}
                   </CardContent>

@@ -37,6 +37,11 @@ const Env = z.object({
   STRIPE_PRICE_LABEL: z.string().optional(),
   /** true = anyone who signs in may create their own business. false (default) = only program owners create businesses. */
   SELF_SIGNUP: z.stringbool().default(false),
+  /**
+   * true = demo payments: "Continue to payment" opens a pretend checkout page (nothing is charged) and plans can be changed
+   * in the app. Never used in production or when the STRIPE_* keys are set. The local dev script (pnpm dev:local) turns it on.
+   */
+  TEST_PAYMENTS: z.stringbool().default(false),
 });
 export type Config = z.infer<typeof Env>;
 

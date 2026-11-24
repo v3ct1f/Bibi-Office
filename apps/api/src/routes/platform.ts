@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { AppError, getTenant, hasPermission, requirePermission, type RequestContext } from "@office/core";
+import { AppError, assertCapability, getTenant, hasPermission, requirePermission, type RequestContext } from "@office/core";
 import { and, eq } from "drizzle-orm";
 import { tenants, withTenant, type Db, type Tx } from "@office/db";
 import {
@@ -66,7 +66,7 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
   app.get("/workflows/:id", { config: AUTH, schema: { tags: ["workflows"], headers: tenantHeader, params: Id } },
     (req) => inTenant(req, null, (tx, ctx) => wf.get(tx, ctx, req.params.id)));
   app.post("/workflows", { config: AUTH, schema: { tags: ["workflows"], headers: tenantHeader, body: WorkflowInput } },
-    async (req, reply) => reply.status(201).send(await inTenant(req, null, (tx, ctx) => wf.create(tx, ctx, req.body))));
+    async (req, reply) => reply.status(201).send(await inTenant(req, null, async (tx, ctx) => { await assertCapability(tx, ctx.tenantId, "workflows"); return wf.create(tx, ctx, req.body); })));
   app.put("/workflows/:id", { config: AUTH, schema: { tags: ["workflows"], headers: tenantHeader, params: Id, body: WorkflowInput } },
     (req) => inTenant(req, null, (tx, ctx) => wf.update(tx, ctx, req.params.id, req.body)));
   app.delete("/workflows/:id", { config: AUTH, schema: { tags: ["workflows"], headers: tenantHeader, params: Id } }, async (req, reply) => {
@@ -83,7 +83,7 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
     (req) => inTenant(req, null, (tx, ctx) => wh.list(tx, ctx)));
   app.post("/webhooks", { config: AUTH, schema: { tags: ["webhooks"], headers: tenantHeader, body: WebhookInput } },
     async (req, reply) => reply.status(201).send({
-      ...(await inTenant(req, null, (tx, ctx) => wh.create(tx, ctx, req.body))),
+      ...(await inTenant(req, null, async (tx, ctx) => { await assertCapability(tx, ctx.tenantId, "api"); return wh.create(tx, ctx, req.body); })),
       note: "Store the signing secret now; it is not shown again.",
     }));
   app.put("/webhooks/:id", { config: AUTH, schema: { tags: ["webhooks"], headers: tenantHeader, params: Id, body: WebhookInput } },

@@ -1,11 +1,14 @@
+import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { eq, ne, and } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import {
-  AppError, REGION_KEYS, createBusinessFromSignup, listOwnerEmails, recordPaidSignup, setBusinessStatus, setOwnerSignupEnded, type RequestContext,
+  AppError, PLANS, REGION_KEYS, createBusinessFromSignup, listOwnerEmails, peopleCount, planByKey, recordDemoSignup, recordPaidSignup,
+  setBusinessStatus, setOwnerSignupEnded, tenantPlan, type Plan, type RequestContext,
 } from "@office/core";
+import { changePlan, planModuleKeys, type ModuleDeps } from "@office/platform";
 import { tenants, type Db, type Tx } from "@office/db";
 import { paymentFailedEmail, serviceResumedEmail, type Mailer } from "../mail.ts";
 import { sendOwnerSignupEmail } from "../owner-signup-mail.ts";
@@ -31,13 +34,88 @@ export async function registerBillingRoutes(
   app0: FastifyInstance,
   o: {
     db: Db; appUrl: string; mailer: Mailer | null; identity: Identity | null; billing: Billing | null; contactEmail: string | undefined;
+    /** Demo payments: a plan can be "bought" on a pretend checkout page. Never on with real Stripe keys or in production (app.ts). */
+    testPayments: boolean; modules: ModuleDeps;
     inTenant: <T>(req: FastifyRequest, perm: string | null, fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T>;
   },
 ) {
   const app = app0.withTypeProvider<ZodTypeProvider>();
+  const contactLine = o.contactEmail ?? "the address on our website";
+
+  /** A plan as shown to people: prices, limits, and each feature with its name and what it does. */
+  const describe = (p: Plan) => ({
+    key: p.key, name: p.name, tagline: p.tagline, monthly: p.monthly, yearly: p.yearly, people: p.people, extraPerson: p.extraPerson, capabilities: p.capabilities,
+    features: p.features.map((k) => {
+      const m = o.modules.registry.get(k)?.manifest;
+      return { key: k, name: m?.name ?? k, description: m?.description ?? "" };
+    }),
+  });
+  const planList = () => PLANS.map(describe);
 
   app.get("/signup/config", { config: PUBLIC, schema: { tags: ["signup"] } }, async () =>
-    ({ open: !!o.billing, price: o.billing?.label ?? "" }));
+    ({ open: !!o.billing || o.testPayments, price: o.billing?.label ?? "", testMode: o.testPayments }));
+
+  /** The plans for the public landing page. */
+  app.get("/plans", { config: PUBLIC, schema: { tags: ["signup"] } }, async () => ({ testMode: o.testPayments, plans: planList() }));
+
+  /**
+   * Demo payments (local development and try-outs, never in production or with real Stripe keys: see app.ts).
+   * "Continue to payment" opens our own pretend checkout page instead of Stripe's. Paying there does what a real
+   * Stripe payment does: the sign-up is recorded (with the chosen plan) and the "create your account" email goes out.
+   * Pending demo checkouts live in memory for an hour; nothing is charged and no card is asked for.
+   */
+  const demoCheckouts = new Map<string, { email: string; plan: Plan; interval: "monthly" | "yearly"; createdAt: number }>();
+  const DEMO_TTL = 60 * 60_000;
+  const demoCheckout = (id: string) => {
+    const d = demoCheckouts.get(id);
+    if (!o.testPayments || !d || Date.now() - d.createdAt > DEMO_TTL) {
+      throw new AppError(404, "demo_checkout_gone", "This demo payment has expired or was already used. Start again from the plans page.");
+    }
+    return d;
+  };
+
+  app.get("/signup/demo/:id", { config: PUBLIC, schema: { tags: ["signup"], params: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/) }) } }, async (req) => {
+    const d = demoCheckout(req.params.id);
+    return { email: d.email, interval: d.interval, plan: describe(d.plan) };
+  });
+
+  app.post("/signup/demo/:id/pay", {
+    config: { auth: "public", rateLimit: { max: 10, timeWindow: "15 minutes" } },
+    schema: { tags: ["signup"], params: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/) }) },
+  }, async (req) => {
+    const d = demoCheckout(req.params.id);
+    demoCheckouts.delete(req.params.id);   // one payment per checkout, like Stripe
+    const signup = await recordDemoSignup(o.db, { email: d.email, plan: d.plan.key, interval: d.interval, termsVersion: TERMS_VERSION });
+    const sent = await sendOwnerSignupEmail({ db: o.db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, contact: contactLine, log: req.log }, signup);
+    if (!sent.emailed) req.log.info({ email: d.email, link: sent.link }, "demo payment: create-your-account email not sent (mail isn't set up); open this link and sign in with that email");
+    return { ok: true, emailed: sent.emailed, plan: d.plan.key };
+  });
+
+  /** This business's plan, how many of its people are used, and the plans it could switch to. Any member may look. */
+  app.get("/billing/plan", { config: { auth: "authenticated" }, schema: { tags: ["billing"], headers: z.object({ "x-tenant-id": z.uuid().optional() }).loose() } }, async (req) =>
+    o.inTenant(req, null, async (tx, ctx) => {
+      const cur = await tenantPlan(tx, ctx.tenantId);
+      return {
+        testMode: o.testPayments,
+        current: {
+          key: cur.key, interval: cur.interval, test: cur.test, changedAt: cur.changedAt, stripe: !!cur.stripe,
+          people: await peopleCount(tx, ctx.tenantId), plan: cur.plan ? describe(cur.plan) : null,
+        },
+        plans: planList(),
+      };
+    }));
+
+  /** Upgrade or downgrade (test payment: takes effect at once, nothing is charged). Owners and admins. */
+  app.post("/billing/plan", {
+    config: { auth: "authenticated" },
+    schema: {
+      tags: ["billing"], headers: z.object({ "x-tenant-id": z.uuid().optional() }).loose(),
+      body: z.object({ plan: z.enum(["starter", "business", "complete"]), interval: z.enum(["monthly", "yearly"]).default("monthly") }).strict(),
+    },
+  }, async (req) => {
+    if (!o.testPayments) throw new AppError(503, "billing_unavailable", "Changing plans online isn't available yet. Please contact us.");
+    return o.inTenant(req, "core:tenant.manage", (tx, ctx) => changePlan(tx, ctx, o.modules, req.body));
+  });
 
   app.post("/signup/checkout", {
     config: { auth: "public", rateLimit: { max: 10, timeWindow: "15 minutes" } },
@@ -45,6 +123,9 @@ export async function registerBillingRoutes(
       tags: ["signup"],
       body: z.object({
         email: z.email().max(320),
+        /** The plan chosen on /plans (used by demo payments; the real Stripe checkout still has its single price). */
+        plan: z.enum(["starter", "business", "complete"]).optional(),
+        interval: z.enum(["monthly", "yearly"]).default("monthly"),
         /** Must be ticked: "I agree to the Terms and the Privacy Policy". */
         acceptTerms: z.literal(true, { error: "Please accept the Terms and the Privacy Policy" }),
         /** Must be ticked: "I am signing up for business or professional use" (the Terms are for businesses only). */
@@ -52,10 +133,20 @@ export async function registerBillingRoutes(
       }).strict(),
     },
   }, async (req) => {
+    const email = req.body.email.trim().toLowerCase();
+    if (!o.billing && o.testPayments) {
+      const plan = planByKey(req.body.plan);
+      if (!plan) throw new AppError(400, "choose_plan", "Choose a plan first.");
+      for (const [k, v] of demoCheckouts) if (Date.now() - v.createdAt > DEMO_TTL) demoCheckouts.delete(k);
+      if (demoCheckouts.size > 1000) throw new AppError(503, "busy", "Too many demo payments open. Try again in a moment.");
+      const id = randomBytes(18).toString("base64url");
+      demoCheckouts.set(id, { email, plan, interval: req.body.interval, createdAt: Date.now() });
+      return { url: `${o.appUrl}/start/demo-pay/${id}`, demo: true };
+    }
     if (!o.billing) throw new AppError(503, "signup_closed", "Sign-up isn't open yet.");
     try {
       const url = await o.billing.createCheckout({
-        email: req.body.email.trim().toLowerCase(),
+        email,
         successUrl: `${o.appUrl}/start/thanks`, cancelUrl: `${o.appUrl}/start`, termsVersion: TERMS_VERSION,
       });
       return { url };
@@ -82,8 +173,9 @@ export async function registerBillingRoutes(
   }, async (req, reply) => {
     const p = req.principal!;
     if (p.kind !== "user" || !p.emailVerified) throw new AppError(403, "no_signup", "Sign in with the email address you paid with.");
-    const t = await createBusinessFromSignup(o.db, { userId: p.userId, email: p.email }, req.body, { requestId: req.id, ip: req.ip, userAgent: req.headers["user-agent"] });
-    return reply.status(201).send({ id: t.id, slug: t.slug, name: t.name, region: t.region });
+    const t = await createBusinessFromSignup(o.db, { userId: p.userId, email: p.email }, req.body, { requestId: req.id, ip: req.ip, userAgent: req.headers["user-agent"] },
+      (key) => { const plan = planByKey(key); return plan ? planModuleKeys(o.modules.registry, plan) : null; });
+    return reply.status(201).send({ id: t.id, slug: t.slug, name: t.name, region: t.region, plan: t.plan });
   });
 
   /** The business owner's "Manage subscription" button: Stripe's page to change the card, see invoices or cancel. */
@@ -100,7 +192,6 @@ export async function registerBillingRoutes(
     }
   });
 
-  const contactLine = o.contactEmail ?? "the address on our website";
 
   /** Stripe's newer API versions moved the subscription id of an invoice under `parent`. */
   const invoiceSubscription = (inv: Record<string, unknown>) =>

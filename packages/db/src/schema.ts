@@ -19,7 +19,12 @@ export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey(),
   slug: text("slug").notNull(),
   name: text("name").notNull(),
+  /** "starter" | "business" | "complete" (see core/plans.ts), or "free" / "paid" for businesses without plan limits. */
   plan: text("plan").notNull().default("free"),
+  planInterval: text("plan_interval").$type<"monthly" | "yearly">().notNull().default("monthly"),
+  /** True while the payment is a pretend one (test mode). */
+  planTest: boolean("plan_test").notNull().default(false),
+  planChangedAt: ts("plan_changed_at"),
   /** Features the program owner allows this business to turn on; null = all. */
   allowedModules: text("allowed_modules").array(),
   /** Set when the business came from a paid Stripe subscription. */
@@ -75,7 +80,7 @@ export const apiKeys = pgTable("api_keys", {
 export const ownerSignups = pgTable("owner_signups", {
   id: uuid("id").primaryKey(),
   email: text("email").notNull(),
-  source: text("source").$type<"stripe" | "program_owner">().notNull(),
+  source: text("source").$type<"stripe" | "program_owner" | "demo">().notNull(),
   createdBy: text("created_by").notNull(),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
@@ -85,6 +90,10 @@ export const ownerSignups = pgTable("owner_signups", {
   tenantId: uuid("tenant_id"),
   endedAt: ts("ended_at"),
   cancelledAt: ts("cancelled_at"),
+  /** The plan chosen at sign-up (core/plans.ts), its billing interval, and whether the payment was only a pretend one. */
+  plan: text("plan"),
+  planInterval: text("plan_interval").$type<"monthly" | "yearly">(),
+  planTest: boolean("plan_test").notNull().default(false),
 });
 
 /** Program owners of this installation (global; no tenant). */

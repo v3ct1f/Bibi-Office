@@ -29,6 +29,20 @@ export async function recordPaidSignup(
   return row ?? null;
 }
 
+/**
+ * After a pretend payment on the demo checkout page (local development and try-outs only; nothing is charged).
+ * The chosen plan goes with it, so the business starts on that plan.
+ */
+export async function recordDemoSignup(
+  db: Db, input: { email: string; plan: string; interval: "monthly" | "yearly"; termsVersion: string },
+) {
+  const [row] = await db.insert(ownerSignups).values({
+    id: uuidv7(), email: lower(input.email), source: "demo", createdBy: "demo",
+    plan: input.plan, planInterval: input.interval, planTest: true, termsVersion: input.termsVersion,
+  }).returning();
+  return row!;
+}
+
 /** The program owner lets someone set up a business without paying through Stripe (e.g. a customer paying by bank transfer). */
 export async function inviteOwnerSignup(db: Db, admin: { email: string }, email: string) {
   const addr = lower(email);
@@ -43,7 +57,7 @@ export async function inviteOwnerSignup(db: Db, admin: { email: string }, email:
 export async function listOpenOwnerSignups(db: Db) {
   const rows = await db.select().from(ownerSignups)
     .where(and(isNull(ownerSignups.usedAt), isNull(ownerSignups.cancelledAt))).orderBy(desc(ownerSignups.createdAt));
-  return rows.map((r) => ({ id: r.id, email: r.email, source: r.source, createdAt: r.createdAt, ended: !!r.endedAt }));
+  return rows.map((r) => ({ id: r.id, email: r.email, source: r.source, plan: r.plan, createdAt: r.createdAt, ended: !!r.endedAt }));
 }
 
 export async function getOwnerSignup(db: Db, id: string) {
@@ -51,11 +65,11 @@ export async function getOwnerSignup(db: Db, id: string) {
   return r ?? null;
 }
 
-/** Withdraws a program-owner invitation that hasn't been used. A paid one can't be withdrawn (the customer paid for it). */
+/** Withdraws a sign-up that hasn't been used. A real (Stripe) one can't be withdrawn here: the customer paid for it. */
 export async function cancelOwnerSignup(db: Db, admin: { email: string }, id: string) {
   const r = await getOwnerSignup(db, id);
   if (!r || r.usedAt || r.cancelledAt) throw notFound("Invitation");
-  if (r.source !== "program_owner") throw new AppError(409, "paid_signup", "This person paid for a subscription; cancel it in Stripe instead.");
+  if (r.source === "stripe") throw new AppError(409, "paid_signup", "This person paid for a subscription; cancel it in Stripe instead.");
   await db.update(ownerSignups).set({ cancelledAt: new Date() }).where(eq(ownerSignups.id, id));
   await db.insert(platformAudit).values({ id: uuidv7(), actor: admin.email, action: "owner_signup.cancelled", detail: { email: r.email } });
 }
@@ -80,6 +94,8 @@ export async function setOwnerSignupEnded(db: Db, subscriptionId: string, ended:
  */
 export async function createBusinessFromSignup(
   db: Db, owner: { userId: string; email: string }, input: { name: string; slug: string; region: Region }, meta: Meta,
+  /** The module keys a plan turns on (the module registry lives in @office/platform, so the caller supplies it). */
+  planFeatures: (planKey: string) => string[] | null = () => null,
 ) {
   const tenantId = uuidv7();
   return withTenant(db, tenantId, async (tx) => {
@@ -88,9 +104,11 @@ export async function createBusinessFromSignup(
     if (!s) throw new AppError(403, "no_signup", "There's no paid subscription waiting for this email address. Sign in with the address you paid with.");
     const [dupe] = await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, input.slug));
     if (dupe) throw conflict("That web address is already taken. Choose another.");
+    const planOf = (r: typeof s) => (r.plan ? planFeatures(r.plan) : null);
     const [t] = await tx.insert(tenants).values({
       id: tenantId, slug: input.slug, name: input.name, region: input.region,
       ...(s.stripeSubscriptionId ? { stripeCustomerId: s.stripeCustomerId, stripeSubscriptionId: s.stripeSubscriptionId, plan: "paid" } : {}),
+      ...(planOf(s) ? { plan: s.plan!, planInterval: s.planInterval ?? "monthly", planTest: s.planTest, allowedModules: planOf(s), planChangedAt: new Date() } : {}),
     }).returning();
     const roleIds = await seedSystemRoles(tx, tenantId);
     const membershipId = uuidv7();
@@ -103,6 +121,7 @@ export async function createBusinessFromSignup(
     };
     await audit(tx, ctx, "tenant.created", { type: "tenant", id: tenantId }, {
       slug: input.slug, name: input.name, region: input.region, by: "owner", from: s.source, ...(s.stripeSubscriptionId ? { paid: true } : {}),
+      ...(s.plan ? { plan: s.plan, testPayment: s.planTest } : {}),
     });
     await emitEvent(tx, ctx, "core.tenant.created", { id: tenantId, slug: input.slug });
     return t!;

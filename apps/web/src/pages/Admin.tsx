@@ -20,7 +20,7 @@ interface Business {
   owners: { email: string; name: string | null }[]; features: string[]; allowedFeatures: string[] | null;
   ownerInvite: { email: string; expiresAt: string; expired: boolean } | null;
 }
-interface Signup { id: string; email: string; source: "stripe" | "program_owner"; createdAt: string; ended: boolean }
+interface Signup { id: string; email: string; source: "stripe" | "program_owner" | "demo"; plan: string | null; createdAt: string; ended: boolean }
 interface SignupSent { id: string; email: string; link: string; emailed: boolean; emailError: string | null }
 interface Feature { key: string; name: string; description: string; dependsOn: string[] }
 interface Sent { email: string; link: string; emailed: boolean; emailError: string | null }
@@ -155,14 +155,15 @@ export function AdminPage() {
                 {signups.data!.items.map((s) => (
                   <TR key={s.id}>
                     <TD className="text-sm">{s.email}</TD>
-                    <TD>{s.ended ? <Badge variant="warning">Subscription ended</Badge> : s.source === "stripe" ? <Badge variant="success">Paid</Badge> : <Badge>Invited by you</Badge>}</TD>
+                    <TD>{s.ended ? <Badge variant="warning">Subscription ended</Badge> : s.source === "stripe" ? <Badge variant="success">Paid</Badge> : s.source === "demo" ? <Badge variant="warning">Demo payment</Badge> : <Badge>Invited by you</Badge>}
+                      {s.plan && <span className="ml-2 text-xs capitalize text-muted-foreground">{s.plan}</span>}</TD>
                     <TD className="hidden md:table-cell">{fmtDate(s.createdAt)}</TD>
                     <TD className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`Actions for ${s.email}`}><MoreHorizontal /></Button></DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           {!s.ended && <DropdownMenuItem onSelect={() => resendSignup.mutate(s)}>Send the email again</DropdownMenuItem>}
-                          {s.source === "program_owner" && <DropdownMenuItem destructive onSelect={() => setCancelling(s)}>Withdraw invitation</DropdownMenuItem>}
+                          {s.source !== "stripe" && <DropdownMenuItem destructive onSelect={() => setCancelling(s)}>Withdraw invitation</DropdownMenuItem>}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TD>

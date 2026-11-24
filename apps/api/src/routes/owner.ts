@@ -61,7 +61,7 @@ export async function registerOwnerRoutes(
   // Paying on /start makes one of these automatically. The program owner can also invite someone by hand (for
   // example a customer who pays by bank transfer): they get the same "create your account" email and create
   // their business themselves.
-  const signupMail = (req: FastifyRequest, s: { email: string; source: "stripe" | "program_owner" }) =>
+  const signupMail = (req: FastifyRequest, s: { email: string; source: "stripe" | "program_owner" | "demo"; plan?: string | null }) =>
     sendOwnerSignupEmail({ db: o.db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, contact: o.contactEmail ?? "the address on our website", log: req.log }, s);
 
   app.get("/platform/owner-signups", { config: AUTH, schema: { tags: ["platform"] } }, async (req) => {

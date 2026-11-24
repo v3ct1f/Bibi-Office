@@ -8,7 +8,7 @@ import {
 } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import {
-  errorMessage, fmtDate, fmtDateTime, fmtMoney, isOpen, parseMoney, sourceLabel, STATUS, StatusBadge, STEPS, today, useLoad,
+  errorMessage, fmtDate, fmtDateTime, fmtMoney, inDays, isOpen, SNOOZES, parseMoney, sourceLabel, STATUS, StatusBadge, STEPS, today, useLoad,
   type Activity, type LeadDetail as Lead, type Status,
 } from "./shared.tsx";
 
@@ -198,6 +198,10 @@ export function LeadDetail({ params }: PageProps) {
       toast.success(status === "disqualified" ? "Lead disqualified" : `Marked as ${STATUS[status].label.toLowerCase()}`);
     } catch (e) { toast.error(errorMessage(e)); throw e; }
   };
+  const snooze = async (date: string | null) => {
+    try { lead.set(await host.api.patch<Lead>(`/leads/${l.id}`, { followUpOn: date })); toast.success(date ? `Follow up on ${fmtDate(date)}` : "Follow-up cleared"); }
+    catch (e) { toast.error(errorMessage(e)); }
+  };
   const core = (kind: "contacts" | "companies", cid: string) => `/t/${host.tenant.slug}/${kind}/${cid}`;
 
   return (
@@ -225,7 +229,13 @@ export function LeadDetail({ params }: PageProps) {
           <p className={cn("flex items-center gap-2 text-sm", due ? "text-destructive" : "text-muted-foreground")}>
             <CalendarClock className="size-4" />
             {l.followUpOn ? <>Follow up {due ? "was due " : "on "}{fmtDate(l.followUpOn)}</>
-              : <>No follow-up date. {canWrite && <button type="button" className="cursor-pointer underline" onClick={() => host.navigate(`/leads/${l.id}/edit`)}>Set one</button>}</>}
+              : <>No follow-up date.</>}
+            {canWrite && (
+              <span className="ml-1 flex flex-wrap items-center gap-1 text-foreground" role="group" aria-label="Follow up">
+                {SNOOZES.map((n) => <Button key={n.days} size="sm" variant="outline" onClick={() => void snooze(inDays(n.days))}>{n.label}</Button>)}
+                {l.followUpOn && <Button size="sm" variant="ghost" onClick={() => void snooze(null)}>Clear</Button>}
+              </span>
+            )}
           </p>
         )}
         {l.status === "converted" && (

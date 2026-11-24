@@ -40,11 +40,12 @@ export function invitationEmail(o: { tenantName: string; inviterName: string | n
  * "Create your account": the person paid for a subscription (or the program owner invited them). They choose a
  * password, sign in with this email address and create their business themselves.
  */
-export function ownerSignupEmail(o: { paid: boolean; link: string; passwordLink?: string | null; contact: string }) {
+export function ownerSignupEmail(o: { paid: boolean; demo?: boolean; planName?: string | null; link: string; passwordLink?: string | null; contact: string }) {
   return {
     subject: o.paid ? "Welcome to Office: create your account" : "You're invited to set up your business on Office",
     text: [
-      o.paid ? "Thank you for subscribing to Office. Your payment went through." : "You've been invited to set up your business on Office.",
+      o.demo ? `Thank you for choosing${o.planName ? ` the ${o.planName} plan of` : ""} Office. This was a demo payment: no money was charged.`
+        : o.paid ? "Thank you for subscribing to Office. Your payment went through." : "You've been invited to set up your business on Office.",
       "",
       ...(o.passwordLink
         ? [`1. Create your account: choose your password (the link works once, for 7 days): ${o.passwordLink}`, "",

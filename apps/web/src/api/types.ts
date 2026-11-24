@@ -4,7 +4,7 @@ export interface Me { kind: "user"; userId: string; email: string; tenants: Tena
   /** Paid (or was invited) to set up a business they haven't created yet. */
   pendingBusiness?: boolean }
 
-export interface UiSlot { slot: string; label?: string; icon?: string; route?: string; component?: string; permission?: string }
+export interface UiSlot { slot: string; label?: string; icon?: string; route?: string; component?: string; permission?: string; badge?: string }
 export interface Access {
   tenant: { id: string; slug: string; name: string; region: string; plan: string; createdAt: string };
   actor: { type: string; id: string };
