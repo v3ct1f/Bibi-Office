@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { KeyRound, Plus } from "lucide-react";
 import {
-  Badge, Button, Card, ConfirmDialog, CopyField, Dialog, DialogContent, DialogFooter, EmptyState, ErrorState, Field, Input, PageHeader,
+  Badge, Button, Card, ConfirmDialog, CopyField, Dialog, DialogContent, DialogFooter, EmptyState, ErrorState, DatePicker, Field, Input, PageHeader,
   Skeleton, Table, TBody, TD, TH, THead, TR,
 } from "@office/ui";
 import type { ApiKey } from "../../api/types.ts";
@@ -67,7 +67,7 @@ export function ApiKeysPage() {
           <form className="grid gap-5" onSubmit={(e) => { e.preventDefault(); create.mutate(undefined); }}>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Name" required>{(a) => <Input {...a} required autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Accounting sync" />}</Field>
-              <Field label="Expires" hint="Optional. Leave empty for no expiry.">{(a) => <Input {...a} type="date" min={new Date().toISOString().slice(0, 10)} value={form.expiresAt} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} />}</Field>
+              <Field label="Expires" hint="Optional. Leave empty for no expiry.">{(a) => <DatePicker {...a} min={new Date().toISOString().slice(0, 10)} value={form.expiresAt} onChange={(iso) => setForm({ ...form, expiresAt: iso })} />}</Field>
             </div>
             <div className="grid gap-2">
               <p className="text-sm font-medium">Scopes <span className="font-normal text-muted-foreground">— only permissions you hold can be granted</span></p>

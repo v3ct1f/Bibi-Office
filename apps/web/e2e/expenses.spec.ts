@@ -71,7 +71,7 @@ test("employee photographs a receipt; the fields are read and can be checked bef
   await expect(max.getByTestId("ocr-result")).toContainText("Please check every field", { timeout: 90_000 });
   await expect(max.getByRole("img", { name: "Receipt" })).toBeVisible();
   await expect(max.getByLabel("Total")).toHaveValue("7.50");
-  await expect(max.getByLabel(/^Date/)).toHaveValue("2026-03-14");
+  await expect(max.getByLabel(/^Date/)).toHaveAttribute("data-value", "2026-03-14");
   await expect(max.getByLabel("Vendor")).toHaveValue(/SOL/i);
   await expect(max.getByLabel("Line 2 description")).toHaveValue(/TOSTADA/i);
 

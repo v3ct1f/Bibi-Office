@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Calendar, Contact, PenLine, Send, Trash2, Type, User, UserPlus, X } from "lucide-react";
-import { Button, Card, Field, Input, Select, Textarea, toast } from "@office/ui";
+import { Button, Card, DatePicker, Field, Input, Select, Textarea, toast } from "@office/ui";
 import { useModuleHost } from "@office/ui/module-ui";
 import { PdfPages } from "./PdfPages.tsx";
 import {
@@ -282,7 +282,7 @@ export function RequestEditor({ doc, cfg, onChanged, onSent }: { doc: DocDetail;
             <Textarea {...a} rows={3} maxLength={2000} value={opts.message} onChange={(e) => { setOpts({ ...opts, message: e.target.value }); touch(); }} />
           )}</Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Expires on">{(a) => <Input {...a} type="date" min={today()} value={opts.expiresOn} onChange={(e) => { setOpts({ ...opts, expiresOn: e.target.value }); touch(); }} />}</Field>
+            <Field label="Expires on">{(a) => <DatePicker {...a} min={today()} value={opts.expiresOn} onChange={(iso) => { setOpts({ ...opts, expiresOn: iso }); touch(); }} />}</Field>
             <Field label="Remind every (days)" hint="0 = no reminders">{(a) => (
               <Input {...a} type="number" min={0} max={30} value={opts.remindEveryDays} onChange={(e) => { setOpts({ ...opts, remindEveryDays: Number(e.target.value) }); touch(); }} />
             )}</Field>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Camera, FileText, Plus, ScanText, Trash2, Upload, X } from "lucide-react";
-import { Button, Card, ErrorState, Field, Input, PageHeader, Select, Skeleton, Textarea, toast } from "@office/ui";
+import { Button, Card, ErrorState, DatePicker, Field, Input, PageHeader, Select, Skeleton, Textarea, toast } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import { parseReceipt } from "../src/receipt.ts";
 import { prepareFile, readText } from "./ocr.ts";
@@ -193,13 +193,13 @@ function Form({ cfg, expense }: { cfg: Config; expense: ExpenseDetail | null }) 
             {(a) => <Input {...a} value={vendor} onChange={(e) => setVendor(e.target.value)} maxLength={200} />}
           </Field>
           <Field label="Date" required error={err(errors.docDate)}>
-            {(a) => <Input {...a} type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} />}
+            {(a) => <DatePicker {...a} value={docDate} onChange={(iso) => setDocDate(iso)} />}
           </Field>
           <Field label={kind === "invoice" ? "Invoice number" : "Receipt number"}>
             {(a) => <Input {...a} value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} maxLength={80} />}
           </Field>
           {kind === "invoice" && (
-            <Field label="Due date">{(a) => <Input {...a} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />}</Field>
+            <Field label="Due date">{(a) => <DatePicker {...a} value={dueDate} onChange={(iso) => setDueDate(iso)} />}</Field>
           )}
           <Field label="Category">{(a) => (
             <Select {...a} value={category} onChange={(e) => setCategory(e.target.value)}>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Download, Paperclip, Plus, Receipt, X } from "lucide-react";
 import {
-  Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Select, Skeleton, Table, TBody, TD, TH, THead, TR, toast,
+  Button, Card, EmptyState, ErrorState, DatePicker, Field, Input, PageHeader, Select, Skeleton, Table, TBody, TD, TH, THead, TR, toast,
 } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import {
@@ -80,8 +80,8 @@ function List({ cfg }: { cfg: Config }) {
 
       <Card className="mb-4 p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6" role="group" aria-label="Filters">
-          <Field label="From">{(a) => <Input {...a} type="date" value={from} onChange={(e) => set(setFrom)(e.target.value)} />}</Field>
-          <Field label="To">{(a) => <Input {...a} type="date" value={to} onChange={(e) => set(setTo)(e.target.value)} />}</Field>
+          <Field label="From">{(a) => <DatePicker {...a} value={from} onChange={(iso) => set(setFrom)(iso)} />}</Field>
+          <Field label="To">{(a) => <DatePicker {...a} value={to} onChange={(iso) => set(setTo)(iso)} />}</Field>
           <Field label="Vendor search">{(a) => <Input {...a} placeholder="Any vendor" value={vendor} onChange={(e) => set(setVendor)(e.target.value)} />}</Field>
           {view !== "review" && (
             <Field label="Status">{(a) => (

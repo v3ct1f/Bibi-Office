@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowLeft, Download, Pencil, Plus, Trash2, Upload } from "lucide-react";
-import { Badge, Button, Card, ConfirmDialog, Dialog, DialogContent, DialogFooter, ErrorState, Field, Input, Select, Skeleton, Table, TBody, TD, TH, THead, TR, Textarea, toast } from "@office/ui";
+import { Badge, Button, Card, ConfirmDialog, Dialog, DialogContent, DialogFooter, ErrorState, DatePicker, Field, Input, Select, Skeleton, Table, TBody, TD, TH, THead, TR, Textarea, toast } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import {
   Avatar, BASIS, CL_KIND, DOC_CAT, EMPLOYMENT, LEAVE, ModLink, downloadBase64, errorMessage, fmtDate, fmtDayMonth, fmtDays, fmtMoney, fmtSize, parseMoney,
@@ -167,9 +167,9 @@ function EditProfile({ d, full, cfg, onClose, onSaved }: { d: Profile; full: boo
               )}</Field>
               <Field label="Hours per week" error={errors.weeklyHours}>{(a) => <Input {...a} inputMode="decimal" value={f.weeklyHours} onChange={set("weeklyHours")} />}</Field>
               <Field label="Work phone">{(a) => <Input {...a} maxLength={40} value={f.workPhone} onChange={set("workPhone")} />}</Field>
-              <Field label="Start date">{(a) => <Input {...a} type="date" value={f.startDate} onChange={set("startDate")} />}</Field>
-              <Field label="Last day" hint="Only when someone leaves" error={errors.endDate}>{(a) => <Input {...a} type="date" value={f.endDate} onChange={set("endDate")} />}</Field>
-              <Field label="Date of birth">{(a) => <Input {...a} type="date" value={f.birthDate} onChange={set("birthDate")} />}</Field>
+              <Field label="Start date">{(a) => <DatePicker {...a} value={f.startDate} onChange={(iso) => setF({ ...f, startDate: iso })} />}</Field>
+              <Field label="Last day" hint="Only when someone leaves" error={errors.endDate}>{(a) => <DatePicker {...a} value={f.endDate} onChange={(iso) => setF({ ...f, endDate: iso })} />}</Field>
+              <Field label="Date of birth">{(a) => <DatePicker {...a} value={f.birthDate} onChange={(iso) => setF({ ...f, birthDate: iso })} />}</Field>
               <Field label="Vacation days per year" hint={`Empty = company default (${cfg.defaultAllowanceDays})`} error={errors.allowanceDays}>{(a) => <Input {...a} inputMode="decimal" value={f.allowanceDays} onChange={set("allowanceDays")} />}</Field>
             </fieldset>
           )}
@@ -283,8 +283,8 @@ function AddLeave({ userId, year, onClose, onSaved }: { userId: string; year: nu
           <Field label="Days" required hint={allowance ? "Added to the allowance; use a minus to take days off it" : "Working days away"} error={error ?? undefined}>{(a) => <Input {...a} inputMode="decimal" value={days} onChange={(e) => setDays(e.target.value)} />}</Field>
           {!allowance && (
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="First day">{(a) => <Input {...a} type="date" value={start} onChange={(e) => setStart(e.target.value)} />}</Field>
-              <Field label="Last day">{(a) => <Input {...a} type="date" value={end} onChange={(e) => setEnd(e.target.value)} />}</Field>
+              <Field label="First day">{(a) => <DatePicker {...a} value={start} onChange={(iso) => setStart(iso)} />}</Field>
+              <Field label="Last day">{(a) => <DatePicker {...a} value={end} onChange={(iso) => setEnd(iso)} />}</Field>
             </div>
           )}
           <Field label="Note">{(a) => <Input {...a} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />}</Field>
@@ -368,7 +368,7 @@ function UploadDoc({ userId, onClose, onSaved }: { userId: string; onClose: () =
           <Field label="Name">{(a) => <Input {...a} maxLength={200} value={name} onChange={(e) => setName(e.target.value)} />}</Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Type">{(a) => <Select {...a} value={category} onChange={(e) => setCategory(e.target.value as DocCategory)}>{(Object.keys(DOC_CAT) as DocCategory[]).map((k) => <option key={k} value={k}>{DOC_CAT[k]}</option>)}</Select>}</Field>
-            <Field label="Expires on" hint="We'll remind you before then">{(a) => <Input {...a} type="date" value={expiresOn} onChange={(e) => setExpiresOn(e.target.value)} />}</Field>
+            <Field label="Expires on" hint="We'll remind you before then">{(a) => <DatePicker {...a} value={expiresOn} onChange={(iso) => setExpiresOn(iso)} />}</Field>
           </div>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
@@ -412,7 +412,7 @@ function ChecklistsTab({ userId, cfg }: { userId: string; cfg: Config }) {
               {tpls.data?.map((t) => <option key={t.id} value={t.id}>{t.name} ({CL_KIND[t.kind]})</option>)}
             </Select>
           )}</Field>
-          <Field label="Start day">{(a) => <Input {...a} type="date" value={start} onChange={(e) => setStart(e.target.value)} />}</Field>
+          <Field label="Start day">{(a) => <DatePicker {...a} value={start} onChange={(iso) => setStart(iso)} />}</Field>
           <Button loading={busy} onClick={() => void assign()}>Assign</Button>
           {tpls.data && !tpls.data.length && <p className="w-full text-sm text-muted-foreground">Create a template first under <ModLink to="/people/checklists">Checklists</ModLink>.</p>}
         </Card>
@@ -489,7 +489,7 @@ function PayTab({ userId, canEdit, currency }: { userId: string; canEdit: boolea
       {canEdit && (
         <form onSubmit={(e) => void add(e)} noValidate>
           <Card className="grid gap-3 p-4 sm:grid-cols-[10rem_10rem_9rem_1fr_auto] sm:items-end" role="group" aria-label="Add pay change">
-            <Field label="From">{(a) => <Input {...a} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />}</Field>
+            <Field label="From">{(a) => <DatePicker {...a} value={from} onChange={(iso) => setFrom(iso)} />}</Field>
             <Field label={`Amount (${currency})`} error={error ?? undefined}>{(a) => <Input {...a} inputMode="decimal" placeholder="14.50" value={amount} onChange={(e) => setAmount(e.target.value)} />}</Field>
             <Field label="Per">{(a) => <Select {...a} value={basis} onChange={(e) => setBasis(e.target.value as Basis)}>{(Object.keys(BASIS) as Basis[]).map((b) => <option key={b} value={b}>{BASIS[b].replace("per ", "")}</option>)}</Select>}</Field>
             <Field label="Note">{(a) => <Input {...a} maxLength={500} placeholder="e.g. Yearly raise" value={note} onChange={(e) => setNote(e.target.value)} />}</Field>

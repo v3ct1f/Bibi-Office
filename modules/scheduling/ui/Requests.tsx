@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Check, X } from "lucide-react";
 import {
-  Button, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogFooter, ErrorState, Field, Input, PageHeader, Select, Skeleton,
+  Button, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogFooter, ErrorState, DatePicker, Field, PageHeader, Select, Skeleton,
   Textarea, toast,
 } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
@@ -178,8 +178,8 @@ function TimeOffForm({ onSaved }: { onSaved: () => void }) {
             {(a) => <Select {...a} value={kind} onChange={(e) => setKind(e.target.value as TimeOffKind)}>{Object.entries(KIND_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select>}
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="First day" required>{(a) => <Input {...a} type="date" value={from} onChange={(e) => { setFrom(e.target.value); if (!to) setTo(e.target.value); }} />}</Field>
-            <Field label="Last day" required error={toError}>{(a) => <Input {...a} type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />}</Field>
+            <Field label="First day" required>{(a) => <DatePicker {...a} value={from} onChange={(iso) => { setFrom(iso); if (!to || to < iso) setTo(iso); }} />}</Field>
+            <Field label="Last day" required error={toError}>{(a) => <DatePicker {...a} value={to} min={from || undefined} onChange={(iso) => setTo(iso)} />}</Field>
           </div>
           <Field label="Reason">{(a) => <Textarea {...a} rows={2} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Optional" />}</Field>
           {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}

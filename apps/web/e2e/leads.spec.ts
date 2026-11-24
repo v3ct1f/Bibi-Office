@@ -104,3 +104,22 @@ test("disqualify a lead and reopen it", async () => {
   await page.getByRole("button", { name: "Reopen" }).click();
   await expect(page.getByRole("button", { name: "Contacted" })).toHaveAttribute("aria-current", "step");
 });
+
+test("import leads from a CSV: match columns, preview, skip a duplicate", async () => {
+  await nav().getByRole("link", { name: "Leads" }).click();
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Import leads" })).toBeVisible();
+  const csv = "Full Name,E-mail Address,Phone,Organisation\nAda Lovelace,ada@csv.test,+34 600 111 222,Analytical\nAda Twin,ADA@csv.test,,\nNo Email,,,Solo Ltd\n";
+  await page.getByLabel("CSV file").setInputFiles({ name: "leads.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await expect(page.getByText("leads.csv: 3 rows")).toBeVisible();
+  await page.getByLabel("Email", { exact: true }).selectOption({ label: "E-mail Address" }); // not guessed: header is not an exact match
+  await page.getByLabel("Full name").selectOption({ label: "Full Name" });
+  await page.getByLabel("Company").selectOption({ label: "Organisation" });
+  await expect(page.getByRole("table", { name: "Preview" })).toContainText("Ada Lovelace");
+  await page.getByRole("button", { name: "Import 3 rows" }).click();
+  const result = page.getByRole("status", { name: "Import result" });
+  await expect(result).toContainText("2 leads imported, 1 skipped");
+  await expect(result).toContainText("Row 3 (duplicate)");
+  await result.getByRole("button", { name: "See leads" }).click();
+  await expect(page.getByText("Ada Lovelace")).toBeVisible();
+});

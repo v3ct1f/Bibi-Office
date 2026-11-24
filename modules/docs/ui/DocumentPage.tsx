@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { ArrowLeft, Ban, Bell, Download, ExternalLink, Signature, Link2, Pencil, Trash2 } from "lucide-react";
 import {
-  Badge, Button, Card, ConfirmDialog, CopyField, Dialog, DialogContent, DialogFooter, EmptyState, ErrorState, Field, Input, PageHeader, Select, Skeleton, toast,
+  Badge, Button, Card, ConfirmDialog, CopyField, Dialog, DialogContent, DialogFooter, EmptyState, ErrorState, DatePicker, Field, Input, PageHeader, Select, Skeleton, toast,
 } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import { RequestEditor } from "./Editor.tsx";
@@ -272,7 +272,7 @@ function DetailsDialog({ doc, onClose, onSaved }: { doc: DocDetail; onClose: () 
           )}</Field>
           {open && (
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Expires on">{(a) => <Input {...a} type="date" value={v.expiresOn} onChange={(e) => setV({ ...v, expiresOn: e.target.value })} />}</Field>
+              <Field label="Expires on">{(a) => <DatePicker {...a} value={v.expiresOn} onChange={(iso) => setV({ ...v, expiresOn: iso })} />}</Field>
               <Field label="Remind every (days)">{(a) => <Input {...a} type="number" min={0} max={30} value={v.remindEveryDays} onChange={(e) => setV({ ...v, remindEveryDays: Number(e.target.value) })} />}</Field>
             </div>
           )}

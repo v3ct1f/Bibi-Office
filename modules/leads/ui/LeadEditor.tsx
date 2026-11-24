@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { Button, Card, ErrorState, Field, Input, PageHeader, Select, Skeleton, Textarea, toast } from "@office/ui";
+import { Button, Card, ErrorState, DatePicker, Field, Input, PageHeader, Select, Skeleton, Textarea, toast } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import { CURRENCIES, errorMessage, parseMoney, SOURCES, useLoad, type LeadDetail, type Person, type Source } from "./shared.tsx";
 
@@ -99,7 +99,7 @@ export function LeadEditor({ params }: PageProps) {
               {people.map((p) => <option key={p.userId} value={p.userId}>{p.name}</option>)}
             </Select>
           )}</Field>
-          <Field label="Follow up on">{(a) => <Input {...a} type="date" value={f.followUpOn} onChange={set("followUpOn")} />}</Field>
+          <Field label="Follow up on">{(a) => <DatePicker {...a} value={f.followUpOn} onChange={(iso) => setF((x) => ({ ...x, followUpOn: iso }))} />}</Field>
           <div className="grid grid-cols-[1fr_6rem] gap-2">
             <Field label="Possible value" error={cents === null ? "Enter an amount like 1500.00" : undefined}>
               {(a) => <Input {...a} inputMode="decimal" placeholder="0.00" value={f.value} onChange={set("value")} />}

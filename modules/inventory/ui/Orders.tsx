@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { ArrowLeft, Plus, ShoppingCart } from "lucide-react";
-import { Button, Card, ConfirmDialog, EmptyState, ErrorState, Field, Input, PageHeader, Skeleton, Table, TBody, TD, TH, THead, TR, Textarea, toast } from "@office/ui";
+import { Button, Card, ConfirmDialog, EmptyState, ErrorState, DatePicker, Field, PageHeader, Skeleton, Table, TBody, TD, TH, THead, TR, Textarea, toast } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import { OrderBadge, SupplierPicker, errorMessage, fmtDate, fmtMoney, useLoad, type Config, type Order, type OrderSummary, type Supplier } from "./shared.tsx";
 
@@ -94,7 +94,7 @@ export function NewOrder(_: PageProps) {
       <form onSubmit={(e) => void create(e)} noValidate>
         <Card className="grid max-w-xl gap-4 p-5">
           <Field label="Supplier" required error={error === "Choose a supplier" ? error : undefined}>{(a) => <SupplierPicker id={a.id} value={supplier} onChange={setSupplier} invalid={!!a["aria-invalid"]} />}</Field>
-          <Field label="Expected delivery">{(a) => <Input {...a} type="date" value={expectedOn} onChange={(e) => setExpectedOn(e.target.value)} />}</Field>
+          <Field label="Expected delivery">{(a) => <DatePicker {...a} value={expectedOn} onChange={(iso) => setExpectedOn(iso)} />}</Field>
           <Field label="Notes for the supplier">{(a) => <Textarea {...a} rows={2} maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} />}</Field>
           {error && error !== "Choose a supplier" && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
           <div><Button type="submit" loading={busy}>Create order</Button></div>

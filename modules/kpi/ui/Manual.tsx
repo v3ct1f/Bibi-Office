@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import {
-  Button, Card, ConfirmDialog, Dialog, DialogContent, DialogFooter, EmptyState, ErrorState, Field, Input, PageHeader, Select, Skeleton,
+  Button, Card, ConfirmDialog, Dialog, DialogContent, DialogFooter, EmptyState, ErrorState, DatePicker, Field, Input, PageHeader, Select, Skeleton,
   Table, TBody, TD, TH, THead, TR, Textarea, toast,
 } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
@@ -98,7 +98,7 @@ export function ManualPage({ params }: PageProps) {
       {m.canWrite && (
         <Card className="mb-4 p-4">
           <form className="grid gap-3 sm:grid-cols-[10rem_10rem_1fr_auto] sm:items-end" onSubmit={(e) => { e.preventDefault(); if (value.trim() && Number.isFinite(n)) void put(date, n, note); }}>
-            <Field label="Date">{(a) => <Input {...a} type="date" value={date} onChange={(e) => setDate(e.target.value)} />}</Field>
+            <Field label="Date">{(a) => <DatePicker {...a} value={date} onChange={(iso) => setDate(iso)} />}</Field>
             <Field label="Value">{(a) => <Input {...a} inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} />}</Field>
             <Field label="Note">{(a) => <Input {...a} value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} />}</Field>
             <Button type="submit" loading={busy} disabled={!value.trim() || !Number.isFinite(n)}>Save value</Button>

@@ -22,6 +22,26 @@ form (one per business: public "contact us" page, off until turned on; the token
   If the email already has an open lead, the message is added to that lead instead of a new one. Replacing the link stops the old one.
   Public routes are rate-limited per IP by the platform.
 
+## Following up
+
+- **Follow up now** tab: open leads whose follow-up date is today or earlier, soonest first (`due=1`). **My leads** button: only leads you own (`mine=1`).
+- One click sets the next follow-up: Tomorrow / In 3 days / Next week (and Clear) on the lead page, +1d / +3d / +1w in the list's Follow up column.
+- Tick leads in the list, pick a colleague (or nobody) and **Assign**: `POST /leads/assign`. Each change is logged on the lead and emits `leads.lead.updated`.
+
+## Importing from a spreadsheet
+
+**Leads → Import** (`/leads/import`): choose a `.csv` file (up to 5 MB and 5000 rows; commas, semicolons or tabs; first row = column titles).
+The screen guesses which column is which (full name, first/last name, email, phone, company, job title, source, notes), lets you change
+it, shows a preview of the first rows, and sends the rows in parts of 1000 to `POST /leads/import`.
+
+- Each row is checked like a hand-made lead (needs a name, email, phone or company; email must be valid). Bad rows are skipped and
+  listed with their spreadsheet row number and the reason; the rest are still imported.
+- Duplicates by email (case-insensitive) are skipped: both a lead that already exists (any status) and a repeat inside the file.
+- A "Full name" column is split into first and last name. A Source column that matches a source (value or label) is used; anything else
+  gets the source chosen on the screen (default Other).
+- Imported leads are new, owned by the person importing, and get the timeline note "Lead imported from a spreadsheet". Each one emits
+  `leads.lead.created` exactly like a lead added by hand (so workflows and CRM see them), plus one audit entry `leads.lead.imported`.
+
 ## Settings
 
 | Key | Default | Notes |
@@ -32,8 +52,10 @@ form (one per business: public "contact us" page, off until turned on; the token
 
 | Method | Path | Permission |
 |---|---|---|
-| GET | `/config` · `/summary` · `/people` · `/leads?view=open\|all\|<status>&source&ownerId&q&limit&cursor` · `/leads/:id` · `/form` | `leads:lead.read` |
+| GET | `/config` · `/summary` · `/people` · `/leads?view=open\|all\|<status>&source&ownerId&mine=1&due=1&q&limit&cursor` · `/leads/:id` · `/form` | `leads:lead.read` |
 | POST/PATCH/DELETE | `/leads` · `/leads/:id` | `leads:lead.write` |
+| POST | `/leads/assign { ids (1 to 200), ownerId \| null }` gives several leads to one colleague | `leads:lead.write` |
+| POST | `/leads/import { source?, rows: [{ line, values }] }` (1 to 1000 rows, body up to 2 MB) | `leads:lead.write` |
 | POST | `/leads/:id/status { status, reason? }` · `/leads/:id/activities { kind, body }` · `/leads/:id/convert` | `leads:lead.write` |
 | PATCH / POST | `/form` · `/form/replace-link` | `leads:form.manage` |
 
@@ -58,10 +80,10 @@ Lead payload: `{ id, name, firstName, lastName, email, phone, companyName, sourc
 ## UI slots
 
 Leads list (`nav.main`, tabs To work on / Qualified / Converted / Disqualified / All, source filter, search), "+ New → Lead"
-(`global.create`), lead page (status bar, timeline, Convert / Disqualify), "Leads" dashboard widget, **Web form** settings (`nav.settings`),
+(`global.create`), Import (`/leads/import`), lead page (status bar, timeline, Convert / Disqualify), "Leads" dashboard widget, **Web form** settings (`nav.settings`),
 public form page.
 
 ## Not yet
 
-Importing leads from a spreadsheet, an embeddable form snippet (the link works in an iframe or as a button), email notifications for
+Importing Excel (.xlsx) files directly (save as CSV first), updating existing leads from a file, an embeddable form snippet (the link works in an iframe or as a button), email notifications for
 new web-form leads (use a workflow on `leads.lead.created`), lead scoring.

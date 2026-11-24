@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { ArrowLeft, Ban, BellRing, Banknote, Check, CircleCheck, Lock, Pencil, Printer, Settings2, Trash2 } from "lucide-react";
 import {
-  Button, Card, ConfirmDialog, Dialog, DialogContent, DialogFooter, ErrorState, Field, Input, PageHeader, Skeleton, Textarea, toast,
+  Button, Card, ConfirmDialog, Dialog, DialogContent, DialogFooter, ErrorState, DatePicker, Field, Input, PageHeader, Skeleton, Textarea, toast,
 } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import {
@@ -43,7 +43,7 @@ function PaymentDialog({ inv, open, onOpenChange, onDone }: { inv: Inv; open: bo
             <Field label={`Amount (${inv.currency})`} hint="Change it for a part-payment." error={amount && invalid ? `Enter an amount up to ${centsToInput(inv.balanceCents)}` : undefined}>
               {(a) => <Input {...a} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />}
             </Field>
-            <Field label="Paid on">{(a) => <Input {...a} type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} />}</Field>
+            <Field label="Paid on">{(a) => <DatePicker {...a} value={paidOn} onChange={(iso) => setPaidOn(iso)} />}</Field>
             <Field label="Method">{(a) => <Input {...a} value={method} onChange={(e) => setMethod(e.target.value)} maxLength={50} />}</Field>
             <Field label="Reference">{(a) => <Input {...a} value={reference} onChange={(e) => setReference(e.target.value)} maxLength={200} />}</Field>
           </div>

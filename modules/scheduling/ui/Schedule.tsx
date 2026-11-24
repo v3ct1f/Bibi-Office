@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { ArrowLeftRight, Copy, Plus, Send, Tags, Trash2 } from "lucide-react";
 import {
-  Badge, Button, Card, ConfirmDialog, Dialog, DialogContent, DialogFooter, EmptyState, ErrorState, Field, Input, PageHeader, Select, Skeleton,
+  Badge, Button, Card, ConfirmDialog, Dialog, DialogContent, DialogFooter, EmptyState, ErrorState, DatePicker, Field, Input, PageHeader, Select, Skeleton,
   Textarea, cn, toast,
 } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
@@ -199,7 +199,7 @@ function ShiftDialog({ week, draft, onClose, onSaved }: { week: Week; draft: Dra
                 </Select>
               )}
             </Field>
-            <Field label="Day" required>{(a) => <Input {...a} type="date" value={f.day} onChange={set("day")} required />}</Field>
+            <Field label="Day" required>{(a) => <DatePicker {...a} value={f.day} onChange={(iso) => setF({ ...f, day: iso })} required />}</Field>
             <Field label="Break (minutes)" error={breakError}>{(a) => <Input {...a} type="number" min={0} max={600} step={5} value={f.breakMinutes} onChange={set("breakMinutes")} />}</Field>
             <Field label="Start" required>{(a) => <Input {...a} type="time" value={f.start} onChange={set("start")} required />}</Field>
             <Field label="End" required>{(a) => <Input {...a} type="time" value={f.end} onChange={set("end")} required />}</Field>

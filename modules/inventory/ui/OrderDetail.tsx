@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowLeft, Ban, ClipboardCopy, PackageCheck, Plus, Send, Trash2 } from "lucide-react";
 import {
-  Button, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, Dialog, DialogContent, DialogFooter, ErrorState, Field, Input, PageHeader, Select,
+  Button, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, Dialog, DialogContent, DialogFooter, ErrorState, DatePicker, Field, Input, PageHeader, Select,
   Skeleton, Table, TBody, TD, TH, THead, TR, Textarea, toast,
 } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
@@ -157,7 +157,7 @@ function View({ o, cfg, reload }: { o: Order; cfg: Config; reload: () => void })
         </Card>
 
         <Card className="grid gap-4 p-5 sm:grid-cols-[12rem_1fr]">
-          <Field label="Expected delivery">{(a) => editable ? <Input {...a} type="date" value={expectedOn} onChange={(e) => setExpectedOn(e.target.value)} /> : <p id={a.id} className="text-sm">{fmtDate(o.expectedOn)}</p>}</Field>
+          <Field label="Expected delivery">{(a) => editable ? <DatePicker {...a} value={expectedOn} onChange={(iso) => setExpectedOn(iso)} /> : <p id={a.id} className="text-sm">{fmtDate(o.expectedOn)}</p>}</Field>
           <Field label="Notes for the supplier">{(a) => editable ? <Textarea {...a} rows={2} maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} /> : <p id={a.id} className="text-sm">{o.notes || "—"}</p>}</Field>
         </Card>
 

@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { and, desc, eq, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { uuidv7 } from "@office/db";
 import { moduleErrors as E, type ModuleContext } from "@office/sdk";
@@ -37,10 +37,15 @@ export const ListQuery = z.object({
   view: z.enum(["open", "all", ...STATUSES]).default("open"),
   source: z.enum(SOURCES).optional(),
   ownerId: z.uuid().optional(),
+  /** "1": only leads owned by the person asking. */
+  mine: z.literal("1").optional(),
+  /** "1": open leads whose follow-up date is today or earlier, soonest first. */
+  due: z.literal("1").optional(),
   q: z.string().trim().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   cursor: z.uuid().optional(),
 });
+export const AssignInput = z.object({ ids: z.array(z.uuid()).min(1).max(200), ownerId: z.uuid().nullable() }).strict();
 export const ConvertInput = z.object({
   /** Also create (or reuse) a company from the lead's company name. */
   company: z.boolean().default(true),
@@ -127,16 +132,19 @@ export async function listLeads(ctx: ModuleContext, q: z.infer<typeof ListQuery>
   else if (q.view !== "all") where.push(eq(leads.status, q.view));
   if (q.source) where.push(eq(leads.source, q.source));
   if (q.ownerId) where.push(eq(leads.ownerId, q.ownerId));
+  if (q.mine) where.push(ctx.actor.userId ? eq(leads.ownerId, ctx.actor.userId) : sql`false`);
+  if (q.due) where.push(inArray(leads.status, OPEN), sql`${leads.followUpOn} <= ${today()}::date`);
   if (q.q) {
     const like = `%${q.q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
     where.push(or(ilike(leads.firstName, like), ilike(leads.lastName, like), ilike(leads.email, like), ilike(leads.companyName, like), ilike(leads.phone, like),
       ilike(sql`coalesce(${leads.firstName}, '') || ' ' || coalesce(${leads.lastName}, '')`, like)));
   }
-  if (q.cursor) where.push(lt(leads.id, q.cursor));
-  const rows = await ctx.db.select().from(leads).where(and(...where)).orderBy(desc(leads.id)).limit(q.limit + 1);
+  if (q.cursor && !q.due) where.push(lt(leads.id, q.cursor));
+  const order = q.due ? [asc(leads.followUpOn), desc(leads.id)] : [desc(leads.id)];
+  const rows = await ctx.db.select().from(leads).where(and(...where)).orderBy(...order).limit(q.limit + 1);
   const page = rows.slice(0, q.limit);
   const owners = await ownerNames(ctx, page);
-  return { data: page.map((r) => dto(r, owners)), nextCursor: rows.length > q.limit ? page.at(-1)!.id : null };
+  return { data: page.map((r) => dto(r, owners)), nextCursor: rows.length > q.limit && !q.due ? page.at(-1)!.id : null };
 }
 
 export async function getLead(ctx: ModuleContext, id: string) {
@@ -171,9 +179,10 @@ export async function summary(ctx: ModuleContext) {
 }
 
 // ── Commands ─────────────────────────────────────────────────────────────────
-export async function createLead(ctx: ModuleContext, input: z.input<typeof LeadInput>, opts: { source?: string; firstNote?: string } = {}) {
-  const i = LeadInput.parse(input);
-  await checkOwner(ctx, i.ownerId);
+type LeadValues = ReturnType<typeof LeadInput.parse>;
+
+/** Inserts the lead and its first timeline entry, audits and emits `leads.lead.created`. Shared by normal creation and import. */
+async function insertLead(ctx: ModuleContext, i: LeadValues, opts: { firstNote?: string } = {}) {
   const [row] = await ctx.db.insert(leads).values({
     id: uuidv7(), tenantId: ctx.tenantId,
     firstName: clean(i.firstName), lastName: clean(i.lastName), email: clean(i.email), phone: clean(i.phone),
@@ -185,7 +194,77 @@ export async function createLead(ctx: ModuleContext, input: z.input<typeof LeadI
   await log(ctx, row!.id, "system", opts.firstNote ?? `Lead added (${SOURCE_LABEL[row!.source] ?? row!.source})`);
   await ctx.audit.log("leads.lead.created", { type: "leads_lead", id: row!.id }, { name: leadName(row!), source: row!.source });
   await ctx.events.emit("leads.lead.created", payload(row!));
-  return getLead(ctx, row!.id);
+  return row!;
+}
+
+export async function createLead(ctx: ModuleContext, input: z.input<typeof LeadInput>, opts: { source?: string; firstNote?: string } = {}) {
+  const i = LeadInput.parse(input);
+  await checkOwner(ctx, i.ownerId);
+  const row = await insertLead(ctx, i, opts);
+  return getLead(ctx, row.id);
+}
+
+// ── Import from a spreadsheet ────────────────────────────────────────────────
+/** Most rows in one import (a bigger file is split in parts by the screen). */
+export const IMPORT_MAX_ROWS = 1000;
+const IMPORT_FIELDS = ["name", "firstName", "lastName", "email", "phone", "companyName", "jobTitle", "source", "notes"] as const;
+export const ImportInput = z.object({
+  /** Source for rows that do not say (or say something unknown). */
+  source: z.enum(SOURCES).default("other"),
+  rows: z.array(z.object({
+    /** Line number in the spreadsheet, shown in the report. */
+    line: z.number().int().min(1).max(10_000_000),
+    values: z.record(z.string(), z.string().max(10_000)),
+  }).strict()).min(1, "The file has no rows").max(IMPORT_MAX_ROWS, `At most ${IMPORT_MAX_ROWS} rows at a time`),
+}).strict();
+
+const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+const sourceFrom = (raw: string | undefined, fallback: LeadValues["source"]): LeadValues["source"] => {
+  const n = normalize(raw ?? "");
+  if (!n) return fallback;
+  return SOURCES.find((x) => normalize(x) === n || normalize(SOURCE_LABEL[x] ?? "") === n) ?? fallback;
+};
+
+export async function importLeads(ctx: ModuleContext, input: z.infer<typeof ImportInput>) {
+  const created: string[] = [];
+  const skipped: { line: number; reason: "invalid" | "duplicate"; message: string }[] = [];
+  // Validate every row first, drop repeats inside the file.
+  const good: { line: number; lead: LeadValues }[] = [];
+  const seenEmails = new Set<string>();
+  for (const r of input.rows) {
+    const v: Record<string, string> = {};
+    for (const k of IMPORT_FIELDS) { const x = r.values[k]?.trim(); if (x) v[k] = x; }
+    let { firstName, lastName } = v;
+    if (v.name && !firstName && !lastName) {
+      const parts = v.name.split(/\s+/);
+      firstName = parts[0]; lastName = parts.slice(1).join(" ") || undefined;
+    }
+    const parsed = LeadInput.safeParse({
+      firstName, lastName, email: v.email, phone: v.phone, companyName: v.companyName, jobTitle: v.jobTitle, notes: v.notes,
+      source: sourceFrom(v.source, input.source),
+    });
+    if (!parsed.success) { skipped.push({ line: r.line, reason: "invalid", message: parsed.error.issues[0]?.message ?? "Not a valid lead" }); continue; }
+    const e = parsed.data.email;
+    if (e && seenEmails.has(e)) { skipped.push({ line: r.line, reason: "duplicate", message: `${e} appears earlier in the file` }); continue; }
+    if (e) seenEmails.add(e);
+    good.push({ line: r.line, lead: parsed.data });
+  }
+  // Skip emails that already belong to a lead.
+  const emails = [...seenEmails];
+  const existing = new Set<string>();
+  for (let i = 0; i < emails.length; i += 500) {
+    const rows = await ctx.db.select({ email: leads.email }).from(leads).where(inArray(leads.email, emails.slice(i, i + 500)));
+    for (const x of rows) if (x.email) existing.add(x.email);
+  }
+  for (const g of good) {
+    const e = g.lead.email;
+    if (e && existing.has(e)) { skipped.push({ line: g.line, reason: "duplicate", message: `A lead with ${e} already exists` }); continue; }
+    const row = await insertLead(ctx, g.lead, { firstNote: "Lead imported from a spreadsheet" });
+    created.push(row.id);
+  }
+  if (created.length) await ctx.audit.log("leads.lead.imported", { type: "leads_lead", id: created[0]! }, { created: created.length, skipped: skipped.length });
+  skipped.sort((a, b) => a.line - b.line);
+  return { created: created.length, skipped };
 }
 
 export async function updateLead(ctx: ModuleContext, id: string, patch: z.infer<typeof LeadPatch>) {
@@ -211,6 +290,19 @@ export async function updateLead(ctx: ModuleContext, id: string, patch: z.infer<
   await ctx.audit.log("leads.lead.updated", { type: "leads_lead", id }, Object.fromEntries(changes.map((k) => [k, (set as Record<string, unknown>)[k]])));
   await ctx.events.emit("leads.lead.updated", { ...payload(row!), changes });
   return getLead(ctx, id);
+}
+
+/** Gives several leads to one colleague (or to nobody) in one step. */
+export async function assignLeads(ctx: ModuleContext, input: z.infer<typeof AssignInput>) {
+  await checkOwner(ctx, input.ownerId);
+  let changed = 0;
+  for (const id of new Set(input.ids)) {
+    const before = await loadLead(ctx, id);
+    if (before.ownerId === input.ownerId) continue;
+    await updateLead(ctx, id, { ownerId: input.ownerId });
+    changed++;
+  }
+  return { changed };
 }
 
 export async function setStatus(ctx: ModuleContext, id: string, input: z.infer<typeof StatusInput>) {
