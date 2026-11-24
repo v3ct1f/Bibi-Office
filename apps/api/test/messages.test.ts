@@ -133,3 +133,113 @@ describe("messages module", () => {
     expect((await h.client(dave, other).get(`${M}/conversations`)).status).toBe(403);
   });
 });
+
+describe("WhatsApp-style extras", () => {
+  let chat: string;
+  const send = (tok: string, body: object) => as(tok).post(`${M}/conversations/${chat}/messages`, body);
+  const last = async (tok: string) => (await as(tok).get(`${M}/conversations`)).body.find((c: { id: string }) => c.id === chat).lastMessage.preview;
+
+  beforeAll(async () => {
+    chat = (await as(alice).post(`${M}/conversations/group`, { name: "Extras", memberIds: [bobId, carolId] })).body.id;
+  });
+
+  it("uploads a big video in parts, then sends it; members can download each part", async () => {
+    const size = 4 * 1024 * 1024 + 1000;
+    const bytes = Buffer.alloc(size, 7);
+    bytes.write("\0\0\0\x18ftypmp42", 0, "latin1");
+    const up = await as(alice).post(`${M}/conversations/${chat}/uploads`, { name: "tour.mp4", contentType: "video/mp4", sizeBytes: size });
+    expect(up.status).toBe(201);
+    expect(up.body).toMatchObject({ partCount: 2, partSize: 4 * 1024 * 1024 });
+    const part = (i: number) => bytes.subarray(i * up.body.partSize, (i + 1) * up.body.partSize).toString("base64");
+    expect((await as(alice).put(`${M}/uploads/${up.body.id}/parts/0`, { data: part(0) })).status).toBe(200);
+    // Not finished yet.
+    expect((await send(alice, { kind: "text", fileId: up.body.id })).status).toBe(400);
+    expect((await as(bob).put(`${M}/uploads/${up.body.id}/parts/1`, { data: part(1) })).status).toBe(404); // not bob's upload
+    expect((await as(alice).put(`${M}/uploads/${up.body.id}/parts/1`, { data: Buffer.alloc(10).toString("base64") })).status).toBe(400); // wrong size
+    expect((await as(alice).put(`${M}/uploads/${up.body.id}/parts/1`, { data: part(1) })).status).toBe(200);
+    const sent = await send(alice, { kind: "text", body: "The house tour", fileId: up.body.id });
+    expect(sent.status).toBe(201);
+    expect(sent.body.file).toMatchObject({ name: "tour.mp4", contentType: "video/mp4", sizeBytes: size, partCount: 2 });
+    expect((await send(alice, { kind: "text", fileId: up.body.id })).status).toBe(409); // can't send twice
+    const p1 = (await as(bob).get(`${M}/files/${up.body.id}?part=1`)).body;
+    expect(Buffer.from(p1.data, "base64").length).toBe(1000);
+    expect((await h.client(dave, tB).get(`${M}/files/${up.body.id}`)).status).toBe(404);
+
+    const fake = await as(alice).post(`${M}/conversations/${chat}/uploads`, { name: "x.mp4", contentType: "video/mp4", sizeBytes: 10 });
+    expect((await as(alice).put(`${M}/uploads/${fake.body.id}/parts/0`, { data: Buffer.from("helloworld").toString("base64") })).status).toBe(400);
+    expect((await as(alice).post(`${M}/conversations/${chat}/uploads`, { name: "big.mp4", contentType: "video/mp4", sizeBytes: 17 * 1024 * 1024 })).status).toBe(400);
+  });
+
+  it("voice messages are audio files marked as voice", async () => {
+    const ogg = Buffer.concat([Buffer.from("OggS"), Buffer.alloc(40, 1)]).toString("base64");
+    const r = await send(bob, { kind: "text", file: { name: "voice.ogg", contentType: "audio/ogg", data: ogg }, voice: { durationMs: 4200 } });
+    expect(r.status).toBe(201);
+    expect(r.body.data).toEqual({ voice: true, durationMs: 4200 });
+    expect(await last(alice)).toBe("🎤 Voice message");
+    expect((await send(bob, { kind: "text", body: "hi", voice: { durationMs: 1 } })).status).toBe(400);
+    expect((await as(bob).patch(`${M}/messages/${r.body.id}`, { body: "text" })).status).toBe(400);
+  });
+
+  it("polls: one or several answers, votes can change, everyone sees the counts", async () => {
+    const r = await send(alice, { kind: "poll", question: "Team lunch?", options: ["Pizza", "Sushi", "Tacos"] });
+    expect(r.status).toBe(201);
+    expect(r.body.data).toMatchObject({ question: "Team lunch?", multiple: false, voters: 0 });
+    const pollId = r.body.id;
+    expect(await last(bob)).toBe("📊 Poll: Team lunch?");
+    expect((await send(alice, { kind: "poll", question: "?", options: ["only one"] })).status).toBe(400);
+
+    const before = (await as(alice).get(`${M}/conversations/${chat}/messages`)).body.now;
+    expect((await as(bob).post(`${M}/messages/${pollId}/vote`, { optionIds: ["1", "2"] })).status).toBe(400); // single choice
+    await as(bob).post(`${M}/messages/${pollId}/vote`, { optionIds: ["2"] });
+    const v = (await as(carol).post(`${M}/messages/${pollId}/vote`, { optionIds: ["2"] })).body.data;
+    expect(v.options.map((o: { votes: number }) => o.votes)).toEqual([0, 2, 0]);
+    expect(v.options[1]).toMatchObject({ voters: ["bob", "carol"], mine: true });
+    // An open chat picks the votes up when it checks for changes.
+    const poll = (await as(alice).get(`${M}/conversations/${chat}/messages?after=${pollId}&since=${encodeURIComponent(before)}`)).body;
+    expect(poll.changed.find((m: { id: string }) => m.id === pollId).data.voters).toBe(2);
+    const back = (await as(carol).post(`${M}/messages/${pollId}/vote`, { optionIds: [] })).body.data;
+    expect(back.voters).toBe(1);
+    expect((await h.client(dave, tB).post(`${M}/messages/${pollId}/vote`, { optionIds: ["1"] })).status).toBe(404);
+
+    const multi = (await send(alice, { kind: "poll", question: "Which days?", options: ["Mon", "Tue"], multiple: true })).body;
+    expect((await as(bob).post(`${M}/messages/${multi.id}/vote`, { optionIds: ["1", "2"] })).body.data.options.map((o: { votes: number }) => o.votes)).toEqual([1, 1]);
+  });
+
+  it("events: date, place, and who is going", async () => {
+    const r = await send(alice, { kind: "event", title: "Summer party", startsAt: "2027-06-20T18:00:00.000Z", location: "The garden" });
+    expect(r.status).toBe(201);
+    expect(r.body.data).toMatchObject({ title: "Summer party", location: "The garden", going: [], myAnswer: null });
+    expect((await send(alice, { kind: "event", title: "Bad", startsAt: "2027-06-20T18:00:00.000Z", endsAt: "2027-06-20T17:00:00.000Z" })).status).toBe(400);
+    await as(bob).post(`${M}/messages/${r.body.id}/answer`, { answer: "going" });
+    const d = (await as(carol).post(`${M}/messages/${r.body.id}/answer`, { answer: "maybe" })).body.data;
+    expect(d).toMatchObject({ going: ["bob"], maybe: ["carol"], no: [], myAnswer: "maybe" });
+    expect((await as(carol).post(`${M}/messages/${r.body.id}/answer`, { answer: "no" })).body.data).toMatchObject({ maybe: [], no: ["carol"] });
+  });
+
+  it("contacts, stickers and GIFs", async () => {
+    const c = await send(bob, { kind: "contact", name: "Plumber Pete", phone: "+34 600 123 456", company: "Pipes Ltd" });
+    expect(c.body.data).toMatchObject({ name: "Plumber Pete", phone: "+34 600 123 456", email: null });
+    expect(await last(alice)).toBe("👤 Plumber Pete");
+    expect((await send(bob, { kind: "contact", name: "No way to reach" })).status).toBe(400);
+
+    expect((await send(bob, { kind: "sticker", emoji: "🎉" })).body.data).toEqual({ emoji: "🎉" });
+    expect((await send(bob, { kind: "sticker" })).status).toBe(400);
+
+    const gif = { kind: "gif", url: "https://media2.giphy.com/media/abc123/200.gif", width: 200, height: 150, title: "Yay" };
+    expect((await send(bob, gif)).status).toBe(201);
+    expect(await last(alice)).toBe("GIF");
+    expect((await send(bob, { ...gif, url: "https://evil.example.com/x.gif" })).status).toBe(400);
+    // Without a GIPHY key, search is simply off.
+    expect((await as(bob).get(`${M}/gifs?q=party`)).body).toEqual({ enabled: false, data: [] });
+  });
+
+  it("deleting a poll removes its votes; only written messages can be edited", async () => {
+    const p = (await send(alice, { kind: "poll", question: "Delete me?", options: ["Yes", "No"] })).body;
+    await as(bob).post(`${M}/messages/${p.id}/vote`, { optionIds: ["1"] });
+    expect((await as(alice).patch(`${M}/messages/${p.id}`, { body: "edited" })).status).toBe(400);
+    expect((await as(alice).del(`${M}/messages/${p.id}`)).status).toBe(204);
+    const gone = (await as(bob).get(`${M}/conversations/${chat}/messages`)).body.data.find((m: { id: string }) => m.id === p.id);
+    expect(gone).toMatchObject({ data: null, deletedAt: expect.any(String) });
+    expect((await as(bob).post(`${M}/messages/${p.id}/vote`, { optionIds: ["1"] })).status).toBe(400);
+  });
+});

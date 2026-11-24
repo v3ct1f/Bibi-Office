@@ -1,7 +1,8 @@
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { defineModule, route } from "@office/sdk";
+import { defineModule, job, route } from "@office/sdk";
 import {
+  AnswerInput, answerEvent, FileQuery, GifQuery, PartInput, PartParams, purgeAbandonedUploads, searchGifs, startUpload, uploadPart, UploadInput, vote, VoteInput,
   AddMembersInput, addMembers, createGroup, deleteMessage, DirectInput, EditInput, editMessage, getConversation, getFile, GroupInput,
   listConversations, listMessages, listPeople, markRead, MemberParams, MessagesQuery, openDirect, removeMember, RenameInput, renameGroup,
   SendInput, sendMessage, unreadCount,
@@ -32,6 +33,16 @@ export default defineModule({
         { slot: "global.create", label: "Message", route: "/chat/new", permission: CHAT },
       ],
     },
+    settings: {
+      type: "object",
+      properties: {
+        giphyApiKey: {
+          type: "string", title: "GIPHY API key (for GIF search)", "x-secret": true, maxLength: 200,
+          description: "Free from developers.giphy.com. Without it people can still send their own GIF files. Search words go to GIPHY; messages never do.",
+        },
+      },
+      additionalProperties: false,
+    },
     api: { basePath: "/messages" },
   },
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
@@ -53,6 +64,17 @@ export default defineModule({
     }),
     route({ method: "PATCH", path: "/messages/:id", permission: CHAT, params: Id, body: EditInput, handler: (ctx, { params, body }) => editMessage(ctx, params.id, body) }),
     route({ method: "DELETE", path: "/messages/:id", permission: CHAT, params: Id, status: 204, handler: (ctx, { params }) => deleteMessage(ctx, params.id) }),
-    route({ method: "GET", path: "/files/:id", permission: CHAT, params: Id, handler: (ctx, { params }) => getFile(ctx, params.id) }),
+    route({ method: "GET", path: "/files/:id", permission: CHAT, params: Id, query: FileQuery, handler: (ctx, { params, query }) => getFile(ctx, params.id, query.part) }),
+    route({ method: "POST", path: "/conversations/:id/uploads", permission: CHAT, params: Id, body: UploadInput, status: 201, handler: (ctx, { params, body }) => startUpload(ctx, params.id, body) }),
+    route({
+      method: "PUT", path: "/uploads/:id/parts/:idx", permission: CHAT, params: PartParams, body: PartInput, bodyLimit: 8 * 1024 * 1024,
+      handler: (ctx, { params, body }) => uploadPart(ctx, params.id, params.idx, body),
+    }),
+    route({ method: "POST", path: "/messages/:id/vote", permission: CHAT, params: Id, body: VoteInput, handler: (ctx, { params, body }) => vote(ctx, params.id, body) }),
+    route({ method: "POST", path: "/messages/:id/answer", permission: CHAT, params: Id, body: AnswerInput, handler: (ctx, { params, body }) => answerEvent(ctx, params.id, body) }),
+    route({ method: "GET", path: "/gifs", permission: CHAT, query: GifQuery, handler: (ctx, { query }) => searchGifs(ctx, query) }),
   ],
+  jobs: {
+    purge_abandoned_uploads: job({ label: "Remove files that were uploaded but never sent", everyMinutes: 360, run: purgeAbandonedUploads }),
+  },
 });

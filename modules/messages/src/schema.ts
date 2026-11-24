@@ -1,5 +1,7 @@
 // Mirrors migrations/0001_init.sql (SQL is the source of truth).
-import { customType, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, customType, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+
+export type MessageKind = "text" | "system" | "poll" | "event" | "contact" | "sticker" | "gif";
 
 const ts = (n: string) => timestamp(n, { withTimezone: true });
 const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
@@ -31,7 +33,8 @@ export const files = pgTable("messages_files", {
   name: text("name").notNull(),
   contentType: text("content_type").notNull(),
   sizeBytes: integer("size_bytes").notNull(),
-  data: bytea("data").notNull(),
+  complete: boolean("complete").notNull(),
+  partCount: integer("part_count").notNull(),
   uploadedBy: uuid("uploaded_by"),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
@@ -41,10 +44,35 @@ export const messages = pgTable("messages_messages", {
   tenantId: uuid("tenant_id").notNull(),
   conversationId: uuid("conversation_id").notNull(),
   senderId: uuid("sender_id"),
-  kind: text("kind").$type<"text" | "system">().notNull(),
+  kind: text("kind").$type<MessageKind>().notNull(),
   body: text("body").notNull(),
   fileId: uuid("file_id"),
+  data: jsonb("data").$type<Record<string, unknown> | null>(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
   editedAt: ts("edited_at"),
   deletedAt: ts("deleted_at"),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
+
+export const fileParts = pgTable("messages_file_parts", {
+  tenantId: uuid("tenant_id").notNull(),
+  fileId: uuid("file_id").notNull(),
+  idx: integer("idx").notNull(),
+  data: bytea("data").notNull(),
+}, (t) => [primaryKey({ columns: [t.fileId, t.idx] })]);
+
+export const pollVotes = pgTable("messages_poll_votes", {
+  tenantId: uuid("tenant_id").notNull(),
+  messageId: uuid("message_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  optionId: text("option_id").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.messageId, t.userId, t.optionId] })]);
+
+export const eventAnswers = pgTable("messages_event_answers", {
+  tenantId: uuid("tenant_id").notNull(),
+  messageId: uuid("message_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  answer: text("answer").$type<"going" | "maybe" | "no">().notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.messageId, t.userId] })]);
