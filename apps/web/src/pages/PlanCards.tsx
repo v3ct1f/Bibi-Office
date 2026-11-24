@@ -9,10 +9,12 @@ export interface PlanInfo {
   capabilities: ("api" | "workflows")[]; features: PlanFeature[];
 }
 
-const euro = new Intl.NumberFormat(undefined, { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+const euro = new Intl.NumberFormat(undefined, { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 2 });
 export const eur = (n: number) => euro.format(n);
-export const priceOf = (p: PlanInfo, i: Interval) => (i === "yearly" ? p.yearly : p.monthly);
-export const priceText = (p: PlanInfo, i: Interval) => `${eur(priceOf(p, i))} per ${i === "yearly" ? "year" : "month"}`;
+/** What people see first: always a monthly price. Yearly is the same plan paid monthly for a whole year at the lower price. */
+export const perMonth = (p: PlanInfo, i: Interval) => (i === "yearly" ? Math.round((p.yearly / 12) * 100) / 100 : p.monthly);
+export const priceText = (p: PlanInfo, i: Interval) =>
+  i === "yearly" ? `${eur(perMonth(p, i))} per month for a year (${eur(p.yearly)} in total)` : `${eur(p.monthly)} per month`;
 export const CAPABILITY_LABEL = { api: "API keys and webhooks", workflows: "Your own automations (workflows)" } as const;
 
 /** Monthly / yearly switch. */
@@ -49,9 +51,13 @@ export function PlanCards({ plans, interval, highlight, action }: {
               </CardTitle>
               <CardDescription>{p.tagline}</CardDescription>
               <div className="pt-2">
-                <span className="text-3xl font-semibold tabular-nums">{eur(priceOf(p, interval))}</span>
-                <span className="text-sm text-muted-foreground"> per {interval === "yearly" ? "year" : "month"}</span>
-                {interval === "yearly" && <p className="text-xs text-muted-foreground">That's {eur(Math.round(p.yearly / 12))} a month. You save {eur(p.monthly * 12 - p.yearly)}.</p>}
+                <span className="text-3xl font-semibold tabular-nums">{eur(perMonth(p, interval))}</span>
+                <span className="text-sm text-muted-foreground"> per month</span>
+                {interval === "yearly" && (
+                  <p className="text-xs text-muted-foreground">
+                    Paid monthly for a whole year: {eur(p.yearly)} in total by the end of the year. You save {eur(p.monthly * 12 - p.yearly)}.
+                  </p>
+                )}
               </div>
               <p className="flex items-center gap-1.5 text-sm font-medium"><Users className="size-4 text-primary" /> Up to {p.people} people</p>
             </CardHeader>

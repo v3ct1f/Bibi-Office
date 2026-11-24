@@ -20,8 +20,13 @@ test("the public plans page shows the three plans and a visitor starts one with 
   await expect(business).toContainText("Everything in Starter, plus:");
 
   await page.getByRole("button", { name: /^Yearly/ }).click();
-  await expect(starter).toContainText("€290");
-  await expect(complete).toContainText("€1,490");
+  // Yearly shows a monthly price first, with the year's total in small print.
+  await expect(starter).toContainText("€24.17 per month");
+  await expect(starter).toContainText("€290 in total by the end of the year");
+  await expect(business).toContainText("€65.83 per month");
+  await expect(complete).toContainText("€124.17 per month");
+  await expect(complete).toContainText("€1,490 in total");
+  await expect(starter).not.toContainText("per year");
 
   await business.getByRole("button", { name: "Start with Business" }).click();
   await expect(page).toHaveURL(/\/start\?plan=business&interval=yearly/);

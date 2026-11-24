@@ -9,7 +9,7 @@ import { useTMutation, useTQuery } from "../../api/hooks.ts";
 import { useTenant } from "../../lib/tenant.tsx";
 import { fmtDate } from "../../lib/format.ts";
 import { COMPANY } from "../../legal/company.ts";
-import { CAPABILITY_LABEL, IntervalToggle, PlanCards, priceText, type Interval, type PlanInfo } from "../PlanCards.tsx";
+import { CAPABILITY_LABEL, IntervalToggle, PlanCards, eur, perMonth, priceText, type Interval, type PlanInfo } from "../PlanCards.tsx";
 
 interface PlanResponse {
   testMode: boolean;
@@ -56,7 +56,7 @@ export function PlanPage() {
           <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
             <CardTitle className="flex flex-wrap items-center gap-2 text-lg">
               {cur ? `${cur.name} plan` : "No plan chosen"}
-              {cur && <Badge variant="neutral">{priceText(cur, current.interval)}</Badge>}
+              {cur && <Badge variant="neutral">{eur(perMonth(cur, current.interval))} per month{current.interval === "yearly" ? ", yearly plan" : ""}</Badge>}
               {current.test && <Badge variant="warning"><FlaskConical className="size-3" /> Test payment, nothing charged</Badge>}
             </CardTitle>
             {current.stripe && <Button variant="outline" size="sm" loading={portal.isPending} onClick={() => portal.mutate()}>Manage subscription</Button>}
