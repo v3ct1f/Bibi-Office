@@ -21,7 +21,7 @@ export const COMPANY = {
   /** The data protection authority customers can complain to (e.g. in Belgium: the Gegevensbeschermingsautoriteit). */
   authority: "Agencia Española de Protección de Datos (AEPD, www.aepd.es)",
   /** Date of this text. Must equal TERMS_VERSION in apps/api/src/routes/billing.ts; change both when the text changes. */
-  version: "2026-11-23.2",
+  version: "2026-11-24.1",
   /** Days we keep a business's data after its subscription has ended. */
   keepDays: 90,
 } as const;

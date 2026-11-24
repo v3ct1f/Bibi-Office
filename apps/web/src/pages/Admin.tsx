@@ -4,13 +4,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, LogOut, MailCheck, MoreHorizontal, Plus, ShieldOff } from "lucide-react";
 import {
   Badge, Button, Card, Checkbox, ConfirmDialog, CopyField, Dialog, DialogContent, DialogFooter, DropdownMenu, DropdownMenuContent,
-  DropdownMenuItem, DropdownMenuTrigger, EmptyState, ErrorState, Field, Input, PageHeader, Select, Skeleton, Table, TBody, TD, TH, THead, TR,
+  DropdownMenuItem, DropdownMenuTrigger, EmptyState, ErrorState, Field, Input, PageHeader, Skeleton, Table, TBody, TD, TH, THead, TR,
 } from "@office/ui";
 import { errorMessage, request } from "../api/client.ts";
 import { useAuth } from "../auth/auth.tsx";
 import { fmtDate } from "../lib/format.ts";
 import { useMe } from "../shell/AppShell.tsx";
-import { FullPage, Loading, slugify } from "./auth.tsx";
+import { FullPage, Loading } from "./auth.tsx";
+import { regionLabel } from "../lib/regions.ts";
 import { ProgramOwners } from "./AdminOwners.tsx";
 import { DeleteBusinessDialog } from "./AdminDelete.tsx";
 
@@ -19,9 +20,10 @@ interface Business {
   owners: { email: string; name: string | null }[]; features: string[]; allowedFeatures: string[] | null;
   ownerInvite: { email: string; expiresAt: string; expired: boolean } | null;
 }
+interface Signup { id: string; email: string; source: "stripe" | "program_owner"; createdAt: string; ended: boolean }
+interface SignupSent { id: string; email: string; link: string; emailed: boolean; emailError: string | null }
 interface Feature { key: string; name: string; description: string; dependsOn: string[] }
 interface Sent { email: string; link: string; emailed: boolean; emailError: string | null }
-const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
 
 function SentView({ sent, onDone }: { sent: Sent; onDone: () => void }) {
   return (
@@ -49,20 +51,30 @@ export function AdminPage() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["platform", "businesses"] });
   const [deleting, setDeleting] = useState<Business | null>(null);
 
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [slugEdited, setSlugEdited] = useState(false);
-  const [region, setRegion] = useState("eu");
+  // Owners set up their own business: paying on /start emails them automatically; here the program owner can
+  // invite someone by hand (e.g. a customer paying by bank transfer). They get the same "create your account" email.
+  const [inviting, setInviting] = useState(false);
   const [ownerEmail, setOwnerEmail] = useState("");
-  const [sent, setSent] = useState<Sent | null>(null);
-  const effSlug = slugEdited ? slug : slugify(name);
-  const slugBad = effSlug !== "" && !SLUG_RE.test(effSlug);
-  const create = useMutation({
-    mutationFn: () => request<{ invitation: Sent }>("POST", "/platform/businesses", { body: { name: name.trim(), slug: effSlug, region, ownerEmail: ownerEmail.trim() } }),
-    onSuccess: (r) => { setSent(r.invitation); void refresh(); },
+  const [sent, setSent] = useState<SignupSent | null>(null);
+  const signups = useQuery({
+    queryKey: ["platform", "owner-signups"], enabled: !!me.data?.platformAdmin,
+    queryFn: () => request<{ items: Signup[] }>("GET", "/platform/owner-signups"),
   });
-  const closeCreate = () => { setCreating(false); setSent(null); setName(""); setSlug(""); setSlugEdited(false); setOwnerEmail(""); create.reset(); };
+  const refreshSignups = () => qc.invalidateQueries({ queryKey: ["platform", "owner-signups"] });
+  const invite = useMutation({
+    mutationFn: () => request<SignupSent>("POST", "/platform/owner-signups", { body: { email: ownerEmail.trim() } }),
+    onSuccess: (r) => { setSent(r); void refreshSignups(); },
+  });
+  const closeInvite = () => { setInviting(false); setSent(null); setOwnerEmail(""); invite.reset(); };
+  const resendSignup = useMutation({
+    mutationFn: (s: Signup) => request<SignupSent>("POST", `/platform/owner-signups/${s.id}/resend`),
+    onSuccess: (r) => { setSent(r); setInviting(true); },
+  });
+  const [cancelling, setCancelling] = useState<Signup | null>(null);
+  const cancelSignup = useMutation({
+    mutationFn: (s: Signup) => request("DELETE", `/platform/owner-signups/${s.id}`),
+    onSuccess: () => refreshSignups(),
+  });
 
   const [reinvite, setReinvite] = useState<Business | null>(null);
   const [reEmail, setReEmail] = useState("");
@@ -132,13 +144,39 @@ export function AdminPage() {
         </div>
       </header>
       <main className="mx-auto grid max-w-6xl gap-4 px-4 py-6">
-        <PageHeader title="Businesses" description="Each business has its own workspace and data. You set them up and pause them; you can't see inside them."
-          actions={<Button onClick={() => setCreating(true)}><Plus /> New business</Button>} />
+        <PageHeader title="Businesses" description="Each business has its own workspace and data. Owners create their own business after paying; you can pause them and look inside read-only."
+          actions={<Button onClick={() => setInviting(true)}><Plus /> Invite business owner</Button>} />
+        {(signups.data?.items.length ?? 0) > 0 && (
+          <Card className="overflow-x-auto">
+            <div className="px-4 pt-4"><h2 className="font-semibold">Waiting to set up</h2><p className="text-sm text-muted-foreground">These people can create their business once they sign in.</p></div>
+            <Table aria-label="Waiting to set up">
+              <THead><TR><TH>Email</TH><TH>How</TH><TH className="hidden md:table-cell">Since</TH><TH><span className="sr-only">Actions</span></TH></TR></THead>
+              <TBody>
+                {signups.data!.items.map((s) => (
+                  <TR key={s.id}>
+                    <TD className="text-sm">{s.email}</TD>
+                    <TD>{s.ended ? <Badge variant="warning">Subscription ended</Badge> : s.source === "stripe" ? <Badge variant="success">Paid</Badge> : <Badge>Invited by you</Badge>}</TD>
+                    <TD className="hidden md:table-cell">{fmtDate(s.createdAt)}</TD>
+                    <TD className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`Actions for ${s.email}`}><MoreHorizontal /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {!s.ended && <DropdownMenuItem onSelect={() => resendSignup.mutate(s)}>Send the email again</DropdownMenuItem>}
+                          {s.source === "program_owner" && <DropdownMenuItem destructive onSelect={() => setCancelling(s)}>Withdraw invitation</DropdownMenuItem>}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </Card>
+        )}
         {list.isError ? <Card><ErrorState error={list.error} onRetry={() => list.refetch()} /></Card>
         : list.isPending ? <Card className="grid gap-2 p-4">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-10" />)}</Card>
         : !items.length ? (
-          <Card><EmptyState icon={<Building2 />} title="No businesses yet" description="Create one and invite its owner. They'll get their own dashboard."
-            action={<Button onClick={() => setCreating(true)}><Plus /> New business</Button>} /></Card>
+          <Card><EmptyState icon={<Building2 />} title="No businesses yet" description="Owners create their business after paying on the sign-up page, or invite one yourself."
+            action={<Button onClick={() => setInviting(true)}><Plus /> Invite business owner</Button>} /></Card>
         ) : (
           <Card className="overflow-x-auto">
             <Table aria-label="Businesses">
@@ -146,7 +184,7 @@ export function AdminPage() {
               <TBody>
                 {items.map((b) => (
                   <TR key={b.id}>
-                    <TD><Link to="/t/$slug" params={{ slug: b.slug }} className="font-medium hover:underline" title="View this business (read-only)">{b.name}</Link><div className="text-xs text-muted-foreground">{b.slug} · {b.region.toUpperCase()}</div></TD>
+                    <TD><Link to="/t/$slug" params={{ slug: b.slug }} className="font-medium hover:underline" title="View this business (read-only)">{b.name}</Link><div className="text-xs text-muted-foreground">{b.slug} · {regionLabel(b.region)}</div></TD>
                     <TD>
                       {b.owners.length ? b.owners.map((o) => <div key={o.email} className="text-sm">{o.name || o.email}{o.name && <span className="block text-xs text-muted-foreground">{o.email}</span>}</div>)
                         : b.ownerInvite ? <div className="text-sm">{b.ownerInvite.email}<span className="block text-xs text-muted-foreground">{b.ownerInvite.expired ? "Invitation expired" : `Invited, until ${fmtDate(b.ownerInvite.expiresAt)}`}</span></div>
@@ -180,29 +218,37 @@ export function AdminPage() {
         <ProgramOwners />
       </main>
 
-      <Dialog open={creating} onOpenChange={(o) => (o ? setCreating(true) : closeCreate())}>
-        {sent ? <SentView sent={sent} onDone={closeCreate} /> : (
-          <DialogContent title="New business" description="Creates an empty workspace and invites its owner. They choose their features and invite their own staff.">
-            <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); create.mutate(); }}>
-              <Field label="Business name" required>{(a) => <Input {...a} autoFocus required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Ltd" />}</Field>
-              <Field label="Workspace URL" hint={`Used in links: /t/${effSlug || "acme"}`} error={slugBad ? "3–40 chars: lowercase letters, digits, dashes" : undefined} required>
-                {(a) => <Input {...a} required value={effSlug} onChange={(e) => { setSlugEdited(true); setSlug(e.target.value.toLowerCase()); }} />}
+      <Dialog open={inviting} onOpenChange={(o) => (o ? setInviting(true) : closeInvite())}>
+        {sent ? (
+          <DialogContent title={sent.emailed ? "Email sent" : "Send this link to the owner"}>
+            {sent.emailed
+              ? <p role="status" className="flex items-start gap-2 text-sm"><MailCheck className="mt-0.5 size-4 shrink-0 text-success" />We emailed {sent.email} a link to create their account. After signing in with that address they create their business and become its owner.</p>
+              : sent.emailError ? <p role="alert" className="text-sm text-destructive">{sent.emailError}</p>
+              : <p role="status" className="text-sm">Email isn't set up, so send this link to <strong>{sent.email}</strong> yourself. They sign in with that address and create their business.</p>}
+            <CopyField value={sent.link} label="Copy link" />
+            <p className="text-xs text-muted-foreground">Only someone signed in as {sent.email} can use it, once.</p>
+            <DialogFooter><Button onClick={closeInvite}>Done</Button></DialogFooter>
+          </DialogContent>
+        ) : (
+          <DialogContent title="Invite business owner" description="For an owner who doesn't pay on the sign-up page (for example by bank transfer). They create their account, then their business: its name, web address and region.">
+            <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); invite.mutate(); }}>
+              <Field label="Owner's email" hint="They sign in with this address to create their business." required>
+                {(a) => <Input {...a} type="email" required autoFocus value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} placeholder="owner@acme.com" />}
               </Field>
-              <Field label="Owner's email" hint="The business owner signs in with this address to accept." required>
-                {(a) => <Input {...a} type="email" required value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} placeholder="owner@acme.com" />}
-              </Field>
-              <Field label="Data region">
-                {(a) => <Select {...a} value={region} onChange={(e) => setRegion(e.target.value)}><option value="eu">European Union</option><option value="us">United States</option></Select>}
-              </Field>
-              {create.isError && <p role="alert" className="text-sm text-destructive">{errorMessage(create.error)}</p>}
+              {invite.isError && <p role="alert" className="text-sm text-destructive">{errorMessage(invite.error)}</p>}
               <DialogFooter>
-                <Button variant="outline" onClick={closeCreate}>Cancel</Button>
-                <Button type="submit" loading={create.isPending} disabled={!name.trim() || !effSlug || slugBad || !ownerEmail.trim()}>Create and invite</Button>
+                <Button variant="outline" onClick={closeInvite}>Cancel</Button>
+                <Button type="submit" loading={invite.isPending} disabled={!ownerEmail.trim()}>Send invitation</Button>
               </DialogFooter>
             </form>
           </DialogContent>
         )}
       </Dialog>
+
+      <ConfirmDialog open={!!cancelling} onOpenChange={(o) => !o && setCancelling(null)} destructive confirmLabel="Withdraw"
+        title={`Withdraw the invitation for ${cancelling?.email ?? ""}?`}
+        description="Their link stops working and they can't create a business with it. You can invite them again later."
+        onConfirm={() => cancelSignup.mutateAsync(cancelling!)} />
 
       <Dialog open={!!reinvite} onOpenChange={(o) => !o && closeReinvite()}>
         {reSent ? <SentView sent={reSent} onDone={closeReinvite} /> : (

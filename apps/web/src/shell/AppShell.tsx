@@ -67,8 +67,9 @@ function TenantSwitcher() {
             {t.id === tenant.id && <Check className="text-primary" />}
           </DropdownMenuItem>
         ))}
-        {(me.data?.selfSignup || me.data?.platformAdmin) && <DropdownMenuSeparator />}
-        {me.data?.platformAdmin ? <DropdownMenuItem onSelect={() => navigate({ to: "/admin" })}><Plus /> New business</DropdownMenuItem>
+        {(me.data?.selfSignup || me.data?.platformAdmin || me.data?.pendingBusiness) && <DropdownMenuSeparator />}
+        {me.data?.pendingBusiness ? <DropdownMenuItem onSelect={() => navigate({ to: "/new-business" })}><Plus /> Create your business</DropdownMenuItem>
+          : me.data?.platformAdmin ? <DropdownMenuItem onSelect={() => navigate({ to: "/admin" })}><Plus /> Invite business owner</DropdownMenuItem>
           : me.data?.selfSignup && <DropdownMenuItem onSelect={() => navigate({ to: "/onboarding" })}><Plus /> Create workspace</DropdownMenuItem>}
       </DropdownMenuContent>
     </DropdownMenu>

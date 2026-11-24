@@ -3,7 +3,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { SearchX } from "lucide-react";
 import { Button, Card, EmptyState } from "@office/ui";
-import { AuthCallback, Authed, FullPage, HomeRedirect, Onboarding } from "./pages/auth.tsx";
+import { AuthCallback, Authed, CreateBusinessPage, FullPage, HomeRedirect, Onboarding } from "./pages/auth.tsx";
 import { TenantLayout } from "./pages/TenantLayout.tsx";
 import { Dashboard } from "./pages/Dashboard.tsx";
 import { EntityDetail, EntityList } from "./pages/data/EntityPages.tsx";
@@ -51,6 +51,7 @@ function Gate({ perm, children }: { perm: string; children: React.ReactNode }) {
 const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({ component: Outlet, notFoundComponent: NotFound });
 const index = createRoute({ getParentRoute: () => root, path: "/", component: () => <Authed><HomeRedirect /></Authed> });
 const callback = createRoute({ getParentRoute: () => root, path: "/auth/callback", component: AuthCallback });
+const newBusiness = createRoute({ getParentRoute: () => root, path: "/new-business", component: () => <Authed><CreateBusinessPage /></Authed> });
 const onboarding = createRoute({ getParentRoute: () => root, path: "/onboarding", component: () => <Authed><Onboarding /></Authed> });
 /** Module pages without sign-in, e.g. signing links for people outside the company. */
 function PublicRoute() {
@@ -86,7 +87,7 @@ function ModuleRoute() {
 }
 
 const tree = root.addChildren([
-  index, callback, onboarding, admin, invite, forgot, start, startThanks, terms, privacy, publicPage,
+  index, callback, onboarding, newBusiness, admin, invite, forgot, start, startThanks, terms, privacy, publicPage,
   tenant.addChildren([
     t("/", Dashboard),
     t("/contacts", () => <Gate perm="core:contacts.read"><EntityList key="contacts" cfg={cfg(contactsConfig)} /></Gate>, newSearch),

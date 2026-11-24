@@ -21,7 +21,7 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_PRICE_ID=price_...
 STRIPE_PRICE_LABEL=EUR 49.99 per month
 ```
-Restart the API. Open `http://localhost:5173/start`. Pay with Stripe's test card `4242 4242 4242 4242` (any future date, any CVC). The business appears in Program admin and the owner invitation is emailed.
+Restart the API. Open `http://localhost:5173/start`, give an email and pay with Stripe's test card `4242 4242 4242 4242` (any future date, any CVC). That email gets "Welcome to Office: create your account" (set a password, then sign in). After signing in they land on **Create your business** (name, web address, region) and are its owner. Until then Program admin shows them under **Waiting to set up** (Paid).
 
 ## Before taking real money
 Use live keys, a public API address with HTTPS, working email (Gmail app password is fine to start), and add your terms and privacy policy (Stripe asks for them). Customers can manage or cancel their subscription from a Stripe customer portal link (Stripe dashboard -> Settings -> Billing -> Customer portal).

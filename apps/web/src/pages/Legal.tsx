@@ -123,7 +123,7 @@ export function PrivacyPage() {
       <S title="4. Who else handles data (processors)">
         <ul>
           <li><strong>Stripe</strong>, for payments. Stripe is also responsible for the payment data it collects and has its own privacy policy.</li>
-          <li><strong>{C.hosting}</strong>, which hosts the Service and its database in the region you chose when signing up (Europe or the United States).</li>
+          <li><strong>{C.hosting}</strong>, which hosts the Service and its database in the European Union. The data region you pick when you create your business is kept as your preference; for now all data is kept in the EU.</li>
           <li><strong>An email delivery service</strong>, to send account emails.</li>
           <li><strong>Anthropic</strong>, only if you use AI summaries, as described above.</li>
         </ul>

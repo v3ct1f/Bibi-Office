@@ -1,32 +1,31 @@
-import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { eq, ne, and } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { AppError, INVITATION_DAYS, createBusiness, listOwnerEmails, setBusinessStatus, type RequestContext } from "@office/core";
+import {
+  AppError, REGION_KEYS, createBusinessFromSignup, listOwnerEmails, recordPaidSignup, setBusinessStatus, setOwnerSignupEnded, type RequestContext,
+} from "@office/core";
 import { tenants, type Db, type Tx } from "@office/db";
-import { invitationEmail, paymentFailedEmail, serviceResumedEmail, type Mailer } from "../mail.ts";
+import { paymentFailedEmail, serviceResumedEmail, type Mailer } from "../mail.ts";
+import { sendOwnerSignupEmail } from "../owner-signup-mail.ts";
 import type { Identity } from "../identity.ts";
 import { verifyStripeSignature, type Billing } from "../billing.ts";
 
 const PUBLIC = { auth: "public" } as const;
 /** Date of the Terms and Privacy Policy text a customer agrees to; bump it (here and in apps/web/src/legal/company.ts) when they change. */
-export const TERMS_VERSION = "2026-11-23.2";
+export const TERMS_VERSION = "2026-11-24.1";
 const STRIPE_ACTOR = { userId: null, email: "stripe" } as const;
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
-
-/** "Bakery Ltd" -> "bakery-ltd" (a suggestion; the customer can edit it). */
-export const slugify = (name: string) =>
-  name.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "");
 
 interface StripeEvent { id: string; type: string; data: { object: Record<string, unknown>; previous_attributes?: Record<string, unknown> } }
 const str = (v: unknown) => (typeof v === "string" && v ? v : null);
 
 /**
- * Paid sign-up. A visitor fills in the business name and their email on a public page, pays a monthly subscription
- * on Stripe's own page, and Stripe tells us (a signed webhook). Only then is the business created and its owner invited.
- * A cancelled or unpaid subscription pauses the business; paying again reactivates it. Data is never deleted.
+ * Paid sign-up. A visitor gives their email on a public page and pays a monthly subscription on Stripe's own page;
+ * Stripe tells us (a signed webhook). We then email them a link to create their sign-in account. Once signed in
+ * with that address they create their business themselves (name, web address, region) and are its owner.
+ * A cancelled or unpaid subscription pauses the business; paying again reactivates it.
  */
 export async function registerBillingRoutes(
   app0: FastifyInstance,
@@ -45,10 +44,7 @@ export async function registerBillingRoutes(
     schema: {
       tags: ["signup"],
       body: z.object({
-        businessName: z.string().trim().min(1).max(200),
-        slug: z.string().trim().toLowerCase().regex(SLUG, "Use 3-40 letters, numbers or dashes").optional(),
         email: z.email().max(320),
-        region: z.enum(["eu", "us"]).default("eu"),
         /** Must be ticked: "I agree to the Terms and the Privacy Policy". */
         acceptTerms: z.literal(true, { error: "Please accept the Terms and the Privacy Policy" }),
         /** Must be ticked: "I am signing up for business or professional use" (the Terms are for businesses only). */
@@ -57,14 +53,9 @@ export async function registerBillingRoutes(
     },
   }, async (req) => {
     if (!o.billing) throw new AppError(503, "signup_closed", "Sign-up isn't open yet.");
-    const slug = req.body.slug ?? slugify(req.body.businessName);
-    if (!SLUG.test(slug)) throw new AppError(400, "bad_slug", "Choose a web address of 3-40 letters, numbers or dashes.");
-    // Checked before paying, so nobody pays for an address that is already taken.
-    const [taken] = await o.db.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, slug));
-    if (taken) throw new AppError(409, "slug_taken", "That web address is already taken. Choose another.");
     try {
       const url = await o.billing.createCheckout({
-        email: req.body.email.trim().toLowerCase(), businessName: req.body.businessName, slug, region: req.body.region,
+        email: req.body.email.trim().toLowerCase(),
         successUrl: `${o.appUrl}/start/thanks`, cancelUrl: `${o.appUrl}/start`, termsVersion: TERMS_VERSION,
       });
       return { url };
@@ -72,6 +63,27 @@ export async function registerBillingRoutes(
       req.log.error({ err: e }, "stripe checkout failed");
       throw new AppError(502, "payment_unavailable", "Payment couldn't be started. Please try again in a moment.");
     }
+  });
+
+  /**
+   * The signed-in owner creates the business they paid for (or were invited to set up): name, web address and
+   * region. They become its owner straight away. Needs a verified email that has an open sign-up.
+   */
+  app.post("/signup/business", {
+    config: { auth: "authenticated", rateLimit: { max: 20, timeWindow: "15 minutes" } },
+    schema: {
+      tags: ["signup"],
+      body: z.object({
+        name: z.string().trim().min(1).max(200),
+        slug: z.string().trim().toLowerCase().regex(SLUG, "Use 3-40 lowercase letters, numbers or dashes"),
+        region: z.enum(REGION_KEYS),
+      }).strict(),
+    },
+  }, async (req, reply) => {
+    const p = req.principal!;
+    if (p.kind !== "user" || !p.emailVerified) throw new AppError(403, "no_signup", "Sign in with the email address you paid with.");
+    const t = await createBusinessFromSignup(o.db, { userId: p.userId, email: p.email }, req.body, { requestId: req.id, ip: req.ip, userAgent: req.headers["user-agent"] });
+    return reply.status(201).send({ id: t.id, slug: t.slug, name: t.name, region: t.region });
   });
 
   /** The business owner's "Manage subscription" button: Stripe's page to change the card, see invoices or cancel. */
@@ -145,38 +157,13 @@ export async function registerBillingRoutes(
         const subscriptionId = str(obj.subscription);
         const rawEmail = str(obj.customer_email) ?? str((obj.customer_details as { email?: unknown } | undefined)?.email);
         const email = rawEmail?.trim().toLowerCase() ?? null;
-        if (obj.mode !== "subscription" || obj.payment_status === "unpaid" || !subscriptionId || !email || !m.businessName || !m.slug) {
+        if (obj.mode !== "subscription" || obj.payment_status === "unpaid" || !subscriptionId || !email) {
           return reply.send({ ignored: true });
         }
-        const [again] = await o.db.select({ id: tenants.id }).from(tenants).where(eq(tenants.stripeSubscriptionId, subscriptionId));
-        if (again) return reply.send({ ok: true, repeat: true });
-        const input = {
-          name: m.businessName, ownerEmail: email, region: m.region === "us" ? "us" as const : "eu" as const,
-          stripe: { customerId: str(obj.customer), subscriptionId },
-        };
-        let made;
-        try {
-          made = await createBusiness(o.db, STRIPE_ACTOR, { ...input, slug: m.slug }, meta);
-        } catch (e) {
-          if (!(e instanceof AppError) || e.status !== 409) throw e;
-          // Someone took the address while this person was paying: they've paid, so give them a close variant.
-          const alt = `${m.slug.slice(0, 33)}-${randomBytes(3).toString("hex")}`;
-          made = await createBusiness(o.db, STRIPE_ACTOR, { ...input, slug: alt }, meta);
-        }
-        const link = `${o.appUrl}/invite/${made.tenant.id}/${made.invite.token}`;
-        if (o.mailer) {
-          try {
-            const pw = await o.identity?.passwordLink(email, link);
-            await o.mailer.send({
-              to: email,
-              ...invitationEmail({ tenantName: made.tenant.name, inviterName: null, link, days: INVITATION_DAYS, passwordLink: pw && !pw.hasPassword ? pw.link : null }),
-            });
-          } catch (err) {
-            req.log.warn({ err }, "welcome email failed; resend the owner invitation from Program admin");
-          }
-        } else {
-          req.log.warn({ tenantId: made.tenant.id }, "paid business created but mail isn't set up; send the owner invitation from Program admin");
-        }
+        // Paid: remember it and email the "create your account" link. The owner creates the business after signing in.
+        const signup = await recordPaidSignup(o.db, { email, customerId: str(obj.customer), subscriptionId, termsVersion: str(m.termsVersion) });
+        if (!signup) return reply.send({ ok: true, repeat: true });   // Stripe sent the same checkout again
+        await sendOwnerSignupEmail({ db: o.db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, contact: contactLine, log: req.log }, signup);
         return reply.send({ ok: true });
       }
 
@@ -204,7 +191,13 @@ export async function registerBillingRoutes(
         const changed = ev.type === "customer.subscription.deleted" || ev.data.previous_attributes?.status !== undefined;
         if (!id || !status || !changed) return reply.send({ ignored: true });
         const t = await tenantBySubscription(id);
-        if (!t) return reply.send({ ignored: true });
+        if (!t) {
+          // Paid but the business isn't created yet: an ended subscription can't be used to create one.
+          const ended = status === "canceled" || status === "unpaid" || status === "incomplete_expired";
+          const back = status === "active" || status === "trialing";
+          if ((ended || back) && await setOwnerSignupEnded(o.db, id, ended)) return reply.send({ ok: true, signupEnded: ended });
+          return reply.send({ ignored: true });
+        }
         if (status === "active" || status === "trialing") return reply.send(await resume(req, t, null));
         // past_due: the failed-payment event above does the pausing (it carries the link to pay). The subscription
         // ending (cancelled, or unpaid after Stripe gave up) pauses it too and starts the 90-day countdown to erasure.

@@ -3,13 +3,15 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { and, eq, ne } from "drizzle-orm";
 import {
-  addPlatformAdmin, createBusiness, deleteBusiness, eraseBusiness, forbidden, listPlatformAdmins, removePlatformAdmin, transferPlatformOwnership, INVITATION_DAYS, inviteBusinessOwner, listBusinesses, notFound, platformContext, setBusinessStatus,
+  addPlatformAdmin, createBusiness, deleteBusiness, eraseBusiness, forbidden, listPlatformAdmins, removePlatformAdmin, transferPlatformOwnership, INVITATION_DAYS, inviteBusinessOwner, listBusinesses, notFound, platformContext, setBusinessStatus, REGION_KEYS,
+  inviteOwnerSignup, listOpenOwnerSignups, getOwnerSignup, cancelOwnerSignup,
   type PlatformAdmin,
 } from "@office/core";
 import { platformAudit, tenants, uuidv7, withTenant, type Db } from "@office/db";
 import { setAllowedModules, type ModuleDeps } from "@office/platform";
 import { invitationEmail, ownerAddedEmail, ownershipTransferredEmail, type Mailer } from "../mail.ts";
 import type { Identity } from "../identity.ts";
+import { sendOwnerSignupEmail } from "../owner-signup-mail.ts";
 
 const AUTH = { auth: "authenticated" } as const;
 const Id = z.object({ id: z.uuid() });
@@ -20,7 +22,7 @@ const Id = z.object({ id: z.uuid() });
  */
 export async function registerOwnerRoutes(
   app0: FastifyInstance,
-  o: { db: Db; appUrl: string; mailer: Mailer | null; identity: Identity | null; platformAdmin: (req: FastifyRequest) => Promise<PlatformAdmin | null>; modules: ModuleDeps },
+  o: { db: Db; appUrl: string; mailer: Mailer | null; identity: Identity | null; contactEmail?: string | undefined; platformAdmin: (req: FastifyRequest) => Promise<PlatformAdmin | null>; modules: ModuleDeps },
 ) {
   const app = app0.withTypeProvider<ZodTypeProvider>();
   const admin = async (req: FastifyRequest) => {
@@ -54,6 +56,39 @@ export async function registerOwnerRoutes(
     }
     return { email: inv.email, expiresAt: inv.expiresAt, link, emailed, emailError };
   }
+
+  // ───── Owners who set up their own business ─────
+  // Paying on /start makes one of these automatically. The program owner can also invite someone by hand (for
+  // example a customer who pays by bank transfer): they get the same "create your account" email and create
+  // their business themselves.
+  const signupMail = (req: FastifyRequest, s: { email: string; source: "stripe" | "program_owner" }) =>
+    sendOwnerSignupEmail({ db: o.db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, contact: o.contactEmail ?? "the address on our website", log: req.log }, s);
+
+  app.get("/platform/owner-signups", { config: AUTH, schema: { tags: ["platform"] } }, async (req) => {
+    await admin(req);
+    return { items: await listOpenOwnerSignups(o.db) };
+  });
+
+  app.post("/platform/owner-signups", {
+    config: AUTH, schema: { tags: ["platform"], body: z.object({ email: z.email().max(320) }).strict() },
+  }, async (req, reply) => {
+    const a = await admin(req);
+    const s = await inviteOwnerSignup(o.db, a, req.body.email);
+    return reply.status(201).send({ id: s.id, email: s.email, ...(await signupMail(req, s)) });
+  });
+
+  app.post("/platform/owner-signups/:id/resend", { config: AUTH, schema: { tags: ["platform"], params: Id } }, async (req) => {
+    await admin(req);
+    const s = await getOwnerSignup(o.db, req.params.id);
+    if (!s || s.usedAt || s.cancelledAt) throw notFound("Invitation");
+    return { id: s.id, email: s.email, ...(await signupMail(req, s)) };
+  });
+
+  app.delete("/platform/owner-signups/:id", { config: AUTH, schema: { tags: ["platform"], params: Id } }, async (req, reply) => {
+    const a = await admin(req);
+    await cancelOwnerSignup(o.db, a, req.params.id);
+    return reply.status(204).send();
+  });
 
   // ───── Program owners (co-owners, transfer) ─────
   app.get("/platform/owners", { config: AUTH, schema: { tags: ["platform"] } }, async (req) => {
@@ -134,7 +169,7 @@ export async function registerOwnerRoutes(
       body: z.object({
         name: z.string().trim().min(1).max(200),
         slug: z.string().regex(/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/),
-        region: z.enum(["eu", "us"]).optional(),
+        region: z.enum(REGION_KEYS).optional(),
         ownerEmail: z.email().max(320),
       }).strict(),
     },

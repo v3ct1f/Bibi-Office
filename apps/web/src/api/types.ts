@@ -1,6 +1,8 @@
 // DTOs returned by the Office API (/api/v1). Kept in sync by hand with apps/api routes.
 export interface TenantRef { id: string; slug: string; name: string; status: string; tenantStatus: "active" | "suspended" }
-export interface Me { kind: "user"; userId: string; email: string; tenants: TenantRef[]; platformAdmin: boolean; selfSignup: boolean }
+export interface Me { kind: "user"; userId: string; email: string; tenants: TenantRef[]; platformAdmin: boolean; selfSignup: boolean;
+  /** Paid (or was invited) to set up a business they haven't created yet. */
+  pendingBusiness?: boolean }
 
 export interface UiSlot { slot: string; label?: string; icon?: string; route?: string; component?: string; permission?: string }
 export interface Access {

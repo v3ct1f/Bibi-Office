@@ -8,3 +8,5 @@ export * from "./entities.ts";
 export * from "./invitations.ts";
 export * from "./businesses.ts";
 export * from "./platform-owners.ts";
+export * from "./regions.ts";
+export * from "./owner-signups.ts";

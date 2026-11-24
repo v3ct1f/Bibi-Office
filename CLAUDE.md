@@ -43,6 +43,7 @@ Owner flows check a feature count ("10 of 11 included"); adding a feature change
 
 ## Where things stand (2026-11-23)
 - Branch `claude/youthful-hypatia-4bnse8`, several commits ahead of GitHub (not pushed).
+- Session 32: paying owners create their own account and business (`/start` -> email -> `/new-business`); Program admin invites owners instead of creating businesses.
 - Latest work: Leads (Session 25), program owner viewing businesses (26), Colleagues (27: owner creates a
   worker's account with a starting password; the worker picks their own at first sign-in), and deleting a
   business now only needs its name typed.

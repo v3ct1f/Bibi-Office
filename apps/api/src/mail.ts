@@ -36,6 +36,28 @@ export function invitationEmail(o: { tenantName: string; inviterName: string | n
 }
 
 /** A payment failed, so the business is paused until it is paid. */
+/**
+ * "Create your account": the person paid for a subscription (or the program owner invited them). They choose a
+ * password, sign in with this email address and create their business themselves.
+ */
+export function ownerSignupEmail(o: { paid: boolean; link: string; passwordLink?: string | null; contact: string }) {
+  return {
+    subject: o.paid ? "Welcome to Office: create your account" : "You're invited to set up your business on Office",
+    text: [
+      o.paid ? "Thank you for subscribing to Office. Your payment went through." : "You've been invited to set up your business on Office.",
+      "",
+      ...(o.passwordLink
+        ? [`1. Create your account: choose your password (the link works once, for 7 days): ${o.passwordLink}`, "",
+          `2. Sign in with this email address and create your business (its name, web address and region): ${o.link}`]
+        : [`Sign in with this email address and create your business (its name, web address and region): ${o.link}`]),
+      "",
+      "You'll be the owner of the business. From there you choose its features and invite your team.",
+      "If the password link has expired, use \"Forgot your password or never set one?\" on the sign-in page.",
+      `Questions? ${o.contact}`,
+    ].join("\n"),
+  };
+}
+
 export function paymentFailedEmail(o: { tenantName: string; payUrl: string | null; contact: string }) {
   return {
     subject: `Payment failed: ${o.tenantName} is paused`,

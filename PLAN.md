@@ -40,6 +40,7 @@
 | 20 | Program owner: businesses created, listed, paused and reactivated by the program owner; self sign-up switch | ✅ done (217 unit/integration + 69 E2E green) |
 | 21 | Features per business, chosen by the program owner | ✅ done (218 unit/integration + 70 E2E green) |
 | 22 | Program owners managed in the app: co-owners, transfer, history | ✅ done (222 unit/integration + 71 E2E green) |
+| 32 | Owners set up their own business after paying (pay -> account -> create business); full region list | ✅ done |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
@@ -57,6 +58,14 @@
 - Each module in `/modules/<name>` with its own README.
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
+
+## Session 32, owners set up their own business
+- **New order:** pay -> create your account -> create your business. `/start` now asks only for an email (and the two tickboxes). After paying, that email gets "Welcome to Office: create your account" (choose a password, then sign in). Signed in with that address, the owner sees **Create your business** (`/new-business`): business name, workspace URL, data region. No owner's email field: the person signed in becomes the owner at once (no invitation to accept). One payment = one business.
+- **Program admin:** "New business" is replaced by **Invite business owner** (email only), for owners who don't pay on /start (e.g. bank transfer): same email, same page, but the business isn't marked paid. A **Waiting to set up** list shows paid / invited people who haven't created their business yet (send the email again, withdraw an invitation; a paid one can't be withdrawn, cancel it in Stripe).
+- **Regions:** Europe (European Union), North America, South America, Asia, Middle East, Africa, Oceania, checked by the API everywhere a region is taken. **Today it is only a recorded preference**: all data is on the one EU server; the form says so. The Privacy Policy line about hosting now says EU (version `2026-11-24.1`).
+- Safety: only a verified email with an open paid/invited sign-up can create a business; a subscription that ends before the business exists makes it unusable (and paying again reopens it); the address is checked when the business is created (taken -> "choose another"; nothing is lost).
+- Migration 0013 (`owner_signups`). Tests: api billing 26 (was 18; full api run 217 green), E2E owner flow rewritten (invite -> owner creates business, all 7 regions listed, nothing paid -> "No business waiting"; owner E2E 8 green). Not tested in a browser: the /start page with real Stripe (no Stripe keys in tests).
+- Not yet: erasing a sign-up that was never used (its email stays until someone removes it), a "check if this web address is free" hint while typing.
 
 ## Session 31, hosting plan and files (nothing deployed yet)
 - Decision: **one small EU server** (about 4 GB, Ubuntu), everything in Docker: Postgres, NATS (the production worker needs it; Temporal stays optional), API, worker, Keycloak, Caddy (web app + automatic HTTPS). `infra/prod/` holds the recipe: `docker-compose.yml`, `Dockerfile.web`, `Caddyfile` (+ `Caddyfile.cutover` for bibidesk.com), `init-db.sh`, `.env.example`, `make-env.sh` (random secrets), `bootstrap-server.sh`, `deploy-from-pc.sh` (ships committed files only), `backup.sh`, `docker-compose.admin.yml`, `README.md`. A `.dockerignore` keeps `.env*` and `.dev-accounts.json` out of images.

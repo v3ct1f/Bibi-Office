@@ -5,7 +5,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * The secret key and webhook secret come from the environment and never leave the server.
  */
 export interface CheckoutInput {
-  email: string; businessName: string; slug: string; region: "eu" | "us"; successUrl: string; cancelUrl: string;
+  /** Only the payer's email: they create their business themselves after paying and making their account. */
+  email: string; successUrl: string; cancelUrl: string;
   /** Version of the terms the customer ticked, kept on the subscription as evidence. */
   termsVersion: string;
 }
@@ -36,7 +37,7 @@ export function stripeBilling(o: { secretKey?: string | undefined; webhookSecret
     label: o.label || "",
     webhookSecret,
     async createCheckout(i) {
-      const meta = { businessName: i.businessName, slug: i.slug, region: i.region, termsVersion: i.termsVersion, termsAcceptedAt: new Date().toISOString() };
+      const meta = { termsVersion: i.termsVersion, termsAcceptedAt: new Date().toISOString() };
       const form = new URLSearchParams({
         mode: "subscription",
         "line_items[0][price]": priceId, "line_items[0][quantity]": "1",

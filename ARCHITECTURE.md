@@ -97,6 +97,7 @@ All tenant tables: `id uuid v7 PK`, `tenant_id uuid NOT NULL` (RLS), `created_at
 ```sql
 -- Identity & tenancy (global, no RLS)
 tenants(id, slug UNIQUE, name, plan, region, status, settings jsonb)
+owner_signups(id, email, source stripe|program_owner, stripe ids, used_at, tenant_id, ended_at, cancelled_at)  -- global, no RLS
 users(id, idp_subject UNIQUE, email UNIQUE, name, locale, tz, status)
 memberships(id, tenant_id, user_id, status, UNIQUE(tenant_id,user_id))
 api_keys(id, tenant_id, name, hash, scopes text[], expires_at, last_used_at)
@@ -431,6 +432,9 @@ office/
 
 ## 15. Paid sign-up (Session 28, as built)
 `apps/api/src/billing.ts` (Stripe Checkout call + webhook signature check, no SDK) and `routes/billing.ts` (`/signup/config`, `/signup/checkout`, `/stripe/webhook`; all public, the webhook keeps its body raw in its own plugin). The webhook is the only thing that creates a business from a payment; it acts as `{ userId: null, email: "stripe" }` through the normal `createBusiness` / `setBusinessStatus`, so audit and owner invitation work as for hand-made businesses. `tenants.stripe_subscription_id` (unique) makes it idempotent and links a subscription to its business.
+
+## 15b. Owners set up their own business (Session 32, as built)
+Paying no longer creates the business. `checkout.session.completed` writes an `owner_signups` row (migration 0013; global like `users`, no RLS; `stripe_subscription_id` unique, so a repeated webhook does nothing) and emails "create your account" (`owner-signup-mail.ts`: the sign-in service's set-password link with `next=/new-business`, then the page link). The program owner can make the same row by hand (`POST /platform/owner-signups`, source `program_owner`; list, resend, withdraw; logged in `platform_audit`), which is where any other "paid" trigger can plug in. The signed-in owner, with a **verified** email that has an open row, calls `POST /signup/business { name, slug, region }`: `createBusinessFromSignup` locks the oldest open row, creates the tenant (with the Stripe ids and `plan = paid` if it came from Stripe), seeds roles, makes them owner and marks the row used, all in one transaction. `/me.pendingBusiness` sends someone with no workspace from `/` to `/new-business`. A subscription that ends before the business exists marks the row `ended_at` (unusable until it is active again). Regions: `packages/core/src/regions.ts` (`REGION_KEYS` validates every route that takes a region; `us` = North America for older rows), mirrored in `apps/web/src/lib/regions.ts`; it is a stored preference, all data is still on the EU server. `POST /platform/businesses` (program owner creates + invites) still exists for scripts and tests, but the admin page no longer offers it.
 
 ## 16. Going-live pieces (Session 29, as built)
 `apps/api/src/keycloak.ts` implements `Identity` for Keycloak's admin API (service account, client credentials, token cached); `server.ts` picks it over the dev sign-in server when `KEYCLOAK_*` is set. Billing gained `portalUrl` (Stripe customer portal) behind `POST /billing/portal` (needs `core:tenant.manage`) and the checkout requires `acceptTerms`. Legal text lives in the web app (`pages/Legal.tsx`, `legal/company.ts`) because it is public and versioned with the code.

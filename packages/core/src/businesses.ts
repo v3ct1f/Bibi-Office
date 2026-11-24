@@ -9,6 +9,7 @@ import { emitEvent } from "./events.ts";
 import { seedSystemRoles } from "./identity.ts";
 import { INVITATION_DAYS } from "./invitations.ts";
 import type { RequestContext } from "./context.ts";
+import type { Region } from "./regions.ts";
 
 /**
  * The program owner's view of the businesses using the app: names, owners, size and status.
@@ -75,7 +76,7 @@ export async function listBusinesses(db: Db) {
 /** Creates a business with no members yet and invites its owner (they become owner by accepting). */
 export async function createBusiness(
   db: Db, admin: PlatformActor,
-  input: { name: string; slug: string; region?: "eu" | "us" | undefined; ownerEmail: string; stripe?: { customerId: string | null; subscriptionId: string } },
+  input: { name: string; slug: string; region?: Region | undefined; ownerEmail: string; stripe?: { customerId: string | null; subscriptionId: string } },
   meta: Meta,
 ) {
   const tenantId = uuidv7();

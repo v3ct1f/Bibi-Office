@@ -6,7 +6,7 @@ import {
   ENTITIES, entityService, createTenant, listUserTenants, getTenant, listMembers, setMemberRoles, notFound,
   createInvitation, listInvitations, revokeInvitation, viewInvitation, acceptInvitation, INVITATION_DAYS,
   removeMember, listRoles, upsertRole, deleteRole, createApiKey, listApiKeys, revokeApiKey, verifyAuditChain,
-  forbidden, isPlatformAdmin, CORE_PERMISSIONS, checkGrantableRoles, addCreatedColleague, upsertUser, AppError,
+  forbidden, isPlatformAdmin, CORE_PERMISSIONS, checkGrantableRoles, addCreatedColleague, upsertUser, AppError, REGION_KEYS, hasOpenOwnerSignup,
   type EntityKey, type RequestContext,
 } from "@office/core";
 import { auditLog, tenants, users, withTenant, type Db, type Tx } from "@office/db";
@@ -49,6 +49,8 @@ export const registerRoutes: FastifyPluginAsync<{
     return {
       kind: "user", userId: p.userId, email: p.email, tenants: await listUserTenants(db, p.userId),
       platformAdmin: !!(await platformAdmin(req)), selfSignup: o.selfSignup,
+      /** Paid (or was invited) to set up a business they haven't created yet: the app shows "Create your business". */
+      pendingBusiness: p.emailVerified && await hasOpenOwnerSignup(db, p.email),
     };
   });
 
@@ -59,7 +61,7 @@ export const registerRoutes: FastifyPluginAsync<{
       body: z.object({
         slug: z.string().regex(/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/),
         name: z.string().trim().min(1).max(200),
-        region: z.enum(["eu", "us"]).optional(),
+        region: z.enum(REGION_KEYS).optional(),
       }).strict(),
     },
   }, async (req, reply) => {
@@ -94,7 +96,7 @@ export const registerRoutes: FastifyPluginAsync<{
 
   await registerContactRoutes(app, { db, mailer: o.mailer, contactEmail: o.contactEmail, inTenant });
   await registerBillingRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, billing: o.billing, contactEmail: o.contactEmail, inTenant });
-  await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, platformAdmin, modules: o.modules });
+  await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, contactEmail: o.contactEmail, platformAdmin, modules: o.modules });
 
   // ───── Members ─────
   app.get("/members", { config: AUTH, schema: { tags: ["members"], headers: tenantHeader } },

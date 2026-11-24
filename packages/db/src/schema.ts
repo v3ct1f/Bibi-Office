@@ -71,6 +71,22 @@ export const apiKeys = pgTable("api_keys", {
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 
+/** People who may set up their own business: paid on Stripe, or invited by the program owner (global; no tenant). */
+export const ownerSignups = pgTable("owner_signups", {
+  id: uuid("id").primaryKey(),
+  email: text("email").notNull(),
+  source: text("source").$type<"stripe" | "program_owner">().notNull(),
+  createdBy: text("created_by").notNull(),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  termsVersion: text("terms_version"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  usedAt: ts("used_at"),
+  tenantId: uuid("tenant_id"),
+  endedAt: ts("ended_at"),
+  cancelledAt: ts("cancelled_at"),
+});
+
 /** Program owners of this installation (global; no tenant). */
 export const platformAdmins = pgTable("platform_admins", {
   id: uuid("id").primaryKey(),

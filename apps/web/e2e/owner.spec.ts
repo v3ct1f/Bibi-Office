@@ -1,6 +1,9 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 
-/** The program owner (boss@example.com in playwright.config) sets up a business, its owner joins, then it's paused. */
+/**
+ * The program owner (boss@example.com in playwright.config) invites a business owner, who signs in and creates their
+ * own business (name, web address, region); then it's paused. Paying on /start does the same invite automatically.
+ */
 async function signIn(page: Page, email: string, name: string, path = "/") {
   await page.goto(path);
   await page.getByRole("button", { name: "Sign in" }).click();
@@ -24,34 +27,54 @@ test.beforeAll(async ({ browser }) => {
   boss = (await newUser(browser, "boss@example.com", "Bea Boss")).page;
 });
 
-test("the program owner lands on the business list and creates a business", async () => {
+test("the program owner lands on the business list and invites a business owner", async () => {
   await expect(boss.getByRole("heading", { name: "Businesses" })).toBeVisible();
   await expect(boss).toHaveURL(/\/admin$/);
-  await boss.getByRole("button", { name: "New business" }).first().click();
+  await expect(boss.getByRole("button", { name: "New business" })).toHaveCount(0);
+  await boss.getByRole("button", { name: "Invite business owner" }).first().click();
   const d = boss.getByRole("dialog");
-  await d.getByLabel("Business name").fill("Corner Bakery");
-  await expect(d.getByLabel("Workspace URL")).toHaveValue("corner-bakery");
+  await expect(d.getByLabel("Business name")).toHaveCount(0);   // the owner chooses it themself
   await d.getByLabel("Owner's email").fill("olga@example.com");
-  await d.getByRole("button", { name: "Create and invite" }).click();
+  await d.getByRole("button", { name: "Send invitation" }).click();
   await expect(d.getByRole("status")).toContainText("olga@example.com");
   link = (await d.locator("code").textContent())!.trim();
+  expect(link).toMatch(/\/new-business$/);
   await d.getByRole("button", { name: "Done" }).click();
-  const row = boss.getByRole("table", { name: "Businesses" }).getByRole("row", { name: /Corner Bakery/ });
-  await expect(row).toContainText("olga@example.com");
-  await expect(row).toContainText("Active");
+  const waiting = boss.getByRole("table", { name: "Waiting to set up" });
+  await expect(waiting.getByRole("row", { name: /olga@example.com/ })).toContainText("Invited by you");
 });
 
-test("the business owner accepts and gets their own dashboard", async ({ browser }) => {
+test("the owner signs in, creates their own business and gets its dashboard", async ({ browser }) => {
   const { ctx, page } = await newUser(browser, "olga@example.com", "Olga Owner", link);
-  await expect(page.getByRole("heading", { name: "Join Corner Bakery" })).toBeVisible();
-  await page.getByRole("button", { name: "Accept and join" }).click();
+  await expect(page.getByRole("heading", { name: "Create your business" })).toBeVisible();
+  await expect(page.getByLabel("Owner's email")).toHaveCount(0);
+  await page.getByLabel("Business name").fill("Corner Bakery");
+  await expect(page.getByLabel("Workspace URL")).toHaveValue("corner-bakery");
+  const region = page.getByLabel("Data region");
+  for (const r of ["Europe (European Union)", "North America", "South America", "Asia", "Middle East", "Africa", "Oceania"]) {
+    await expect(region.locator("option", { hasText: r })).toHaveCount(1);
+  }
+  await region.selectOption({ label: "South America" });
+  await page.getByRole("button", { name: "Create business" }).click();
   await expect(page.getByRole("heading", { name: "Welcome back, Olga" })).toBeVisible();
   await expect(page).toHaveURL(/\/t\/corner-bakery/);
+  // Used once: the page now says there's nothing waiting.
+  await page.goto("/new-business");
+  await expect(page.getByRole("heading", { name: "No business waiting to be set up" })).toBeVisible();
   await ctx.close();
 
   await boss.reload();
   const row = boss.getByRole("table", { name: "Businesses" }).getByRole("row", { name: /Corner Bakery/ });
   await expect(row).toContainText("Olga Owner");
+  await expect(row).toContainText("South America");
+  await expect(row).toContainText("Active");
+  await expect(boss.getByRole("table", { name: "Waiting to set up" })).toHaveCount(0);
+});
+
+test("someone with nothing paid can't create a business", async ({ browser }) => {
+  const { ctx, page } = await newUser(browser, "nopay@example.com", "No Pay", "/new-business");
+  await expect(page.getByRole("heading", { name: "No business waiting to be set up" })).toBeVisible();
+  await ctx.close();
 });
 
 test("pausing closes the business for its people; reactivating opens it", async ({ browser }) => {
@@ -112,14 +135,20 @@ test("the program owner adds a co-owner, who sees Program admin, then removes th
   await expect(list).not.toContainText("Cleo");
 });
 
-test("deleting a business needs its name typed", async () => {
+test("deleting a business needs its name typed", async ({ browser }) => {
   await boss.goto("/admin");
-  await boss.getByRole("button", { name: "New business" }).first().click();
+  await boss.getByRole("button", { name: "Invite business owner" }).first().click();
   const d = boss.getByRole("dialog");
-  await d.getByLabel("Business name").fill("Short Lived");
   await d.getByLabel("Owner's email").fill("sid@example.com");
-  await d.getByRole("button", { name: "Create and invite" }).click();
+  await d.getByRole("button", { name: "Send invitation" }).click();
   await d.getByRole("button", { name: "Done" }).click();
+  const sid = await newUser(browser, "sid@example.com", "Sid Short", "/");
+  await expect(sid.page.getByRole("heading", { name: "Create your business" })).toBeVisible();   // "/" sends them there
+  await sid.page.getByLabel("Business name").fill("Short Lived");
+  await sid.page.getByRole("button", { name: "Create business" }).click();
+  await expect(sid.page).toHaveURL(/\/t\/short-lived/);
+  await sid.ctx.close();
+  await boss.reload();
   const table = boss.getByRole("table", { name: "Businesses" });
   await expect(table.getByRole("row", { name: /Short Lived/ })).toBeVisible();
 
