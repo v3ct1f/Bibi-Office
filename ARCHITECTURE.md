@@ -357,7 +357,7 @@ office/
 │  │  ├─ schemas/      # event + action JSON schemas
 │  │  ├─ ui/           # slot components
 │  │  └─ tests/
-│  ├─ expenses/ crm/ leads/ scheduling/ support/ hr/
+│  ├─ expenses/ crm/ leads/ workmail/ scheduling/ support/ hr/
 │  └─ inventory/ docs-esign/ ai-summaries/ kpi-dashboard/
 ├─ infra/
 │  ├─ docker-compose.yml   # pg, redis, nats, temporal, keycloak, minio, grafana
@@ -434,3 +434,6 @@ office/
 
 ## 16. Going-live pieces (Session 29, as built)
 `apps/api/src/keycloak.ts` implements `Identity` for Keycloak's admin API (service account, client credentials, token cached); `server.ts` picks it over the dev sign-in server when `KEYCLOAK_*` is set. Billing gained `portalUrl` (Stripe customer portal) behind `POST /billing/portal` (needs `core:tenant.manage`) and the checkout requires `acceptTerms`. Legal text lives in the web app (`pages/Legal.tsx`, `legal/company.ts`) because it is public and versioned with the code.
+
+## 17. Work email, a paid extra (Session 32, as built)
+`modules/workmail` owns domains and mailboxes (`workmail_{domains,mailboxes}`, RLS) and talks to the outside world only through two ports in `src/provider.ts`: `WorkmailProvider` (domain search/registration with the business as registrant, DNS records and check, transfer-out code, mailbox create/switch/delete) and `WorkmailPayments` (one-off domain charge). The server injects both once with `configureWorkmail()` (a module-level singleton, set by `buildApp`); no provider = the module answers 424 "isn't set up". Payment status is pulled (`isPaid` on return from Stripe Checkout) instead of pushed, so the module needs no webhook and no core import. The monthly extra is **not** the module's business: `apps/api/src/addons.ts` + `routes/addons.ts` add or remove a second Stripe subscription item, record it in `tenants.addons` (migration 0013) and call the normal `enableModule`/`disableModule`; `PlatformOpts.beforeEnable` makes `/modules/workmail/enable` answer 402 for a paid business that skipped it. Sign-up passes `workmail` to checkout (second line item, `metadata.workmail=1`) and the webhook activates it after creating the business. Cross-feature wiring is by event only: the module subscribes to `core.member.removed`; the Colleagues page (core web) calls the module's HTTP API after creating the account. Provider errors are `ModuleError` 424 (`ModuleError` below 500 is shown to the user; 5xx is hidden by the platform), with `keepChanges` so a failed registration keeps its order for retry. Nothing real is called anywhere: only `fake-provider.ts` exists.

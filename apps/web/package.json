@@ -27,6 +27,7 @@
     "@office/module-ai": "workspace:*",
     "@office/module-kpi": "workspace:*",
     "@office/module-leads": "workspace:*",
+    "@office/module-workmail": "workspace:*",
     "@office/module-docs": "workspace:*",
     "@office/module-scheduling": "workspace:*",
     "@office/module-invoicing": "workspace:*",

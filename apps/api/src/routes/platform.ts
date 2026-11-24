@@ -11,7 +11,9 @@ import {
 } from "@office/platform";
 
 type InTenant = <T>(req: FastifyRequest, perm: string | null, fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T>;
-export interface PlatformOpts { db: Db; inTenant: InTenant; registry: ModuleRegistry; secrets: SecretBox; requireHttps: boolean }
+export interface PlatformOpts { db: Db; inTenant: InTenant; registry: ModuleRegistry; secrets: SecretBox; requireHttps: boolean;
+  /** Runs before a feature is switched on (e.g. a paid extra must be on the subscription first). */
+  beforeEnable?: (tx: Tx, ctx: RequestContext, key: string) => Promise<void> }
 
 const AUTH = { auth: "authenticated" } as const;
 const Id = z.object({ id: z.uuid() });
@@ -49,7 +51,7 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
   app.get("/modules", { config: AUTH, schema: { tags: ["modules"], headers: tenantHeader } },
     (req) => inTenant(req, "core:modules.read", (tx, ctx) => listModules(tx, md, ctx.tenantId)));
   app.post("/modules/:key/enable", { config: AUTH, schema: { tags: ["modules"], headers: tenantHeader, params: ModKey } },
-    (req) => inTenant(req, "core:modules.manage", (tx, ctx) => enableModule(tx, ctx, md, req.params.key)));
+    (req) => inTenant(req, "core:modules.manage", async (tx, ctx) => { await o.beforeEnable?.(tx, ctx, req.params.key); return enableModule(tx, ctx, md, req.params.key); }));
   app.post("/modules/:key/disable", { config: AUTH, schema: { tags: ["modules"], headers: tenantHeader, params: ModKey } },
     (req) => inTenant(req, "core:modules.manage", (tx, ctx) => disableModule(tx, ctx, md, req.params.key)));
   app.patch("/modules/:key/settings", {

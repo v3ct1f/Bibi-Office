@@ -25,3 +25,11 @@ Restart the API. Open `http://localhost:5173/start`. Pay with Stripe's test card
 
 ## Before taking real money
 Use live keys, a public API address with HTTPS, working email (Gmail app password is fine to start), and add your terms and privacy policy (Stripe asks for them). Customers can manage or cancel their subscription from a Stripe customer portal link (Stripe dashboard -> Settings -> Billing -> Customer portal).
+
+## Optional: the Work email extra
+In the same Stripe product catalogue add a second **recurring monthly** price (e.g. "Work email", EUR 9) and put it in `.env.local`:
+```
+STRIPE_WORKMAIL_PRICE_ID=price_...
+STRIPE_WORKMAIL_PRICE_LABEL=EUR 9 per month
+```
+Without it the extra is free where turned on. Domains are one-off payments created on the fly (no product needed). Work email also needs a provider (`WORKMAIL_PROVIDER`, see `modules/workmail/README.md`); only a pretend one exists so far.

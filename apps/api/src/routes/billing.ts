@@ -9,6 +9,8 @@ import { tenants, type Db, type Tx } from "@office/db";
 import { invitationEmail, paymentFailedEmail, serviceResumedEmail, type Mailer } from "../mail.ts";
 import type { Identity } from "../identity.ts";
 import { verifyStripeSignature, type Billing } from "../billing.ts";
+import { activateAddon } from "../addons.ts";
+import type { ModuleDeps } from "@office/platform";
 
 const PUBLIC = { auth: "public" } as const;
 /** Date of the Terms and Privacy Policy text a customer agrees to; bump it (here and in apps/web/src/legal/company.ts) when they change. */
@@ -31,14 +33,14 @@ const str = (v: unknown) => (typeof v === "string" && v ? v : null);
 export async function registerBillingRoutes(
   app0: FastifyInstance,
   o: {
-    db: Db; appUrl: string; mailer: Mailer | null; identity: Identity | null; billing: Billing | null; contactEmail: string | undefined;
+    db: Db; appUrl: string; mailer: Mailer | null; identity: Identity | null; billing: Billing | null; contactEmail: string | undefined; modules: ModuleDeps;
     inTenant: <T>(req: FastifyRequest, perm: string | null, fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T>;
   },
 ) {
   const app = app0.withTypeProvider<ZodTypeProvider>();
 
   app.get("/signup/config", { config: PUBLIC, schema: { tags: ["signup"] } }, async () =>
-    ({ open: !!o.billing, price: o.billing?.label ?? "" }));
+    ({ open: !!o.billing, price: o.billing?.label ?? "", workmail: o.billing?.workmailLabel ?? null }));
 
   app.post("/signup/checkout", {
     config: { auth: "public", rateLimit: { max: 10, timeWindow: "15 minutes" } },
@@ -53,10 +55,13 @@ export async function registerBillingRoutes(
         acceptTerms: z.literal(true, { error: "Please accept the Terms and the Privacy Policy" }),
         /** Must be ticked: "I am signing up for business or professional use" (the Terms are for businesses only). */
         businessUse: z.literal(true, { error: "Please confirm this is for business or professional use" }),
+        /** Optional: also buy the Work email add-on (a company domain and work mailboxes) for its extra monthly price. */
+        workmail: z.boolean().default(false),
       }).strict(),
     },
   }, async (req) => {
     if (!o.billing) throw new AppError(503, "signup_closed", "Sign-up isn't open yet.");
+    if (req.body.workmail && !o.billing.workmailLabel) throw new AppError(400, "workmail_unavailable", "Work email isn't for sale yet.");
     const slug = req.body.slug ?? slugify(req.body.businessName);
     if (!SLUG.test(slug)) throw new AppError(400, "bad_slug", "Choose a web address of 3-40 letters, numbers or dashes.");
     // Checked before paying, so nobody pays for an address that is already taken.
@@ -65,7 +70,7 @@ export async function registerBillingRoutes(
     try {
       const url = await o.billing.createCheckout({
         email: req.body.email.trim().toLowerCase(), businessName: req.body.businessName, slug, region: req.body.region,
-        successUrl: `${o.appUrl}/start/thanks`, cancelUrl: `${o.appUrl}/start`, termsVersion: TERMS_VERSION,
+        successUrl: `${o.appUrl}/start/thanks`, cancelUrl: `${o.appUrl}/start`, termsVersion: TERMS_VERSION, workmail: req.body.workmail,
       });
       return { url };
     } catch (e) {
@@ -162,6 +167,11 @@ export async function registerBillingRoutes(
           // Someone took the address while this person was paying: they've paid, so give them a close variant.
           const alt = `${m.slug.slice(0, 33)}-${randomBytes(3).toString("hex")}`;
           made = await createBusiness(o.db, STRIPE_ACTOR, { ...input, slug: alt }, meta);
+        }
+        if (m.workmail === "1") {
+          // They paid for Work email in the same checkout: record it and switch the feature on.
+          try { await activateAddon(o.db, o.modules, STRIPE_ACTOR, made.tenant.id, "workmail", meta); }
+          catch (err) { req.log.error({ err, tenantId: made.tenant.id }, "paid for Work email but couldn't switch it on; turn it on from Program admin"); }
         }
         const link = `${o.appUrl}/invite/${made.tenant.id}/${made.invite.token}`;
         if (o.mailer) {

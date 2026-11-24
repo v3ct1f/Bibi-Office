@@ -11,16 +11,17 @@ const slugify = (name: string) =>
 
 /** Public: a new business signs up and pays by monthly subscription on Stripe's own page. */
 export function StartPage() {
-  const cfg = useQuery({ queryKey: ["signup-config"], queryFn: () => request<{ open: boolean; price: string }>("GET", "/signup/config", { anonymous: true }) });
+  const cfg = useQuery({ queryKey: ["signup-config"], queryFn: () => request<{ open: boolean; price: string; workmail: string | null }>("GET", "/signup/config", { anonymous: true }) });
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [email, setEmail] = useState("");
   const [region, setRegion] = useState<"eu" | "us">("eu");
   const [agreed, setAgreed] = useState(false);
   const [business, setBusiness] = useState(false);
+  const [workmail, setWorkmail] = useState(false);
   const go = useMutation({
     mutationFn: () => request<{ url: string }>("POST", "/signup/checkout", {
-      body: { businessName: name, slug: slug || slugify(name), email, region, acceptTerms: agreed, businessUse: business }, anonymous: true,
+      body: { businessName: name, slug: slug || slugify(name), email, region, acceptTerms: agreed, businessUse: business, workmail: workmail && !!cfg.data?.workmail }, anonymous: true,
     }),
     onSuccess: (r) => { window.location.href = r.url; },
   });
@@ -56,6 +57,15 @@ export function StartPage() {
                   </Select>
                 )}
               </Field>
+              {cfg.data?.workmail && (
+                <label className="flex items-start gap-2 rounded-md border p-3 text-sm">
+                  <Checkbox checked={workmail} onCheckedChange={(v) => setWorkmail(v === true)} className="mt-0.5" aria-label={`Add work email and a company domain (+${cfg.data.workmail})`} />
+                  <span>
+                    <strong>Add work email and a company domain</strong> <span className="text-muted-foreground">(+{cfg.data.workmail})</span>
+                    <span className="block text-xs text-muted-foreground">Optional. Mailboxes like anna@yourcompany.com for your team. You can also add it later.</span>
+                  </span>
+                </label>
+              )}
               <label className="flex items-start gap-2 text-sm">
                 <Checkbox checked={business} onCheckedChange={(v) => setBusiness(v === true)} className="mt-0.5" aria-label="I am signing up for business or professional use" />
                 <span>I am signing up for <strong>business or professional use</strong>, not as a private consumer.</span>

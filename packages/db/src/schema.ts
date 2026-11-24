@@ -30,6 +30,8 @@ export const tenants = pgTable("tenants", {
   subscriptionEndedAt: ts("subscription_ended_at"),
   /** Paused because a payment failed (cleared when it is paid). Not set for a pause by hand. */
   billingPausedAt: ts("billing_paused_at"),
+  /** Paid extras turned on for this business, e.g. "workmail". */
+  addons: text("addons").array().notNull().default([]),
   region: text("region").notNull().default("eu"),
   status: text("status").$type<"active" | "suspended" | "deleted">().notNull().default("active"),
   settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),

@@ -8,6 +8,7 @@ import { devIdentity } from "./identity.ts";
 import { stripeBilling } from "./billing.ts";
 import { keycloakIdentity } from "./keycloak.ts";
 import { scheduleErasure } from "./erasure.ts";
+import { fakeProvider } from "@office/module-workmail";
 
 const config = loadConfig();
 const { db, close } = createDb(config.DATABASE_URL_APP, { max: 20 });
@@ -19,8 +20,10 @@ const app = await buildApp({
   db, config, mailer: smtpMailer(config.MAIL_SMTP_URL, config.MAIL_FROM), identity,
   billing: stripeBilling({
     secretKey: config.STRIPE_SECRET_KEY, webhookSecret: config.STRIPE_WEBHOOK_SECRET, priceId: config.STRIPE_PRICE_ID, label: config.STRIPE_PRICE_LABEL,
+    workmailPriceId: config.STRIPE_WORKMAIL_PRICE_ID, workmailLabel: config.STRIPE_WORKMAIL_PRICE_LABEL,
   }),
   contactEmail: config.CONTACT_EMAIL,
+  workmailProvider: (config.WORKMAIL_PROVIDER ?? (config.NODE_ENV === "production" ? "off" : "fake")) === "fake" ? fakeProvider() : null,
   platformAdmins: config.PLATFORM_ADMIN_EMAILS, selfSignup: config.SELF_SIGNUP, platform: { registry: createRegistry(), secrets: new SecretBox(config.SECRETS_KEY) },
 });
 

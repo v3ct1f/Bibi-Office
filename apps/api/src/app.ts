@@ -22,6 +22,8 @@ import type { Config } from "./config.ts";
 import type { Mailer } from "./mail.ts";
 import type { Identity } from "./identity.ts";
 import type { Billing } from "./billing.ts";
+import { enableGuard, workmailPayments } from "./addons.ts";
+import { configureWorkmail, type WorkmailProvider } from "@office/module-workmail";
 
 export interface AppDeps {
   db: Db;
@@ -32,6 +34,8 @@ export interface AppDeps {
   identity?: Identity | null;
   /** Paid sign-up through Stripe; null or missing = sign-up page says "not open yet". */
   billing?: Billing | null;
+  /** The company that sells domains and mailboxes for Work email; null or missing = the feature says "not set up". */
+  workmailProvider?: WorkmailProvider | null;
   /** Receives public contact-form messages; without it (or without mail) the form is closed. */
   contactEmail?: string;
   jwks?: JWTVerifyGetKey;      // injectable for tests
@@ -119,6 +123,8 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
     return { ok: true };
   });
 
+  const appUrl = (d.config.APP_URL ?? d.config.CORS_ORIGINS[0] ?? "http://localhost:5173").replace(/\/+$/, "");
+  configureWorkmail({ provider: d.workmailProvider ?? null, payments: workmailPayments(d.db, d.billing ?? null, appUrl) });
   await seedPlatformAdmins(d.db, d.platformAdmins ?? []);
   const inTenant = makeTenantRunner(d.db, d.platform.registry.all().flatMap((m) => m.manifest.roles.viewer ?? []));
   await app.register(registerRoutes, {
@@ -128,7 +134,7 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   });
   await app.register(registerPlatformRoutes, {
     prefix: "/api/v1", db: d.db, inTenant, registry: d.platform.registry, secrets: d.platform.secrets,
-    requireHttps: d.config.NODE_ENV === "production",
+    requireHttps: d.config.NODE_ENV === "production", beforeEnable: enableGuard(d.db, d.billing ?? null),
   });
   return app;
 }
