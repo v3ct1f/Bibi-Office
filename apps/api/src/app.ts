@@ -43,6 +43,8 @@ export interface AppDeps {
   platformAdmins?: string[];
   /** Anyone signed in may create their own business (default false: only program owners). */
   selfSignup?: boolean;
+  /** Pretend payments for plans (try-out mode). */
+  testPayments?: boolean;
 }
 
 export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
@@ -123,7 +125,7 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   const inTenant = makeTenantRunner(d.db, d.platform.registry.all().flatMap((m) => m.manifest.roles.viewer ?? []));
   await app.register(registerRoutes, {
     prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER, mailer: d.mailer ?? null, identity: d.identity ?? null,
-    selfSignup: d.selfSignup ?? false, billing: d.billing ?? null, contactEmail: d.contactEmail, modules: d.platform,
+    selfSignup: d.selfSignup ?? false, testPayments: d.testPayments ?? false, billing: d.billing ?? null, contactEmail: d.contactEmail, modules: d.platform,
     appUrl: (d.config.APP_URL ?? d.config.CORS_ORIGINS[0] ?? "http://localhost:5173").replace(/\/+$/, ""),
   });
   await app.register(registerPlatformRoutes, {

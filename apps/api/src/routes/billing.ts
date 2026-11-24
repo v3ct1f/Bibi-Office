@@ -4,7 +4,10 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { eq, ne, and } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { AppError, INVITATION_DAYS, createBusiness, listOwnerEmails, setBusinessStatus, type RequestContext } from "@office/core";
+import {
+  AppError, INVITATION_DAYS, PLANS, createBusiness, listOwnerEmails, peopleCount, planByKey, setBusinessStatus, tenantPlan, type Plan, type RequestContext,
+} from "@office/core";
+import { changePlan, planModuleKeys, type ModuleDeps } from "@office/platform";
 import { tenants, type Db, type Tx } from "@office/db";
 import { invitationEmail, paymentFailedEmail, serviceResumedEmail, type Mailer } from "../mail.ts";
 import type { Identity } from "../identity.ts";
@@ -32,13 +35,107 @@ export async function registerBillingRoutes(
   app0: FastifyInstance,
   o: {
     db: Db; appUrl: string; mailer: Mailer | null; identity: Identity | null; billing: Billing | null; contactEmail: string | undefined;
+    /** Pretend payments: a plan can be "bought" without paying, to try the product. Off unless TEST_PAYMENTS=true. */
+    testPayments: boolean; modules: ModuleDeps;
     inTenant: <T>(req: FastifyRequest, perm: string | null, fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T>;
   },
 ) {
   const app = app0.withTypeProvider<ZodTypeProvider>();
 
+  /** Emails the new business's owner the link to open the account (and set a password). Never fails the sign-up. */
+  async function welcomeOwner(req: FastifyRequest, made: Awaited<ReturnType<typeof createBusiness>>, email: string) {
+    const link = `${o.appUrl}/invite/${made.tenant.id}/${made.invite.token}`;
+    if (!o.mailer) {
+      req.log.warn({ tenantId: made.tenant.id }, "business created but mail isn't set up; send the owner invitation from Program admin");
+      return false;
+    }
+    try {
+      const pw = await o.identity?.passwordLink(email, link);
+      await o.mailer.send({
+        to: email,
+        ...invitationEmail({ tenantName: made.tenant.name, inviterName: null, link, days: INVITATION_DAYS, passwordLink: pw && !pw.hasPassword ? pw.link : null }),
+      });
+      return true;
+    } catch (err) {
+      req.log.warn({ err }, "welcome email failed; resend the owner invitation from Program admin");
+      return false;
+    }
+  }
+
+  /** A plan as shown to people: prices, limits, and each feature with its name and what it does. */
+  const describe = (p: Plan) => ({
+    key: p.key, name: p.name, tagline: p.tagline, monthly: p.monthly, yearly: p.yearly, people: p.people, extraPerson: p.extraPerson, capabilities: p.capabilities,
+    features: p.features.map((k) => {
+      const m = o.modules.registry.get(k)?.manifest;
+      return { key: k, name: m?.name ?? k, description: m?.description ?? "" };
+    }),
+  });
+  const planList = () => PLANS.map(describe);
+
   app.get("/signup/config", { config: PUBLIC, schema: { tags: ["signup"] } }, async () =>
-    ({ open: !!o.billing, price: o.billing?.label ?? "" }));
+    ({ open: !!o.billing || o.testPayments, price: o.billing?.label ?? "", testMode: o.testPayments }));
+
+  /** The plans for the public landing page. */
+  app.get("/plans", { config: PUBLIC, schema: { tags: ["signup"] } }, async () => ({ testMode: o.testPayments, plans: planList() }));
+
+  /**
+   * Test sign-up: "buy" a plan without paying. The business is created on that plan straight away and its owner gets the
+   * email to open the account, exactly as after a real payment. Only when TEST_PAYMENTS is on.
+   */
+  app.post("/signup/test-checkout", {
+    config: { auth: "public", rateLimit: { max: 10, timeWindow: "15 minutes" } },
+    schema: {
+      tags: ["signup"],
+      body: z.object({
+        plan: z.enum(["starter", "business", "complete"]),
+        interval: z.enum(["monthly", "yearly"]).default("monthly"),
+        businessName: z.string().trim().min(1).max(200),
+        slug: z.string().trim().toLowerCase().regex(SLUG, "Use 3-40 letters, numbers or dashes").optional(),
+        email: z.email().max(320),
+        region: z.enum(["eu", "us"]).default("eu"),
+        acceptTerms: z.literal(true, { error: "Please accept the Terms and the Privacy Policy" }),
+        businessUse: z.literal(true, { error: "Please confirm this is for business or professional use" }),
+      }).strict(),
+    },
+  }, async (req, reply) => {
+    if (!o.testPayments) throw new AppError(503, "signup_closed", "Sign-up isn't open yet.");
+    const plan = planByKey(req.body.plan)!;
+    const slug = req.body.slug ?? slugify(req.body.businessName);
+    if (!SLUG.test(slug)) throw new AppError(400, "bad_slug", "Choose a web address of 3-40 letters, numbers or dashes.");
+    const email = req.body.email.trim().toLowerCase();
+    const made = await createBusiness(o.db, STRIPE_ACTOR, {
+      name: req.body.businessName, slug, ownerEmail: email, region: req.body.region,
+      plan: { key: plan.key, interval: req.body.interval, test: true, features: planModuleKeys(o.modules.registry, plan) },
+    }, { requestId: req.id, ip: req.ip });
+    const emailed = await welcomeOwner(req, made, email);
+    return reply.status(201).send({ ok: true, emailed, plan: plan.key });
+  });
+
+  /** This business's plan, how many of its people are used, and the plans it could switch to. Any member may look. */
+  app.get("/billing/plan", { config: { auth: "authenticated" }, schema: { tags: ["billing"], headers: z.object({ "x-tenant-id": z.uuid().optional() }).loose() } }, async (req) =>
+    o.inTenant(req, null, async (tx, ctx) => {
+      const cur = await tenantPlan(tx, ctx.tenantId);
+      return {
+        testMode: o.testPayments,
+        current: {
+          key: cur.key, interval: cur.interval, test: cur.test, changedAt: cur.changedAt, stripe: !!cur.stripe,
+          people: await peopleCount(tx, ctx.tenantId), plan: cur.plan ? describe(cur.plan) : null,
+        },
+        plans: planList(),
+      };
+    }));
+
+  /** Upgrade or downgrade (test payment: takes effect at once, nothing is charged). Owners and admins. */
+  app.post("/billing/plan", {
+    config: { auth: "authenticated" },
+    schema: {
+      tags: ["billing"], headers: z.object({ "x-tenant-id": z.uuid().optional() }).loose(),
+      body: z.object({ plan: z.enum(["starter", "business", "complete"]), interval: z.enum(["monthly", "yearly"]).default("monthly") }).strict(),
+    },
+  }, async (req) => {
+    if (!o.testPayments) throw new AppError(503, "billing_unavailable", "Changing plans online isn't available yet. Please contact us.");
+    return o.inTenant(req, "core:tenant.manage", (tx, ctx) => changePlan(tx, ctx, o.modules, req.body));
+  });
 
   app.post("/signup/checkout", {
     config: { auth: "public", rateLimit: { max: 10, timeWindow: "15 minutes" } },
@@ -163,20 +260,7 @@ export async function registerBillingRoutes(
           const alt = `${m.slug.slice(0, 33)}-${randomBytes(3).toString("hex")}`;
           made = await createBusiness(o.db, STRIPE_ACTOR, { ...input, slug: alt }, meta);
         }
-        const link = `${o.appUrl}/invite/${made.tenant.id}/${made.invite.token}`;
-        if (o.mailer) {
-          try {
-            const pw = await o.identity?.passwordLink(email, link);
-            await o.mailer.send({
-              to: email,
-              ...invitationEmail({ tenantName: made.tenant.name, inviterName: null, link, days: INVITATION_DAYS, passwordLink: pw && !pw.hasPassword ? pw.link : null }),
-            });
-          } catch (err) {
-            req.log.warn({ err }, "welcome email failed; resend the owner invitation from Program admin");
-          }
-        } else {
-          req.log.warn({ tenantId: made.tenant.id }, "paid business created but mail isn't set up; send the owner invitation from Program admin");
-        }
+        await welcomeOwner(req, made, email);
         return reply.send({ ok: true });
       }
 

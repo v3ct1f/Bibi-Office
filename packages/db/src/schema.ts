@@ -19,7 +19,12 @@ export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey(),
   slug: text("slug").notNull(),
   name: text("name").notNull(),
+  /** "starter" | "business" | "complete" (see core/plans.ts), or "free" / "paid" for businesses without plan limits. */
   plan: text("plan").notNull().default("free"),
+  planInterval: text("plan_interval").$type<"monthly" | "yearly">().notNull().default("monthly"),
+  /** True while the payment is a pretend one (test mode). */
+  planTest: boolean("plan_test").notNull().default(false),
+  planChangedAt: ts("plan_changed_at"),
   /** Features the program owner allows this business to turn on; null = all. */
   allowedModules: text("allowed_modules").array(),
   /** Set when the business came from a paid Stripe subscription. */

@@ -37,6 +37,8 @@ const Env = z.object({
   STRIPE_PRICE_LABEL: z.string().optional(),
   /** true = anyone who signs in may create their own business. false (default) = only program owners create businesses. */
   SELF_SIGNUP: z.stringbool().default(false),
+  /** true = plans can be "bought" with a pretend payment (nothing is charged) and changed in the app. Off by default; turn on for try-outs. */
+  TEST_PAYMENTS: z.stringbool().default(false),
 });
 export type Config = z.infer<typeof Env>;
 

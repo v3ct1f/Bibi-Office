@@ -6,7 +6,7 @@ import {
   ENTITIES, entityService, createTenant, listUserTenants, getTenant, listMembers, setMemberRoles, notFound,
   createInvitation, listInvitations, revokeInvitation, viewInvitation, acceptInvitation, INVITATION_DAYS,
   removeMember, listRoles, upsertRole, deleteRole, createApiKey, listApiKeys, revokeApiKey, verifyAuditChain,
-  forbidden, isPlatformAdmin, CORE_PERMISSIONS, checkGrantableRoles, addCreatedColleague, upsertUser, AppError,
+  forbidden, isPlatformAdmin, assertCapability, CORE_PERMISSIONS, checkGrantableRoles, addCreatedColleague, upsertUser, AppError,
   type EntityKey, type RequestContext,
 } from "@office/core";
 import { auditLog, tenants, users, withTenant, type Db, type Tx } from "@office/db";
@@ -30,7 +30,7 @@ const Page = z.object({
 const tenantHeader = z.object({ "x-tenant-id": z.uuid().optional() }).loose();
 
 export const registerRoutes: FastifyPluginAsync<{
-  db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null; identity: Identity | null; selfSignup: boolean; billing: Billing | null; contactEmail: string | undefined;
+  db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null; identity: Identity | null; selfSignup: boolean; testPayments: boolean; billing: Billing | null; contactEmail: string | undefined;
   modules: import("@office/platform").ModuleDeps;
 }> = async (app0, o) => {
   const app = app0.withTypeProvider<ZodTypeProvider>();
@@ -93,7 +93,7 @@ export const registerRoutes: FastifyPluginAsync<{
   });
 
   await registerContactRoutes(app, { db, mailer: o.mailer, contactEmail: o.contactEmail, inTenant });
-  await registerBillingRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, billing: o.billing, contactEmail: o.contactEmail, inTenant });
+  await registerBillingRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, billing: o.billing, contactEmail: o.contactEmail, inTenant, testPayments: o.testPayments, modules: o.modules });
   await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, platformAdmin, modules: o.modules });
 
   // ───── Members ─────
@@ -234,7 +234,7 @@ export const registerRoutes: FastifyPluginAsync<{
     },
   }, async (req, reply) => {
     if (req.principal?.kind !== "user") throw forbidden("API keys cannot mint API keys");
-    const k = await inTenant(req, "core:apikeys.manage", (tx, ctx) => createApiKey(tx, ctx, o.pepper, req.body));
+    const k = await inTenant(req, "core:apikeys.manage", async (tx, ctx) => { await assertCapability(tx, ctx.tenantId, "api"); return createApiKey(tx, ctx, o.pepper, req.body); });
     return reply.status(201).send({ ...k, note: "Store this token now; it is not shown again." });
   });
 
