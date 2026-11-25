@@ -452,7 +452,7 @@ export async function getThread(ctx: ModuleContext, threadId: string, inFolder?:
   const a = await needAccount(ctx, uid);
   const where = inFolder === "trash" || inFolder === "spam"
     ? and(eq(messages.threadId, threadId), eq(messages.folder, inFolder))
-    : and(eq(messages.threadId, threadId), ne(messages.folder, "trash"), ne(messages.folder, "spam"));
+    : and(eq(messages.threadId, threadId), ne(messages.folder, "trash"), ne(messages.folder, "spam"), ne(messages.folder, "drafts"));
   const list = await ctx.db.select().from(messages).where(where).orderBy(asc(messages.date), asc(messages.id));
   if (!list.length) throw E.notFound("Conversation");
   const dtos = await messageDtos(ctx, a, list);

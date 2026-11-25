@@ -103,7 +103,7 @@ test("the program owner chooses which features a business can use", async ({ bro
   await d.getByRole("button", { name: "Save features" }).click();
   await expect(d).toBeHidden();
   const row = boss.getByRole("table", { name: "Businesses" }).getByRole("row", { name: /Corner Bakery/ });
-  await expect(row).toContainText("12 of 13 included");
+  await expect(row).toContainText("13 of 14 included");
 
   const { ctx, page } = await newUser(browser, "olga@example.com", "Olga Owner", "/t/corner-bakery/features");
   const card = page.getByTestId("feature-inventory");

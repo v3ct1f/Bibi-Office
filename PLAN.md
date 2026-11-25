@@ -43,6 +43,7 @@
 | 35 | Owners set up their own business after paying (pay -> account -> create business); full region list; demo payment page | ✅ done |
 | 36 | Work email: company domain + work mailboxes (pretend provider) | ✅ done |
 | 37 | "Add work email" step in the sign-up, prices in one place | ✅ done |
+| 39 | Module: Mail (every person's own private inbox, Gmail-style, pretend mail server only) | ✅ phase 1 done |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
@@ -60,6 +61,15 @@
 - Each module in `/modules/<name>` with its own README.
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
+
+## Session 39, Mail: a private inbox for every person (phase 1)
+- **What:** new feature **Mail** (`modules/mail`, `/inbox`): each person has their own mailbox inside Office; nobody else can read it (not even owners or admins), enforced by Postgres row-level security on the person (`app.mail_user`), not just in code. The scope plan is `mail-scope.md` in the session notes (phase 1 below, later phases in the module README).
+- **Built (phase 1):** folders (Inbox, Starred, Sent, Drafts, Spam, Archive, Trash), conversations, reading pane, unread state and an unread number in the menu, mark read/unread, star, archive, spam, trash/restore/delete forever, move, bulk actions, labels (with colours), Gmail-style search (from:, has:attachment, after:...), compose/reply/reply all/forward with drafts that save by themselves, attachments (5 MB / 10 MB, programs refused, always downloaded and never opened), signature, keyboard shortcuts (c j k e # / s x r a f u Shift+I/U ?), HTML mail cleaned by an allow-list and shown in a script-less sandboxed frame (pictures from the internet off until asked), the contact's name for known senders, "Add as contact", "Add as lead" (event `mail.lead.requested`, Leads handles it), main labels translated in 6 languages (`modules/mail/ui/i18n.ts`).
+- **Provider interface:** `MailProvider` (IMAP read = `fetchNew`, SMTP send = `send`) plus `fakeMailProvider` (sample mail; colleagues can mail each other). **No mailbox password is stored**: Work email never keeps one, so a real provider must hold its own access. Work email's mailboxes become Mail accounts through its events (`workmail.mailbox.created/suspended/deleted`; I added `workmail.mailbox.resumed`).
+- **Plans:** Mail is in Business and Complete (not Starter). The owner screen count "12 of 13 included" became "13 of 14".
+- **Changed elsewhere:** Leads subscribes to `mail.lead.requested`; `packages/core/src/plans.ts`; `apps/api` wires the provider (`MAIL_PROVIDER=fake|off`).
+- **Tests:** api `mail.test.ts` 21 (set up, threads, actions, labels, search, drafts, send/deliver/reply, privacy including the database rule, no password column, contacts/leads, Work email link, failing server), module `sanitize.test.ts` 8, browser `mail.spec.ts` 9.
+- **Not Gmail-level yet (honest list):** no push (30 s refresh), no real mail server (needs the reseller account and a provider file), read/move/delete are not written back to the mail server, plain-text compose only, simple search (no ranking), no filters/rules, no undo send, no address suggestions, mailboxes made in Work email before Mail was on are not linked. Details in `modules/mail/README.md`.
 
 ## Session 38, language and currency switchers
 - **Language:** the app now has translations (own small system, no new library: `apps/web/src/i18n/`). English, Español, Nederlands, Français, Deutsch, Português, Italiano. Adding a language = adding one file in `locales/` (it shows up in the pickers by itself; texts it lacks fall back to English). Translated: menu and navigation, sign-in, `/plans`, `/start`, the Add work email step, Dashboard, Settings (General). Feature modules, Admin, Colleagues and the legal pages are still English.
