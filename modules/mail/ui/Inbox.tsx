@@ -90,8 +90,12 @@ function Mailbox({ info, reloadInfo }: { info: AccountInfo; reloadInfo: () => Pr
     try { setFolders(await host.api.get<Folders>("/folders")); } catch { /* counts are a nicety */ }
   }, [host]);
 
+  // Always load what is on screen now, even when called from an older callback (a refresh that finished after the folder changed).
+  const viewRef = useRef(view); viewRef.current = view;
+  const queryRef = useRef(query); queryRef.current = query;
   const loadList = useCallback(async (opts: { append?: boolean; quiet?: boolean } = {}) => {
     const n = ++seq.current;
+    const view = viewRef.current, query = queryRef.current;
     if (!opts.quiet && !opts.append) setItems(null);
     const params: Record<string, string | number> = { limit: PAGE, offset: opts.append ? (items?.length ?? 0) : 0 };
     if (view.kind === "folder") params.folder = view.key; else if (view.kind === "label") params.label = view.id;
