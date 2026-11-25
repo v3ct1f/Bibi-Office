@@ -19,12 +19,16 @@ const lower = (e: string) => e.trim().toLowerCase();
 const open = and(isNull(ownerSignups.usedAt), isNull(ownerSignups.endedAt), isNull(ownerSignups.cancelledAt));
 
 /** After a paid checkout (Stripe). Returns null when Stripe sent the same checkout again. */
+/** Work email chosen at sign-up: how many mailboxes, and the domain the owner would like (bought after the business exists). */
+export interface WorkmailWish { mailboxes: number; domain: string | null }
+
 export async function recordPaidSignup(
-  db: Db, input: { email: string; customerId: string | null; subscriptionId: string; termsVersion: string | null },
+  db: Db, input: { email: string; customerId: string | null; subscriptionId: string; termsVersion: string | null; workmail?: WorkmailWish | null },
 ) {
   const [row] = await db.insert(ownerSignups).values({
     id: uuidv7(), email: lower(input.email), source: "stripe", createdBy: "stripe",
     stripeCustomerId: input.customerId, stripeSubscriptionId: input.subscriptionId, termsVersion: input.termsVersion,
+    workmailMailboxes: input.workmail?.mailboxes ?? null, workmailDomain: input.workmail?.domain ?? null,
   }).onConflictDoNothing().returning();
   return row ?? null;
 }
@@ -34,11 +38,12 @@ export async function recordPaidSignup(
  * The chosen plan goes with it, so the business starts on that plan.
  */
 export async function recordDemoSignup(
-  db: Db, input: { email: string; plan: string; interval: "monthly" | "yearly"; termsVersion: string },
+  db: Db, input: { email: string; plan: string; interval: "monthly" | "yearly"; termsVersion: string; workmail?: WorkmailWish | null },
 ) {
   const [row] = await db.insert(ownerSignups).values({
     id: uuidv7(), email: lower(input.email), source: "demo", createdBy: "demo",
     plan: input.plan, planInterval: input.interval, planTest: true, termsVersion: input.termsVersion,
+    workmailMailboxes: input.workmail?.mailboxes ?? null, workmailDomain: input.workmail?.domain ?? null,
   }).returning();
   return row!;
 }
@@ -104,11 +109,17 @@ export async function createBusinessFromSignup(
     if (!s) throw new AppError(403, "no_signup", "There's no paid subscription waiting for this email address. Sign in with the address you paid with.");
     const [dupe] = await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, input.slug));
     if (dupe) throw conflict("That web address is already taken. Choose another.");
-    const planOf = (r: typeof s) => (r.plan ? planFeatures(r.plan) : null);
+    // Work email chosen at sign-up is a paid extra on top of the plan: recorded on the business and allowed by its plan.
+    const workmail = !!s.workmailMailboxes;
+    const planOf = (r: typeof s) => {
+      const keys = r.plan ? planFeatures(r.plan) : null;
+      return keys && workmail && !keys.includes("workmail") ? [...keys, "workmail"] : keys;
+    };
     const [t] = await tx.insert(tenants).values({
       id: tenantId, slug: input.slug, name: input.name, region: input.region,
       ...(s.stripeSubscriptionId ? { stripeCustomerId: s.stripeCustomerId, stripeSubscriptionId: s.stripeSubscriptionId, plan: "paid" } : {}),
       ...(planOf(s) ? { plan: s.plan!, planInterval: s.planInterval ?? "monthly", planTest: s.planTest, allowedModules: planOf(s), planChangedAt: new Date() } : {}),
+      ...(workmail ? { addons: ["workmail"] } : {}),
     }).returning();
     const roleIds = await seedSystemRoles(tx, tenantId);
     const membershipId = uuidv7();
@@ -122,8 +133,9 @@ export async function createBusinessFromSignup(
     await audit(tx, ctx, "tenant.created", { type: "tenant", id: tenantId }, {
       slug: input.slug, name: input.name, region: input.region, by: "owner", from: s.source, ...(s.stripeSubscriptionId ? { paid: true } : {}),
       ...(s.plan ? { plan: s.plan, testPayment: s.planTest } : {}),
+      ...(workmail ? { workmail: { mailboxes: s.workmailMailboxes, domain: s.workmailDomain } } : {}),
     });
     await emitEvent(tx, ctx, "core.tenant.created", { id: tenantId, slug: input.slug });
-    return t!;
+    return { ...t!, workmail: workmail ? { mailboxes: s.workmailMailboxes!, domain: s.workmailDomain } : null };
   });
 }

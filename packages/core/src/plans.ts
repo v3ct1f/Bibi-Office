@@ -47,6 +47,29 @@ export const PLANS: readonly Plan[] = [
   },
 ];
 
+/**
+ * Work email (an optional extra on any plan): the company's own domain and a work mailbox per person.
+ * Our selling prices, in euros, with a small margin over what the provider charges us (a domain costs us about
+ * $11-12.50 a year, a mailbox about $1-1.40 a month). The sign-up pages, the demo checkout and billing all read these.
+ * A domain the provider charges more for (some endings like .io) costs the customer the provider's price instead.
+ */
+export const WORK_EMAIL = {
+  /** Euros per year for the company domain (bought once the business exists, renews yearly). */
+  domainPerYear: 19,
+  /** Euros per month for each work mailbox. */
+  mailboxPerMonth: 3,
+  /** Mailboxes in the worked example on the sign-up page ("your domain + 5 people"). */
+  exampleMailboxes: 5,
+  /** Most mailboxes that can be chosen at sign-up. */
+  maxMailboxes: 500,
+} as const;
+
+/** What Work email adds: per month for the mailboxes, per year for the domain (0 without one). */
+export const workEmailCost = (mailboxes: number, withDomain: boolean) => ({
+  perMonth: mailboxes * WORK_EMAIL.mailboxPerMonth,
+  perYear: withDomain ? WORK_EMAIL.domainPerYear : 0,
+});
+
 export const planByKey = (key: string | null | undefined): Plan | undefined => PLANS.find((p) => p.key === key);
 export const planPrice = (p: Plan, interval: PlanInterval) => (interval === "yearly" ? p.yearly : p.monthly);
 

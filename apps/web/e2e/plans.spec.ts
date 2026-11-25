@@ -29,7 +29,12 @@ test("the public plans page shows the three plans; a visitor chooses one, pays o
   await expect(starter).not.toContainText("per year");
 
   await business.getByRole("button", { name: "Choose Business" }).click();
-  await expect(page).toHaveURL(/\/start\?plan=business&interval=yearly/);
+  // The optional "Add work email" step comes first; skipping it is one obvious click.
+  await expect(page).toHaveURL(/\/start\/email\?plan=business&interval=yearly/);
+  await expect(page.getByRole("heading", { name: "Add work email" })).toBeVisible();
+  await page.getByRole("button", { name: "Skip, no thanks" }).click();
+  await expect(page).toHaveURL(/\/start\?plan=business&interval=yearly$/);
+  await expect(page.getByTestId("workmail-lines")).toHaveCount(0);
   await expect(page.getByTestId("chosen-plan")).toContainText("Business plan");
   await expect(page.getByTestId("chosen-plan")).toContainText("nothing is charged");
   await expect(page.getByLabel("Business name")).toHaveCount(0);   // asked later, after the account is made
@@ -76,6 +81,68 @@ test("cancelling on the demo checkout page goes back to the sign-up with the pla
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page).toHaveURL(/\/start\?plan=starter&interval=monthly/);
   await expect(page.getByTestId("chosen-plan")).toContainText("Starter plan");
+});
+
+test("adding work email: clear prices, a domain check, the new total, the demo payment, and the domain ready to buy", async ({ page }) => {
+  await page.goto("/plans");
+  await page.getByTestId("plan-starter").getByRole("button", { name: "Choose Starter" }).click();
+  await expect(page).toHaveURL(/\/start\/email\?plan=starter&interval=monthly/);
+  const prices = page.getByTestId("workmail-prices");
+  await expect(prices).toContainText("Your own domain€19 per year");
+  await expect(prices).toContainText("Each work mailbox€3 per month");
+  await expect(page.getByTestId("workmail-example")).toContainText("Example: your domain + 5 people = €15 per month + €19 per year (€199 in the first year)");
+  await expect(prices).toContainText("With your Starter plan (€29 per month) that is €44 per month, plus €19 per year for the domain");
+  await expect(page.getByText(/We buy the domain for you right after you've created your account and your business/)).toBeVisible();
+
+  await page.getByLabel("How many work mailboxes?").fill("4");
+  const domain = page.getByLabel("The domain you'd like (optional)");
+  await domain.fill("takenbakery.com");
+  await page.getByRole("button", { name: "Check" }).click();
+  await expect(page.getByTestId("domain-result")).toContainText("takenbakery.com is taken");
+  await expect(page.getByRole("button", { name: "Add work email" })).toBeDisabled();
+  await domain.fill("wendyswidgets");
+  await page.getByRole("button", { name: "Check" }).click();
+  await expect(page.getByTestId("domain-result")).toContainText("wendyswidgets.com is available");
+  await expect(domain).toHaveValue("wendyswidgets.com");
+  await page.getByRole("button", { name: "Add work email" }).click();
+
+  // /start shows the extra and the new total per month.
+  await expect(page).toHaveURL(/\/start\?plan=starter&interval=monthly&mailboxes=4&domain=wendyswidgets\.com/);
+  const lines = page.getByTestId("workmail-lines");
+  await expect(lines).toContainText("Work email: 4 mailboxes × €3");
+  await expect(lines).toContainText("€12 per month");
+  await expect(lines).toContainText("Domain wendyswidgets.com");
+  await expect(page.getByTestId("new-total")).toContainText("€41 per month + €19 per year");
+  // It can be removed and added back.
+  await page.getByRole("link", { name: "Remove work email" }).click();
+  await expect(lines).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByTestId("new-total")).toContainText("€41 per month + €19 per year");
+
+  await page.getByLabel("Your email").fill("wendy@example.com");
+  await page.getByRole("checkbox", { name: /business or professional use/ }).click();
+  await page.getByRole("checkbox", { name: /I agree to the Terms/ }).click();
+  await page.getByRole("button", { name: "Continue to payment" }).click();
+  const order = page.getByTestId("demo-order");
+  await expect(order).toContainText("Starter");
+  await expect(order).toContainText("Work email: 4 mailboxes × €3");
+  await expect(order).toContainText("€41 per month + €19 per year");
+  await page.getByRole("button", { name: "Pay (demo, no real money)" }).click();
+  await expect(page.getByRole("heading", { name: "Demo payment received" })).toBeVisible();
+
+  // After creating the business the owner lands on Work email, with the domain they chose already searched.
+  await page.getByRole("link", { name: "Go to sign in" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByLabel("Email").fill("wendy@example.com");
+  await page.getByLabel("Name").fill("Wendy Widget");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByLabel("Business name").fill("Widget Works");
+  await page.getByRole("button", { name: "Create business" }).click();
+  await expect(page).toHaveURL(/\/t\/widget-works\/m\/workmail\/email/);
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Get a company domain");
+  await expect(dialog.getByLabel("Domain name")).toHaveValue("wendyswidgets.com");
+  await expect(dialog).toContainText("wendyswidgets.com");
 });
 
 test("opening the sign-up without a plan goes to the plans page", async ({ page }) => {

@@ -358,7 +358,7 @@ office/
 │  │  ├─ schemas/      # event + action JSON schemas
 │  │  ├─ ui/           # slot components
 │  │  └─ tests/
-│  ├─ expenses/ crm/ leads/ messages/ scheduling/ support/ hr/
+│  ├─ expenses/ crm/ leads/ messages/ workmail/ scheduling/ support/ hr/
 │  └─ inventory/ docs-esign/ ai-summaries/ kpi-dashboard/
 ├─ infra/
 │  ├─ docker-compose.yml   # pg, redis, nats, temporal, keycloak, minio, grafana
@@ -439,5 +439,21 @@ Paying no longer creates the business. `checkout.session.completed` writes an `o
 
 **Demo payments** (`routes/billing.ts`): `testPayments` is forced off in `app.ts` when `NODE_ENV=production` or a `Billing` (Stripe) is configured. When on, `POST /signup/checkout { email, plan, interval }` keeps a pending demo checkout in an in-memory map (random id, 1 hour, max 1000) and returns `/start/demo-pay/<id>`; `GET /signup/demo/:id` gives the page its plan (`describe()` of `PLANS`, the same data as `/plans`) and `POST /signup/demo/:id/pay` deletes it, writes an `owner_signups` row (source `demo`, `plan`, `plan_interval`, `plan_test = true`) and sends the same email as the Stripe webhook. `createBusinessFromSignup` applies the row's plan (`allowed_modules` from `planModuleKeys`).
 
+## 15c. Work email in the sign-up (Session 37, as built)
+Prices: `WORK_EMAIL` (`packages/core/src/plans.ts`: `domainPerYear` 19, `mailboxPerMonth` 3, `exampleMailboxes`, `maxMailboxes`), next to `PLANS`.
+Nothing else holds a number: `/signup/config.workmail` (null when not offered), `GET /signup/demo/:id` (`prices`), and the Work email provider
+is wrapped in `app.ts` (`withOurDomainPrice`) so every domain search, in the sign-up and inside the module, quotes at least `domainPerYear`.
+
+Flow (demo payments only for now; `workmailOffer()` in `routes/billing.ts` needs `testPayments`, no Stripe, the workmail module and a provider):
+`/plans` -> `/start/email` (web `WorkEmailStepPage`; `GET /signup/domain-check?q=` public, rate-limited, availability + price only) ->
+`/start?plan&interval&mailboxes&domain` -> `POST /signup/checkout { ..., workmail: { mailboxes, domain? } }` (with Stripe: 400) -> demo checkout keeps it ->
+pay -> `owner_signups.workmail_mailboxes / workmail_domain` (migration 0017) -> `createBusinessFromSignup` sets `tenants.addons = {workmail}` and adds
+`workmail` to `allowed_modules` -> `/signup/business` calls `activateAddon` (enables the module) and returns `workmail` -> the web opens
+`/t/<slug>/m/workmail/email?want=<domain>`, where `BuyDomainDialog` searches it at once. The domain is ordered and paid there (module flow).
+Add-ons survive plan changes: `changePlan` keeps `tenants.addons` in `allowed_modules`; `activateAddon` and `POST /billing/addons/workmail` add it.
+
 ## 16. Going-live pieces (Session 29, as built)
 `apps/api/src/keycloak.ts` implements `Identity` for Keycloak's admin API (service account, client credentials, token cached); `server.ts` picks it over the dev sign-in server when `KEYCLOAK_*` is set. Billing gained `portalUrl` (Stripe customer portal) behind `POST /billing/portal` (needs `core:tenant.manage`) and the checkout requires `acceptTerms`. Legal text lives in the web app (`pages/Legal.tsx`, `legal/company.ts`) because it is public and versioned with the code.
+
+## 17. Work email, a paid extra (Session 32, as built)
+`modules/workmail` owns domains and mailboxes (`workmail_{domains,mailboxes}`, RLS) and talks to the outside world only through two ports in `src/provider.ts`: `WorkmailProvider` (domain search/registration with the business as registrant, DNS records and check, transfer-out code, mailbox create/switch/delete) and `WorkmailPayments` (one-off domain charge). The server injects both once with `configureWorkmail()` (a module-level singleton, set by `buildApp`); no provider = the module answers 424 "isn't set up". Payment status is pulled (`isPaid` on return from Stripe Checkout) instead of pushed, so the module needs no webhook and no core import. The monthly extra is **not** the module's business: `apps/api/src/addons.ts` + `routes/addons.ts` add or remove a second Stripe subscription item, record it in `tenants.addons` (migration 0013) and call the normal `enableModule`/`disableModule`; `PlatformOpts.beforeEnable` makes `/modules/workmail/enable` answer 402 for a paid business that skipped it. Sign-up passes `workmail` to checkout (second line item, `metadata.workmail=1`) and the webhook activates it after creating the business. Cross-feature wiring is by event only: the module subscribes to `core.member.removed`; the Colleagues page (core web) calls the module's HTTP API after creating the account. Provider errors are `ModuleError` 424 (`ModuleError` below 500 is shown to the user; 5xx is hidden by the platform), with `keepChanges` so a failed registration keeps its order for retry. Nothing real is called anywhere: only `fake-provider.ts` exists.

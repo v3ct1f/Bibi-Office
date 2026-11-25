@@ -23,7 +23,7 @@ import { useTenant } from "./lib/tenant.tsx";
 import { InvitePage } from "./pages/Invite.tsx";
 import { AdminPage } from "./pages/Admin.tsx";
 import { ForgotPasswordPage } from "./pages/ForgotPassword.tsx";
-import { DemoPayPage, StartPage, StartThanksPage } from "./pages/Start.tsx";
+import { DemoPayPage, StartPage, StartThanksPage, WorkEmailStepPage } from "./pages/Start.tsx";
 import { PlansPage } from "./pages/Plans.tsx";
 import { PlanPage } from "./pages/settings/Plan.tsx";
 import { PrivacyPage, TermsPage } from "./pages/Legal.tsx";
@@ -63,12 +63,21 @@ function PublicRoute() {
 const admin = createRoute({ getParentRoute: () => root, path: "/admin", component: () => <Authed><AdminPage /></Authed> });
 const invite = createRoute({ getParentRoute: () => root, path: "/invite/$tenantId/$token", component: () => <Authed><InvitePage /></Authed> });
 const forgot = createRoute({ getParentRoute: () => root, path: "/forgot-password", component: ForgotPasswordPage });
-const start = createRoute({
-  getParentRoute: () => root, path: "/start", component: StartPage,
-  validateSearch: (s: Record<string, unknown>): { plan?: string; interval?: string } => ({
-    ...(typeof s.plan === "string" ? { plan: s.plan } : {}), ...(typeof s.interval === "string" ? { interval: s.interval } : {}),
-  }),
-});
+/** The sign-up's choices, carried from page to page in the address: plan, interval, and Work email (mailboxes + domain wish). */
+export interface StartSearch { plan?: string; interval?: string; mailboxes?: number; domain?: string }
+const startSearch = (s: Record<string, unknown>): StartSearch => {
+  const out: StartSearch = {};
+  for (const k of ["plan", "interval", "domain"] as const) {
+    const v = s[k];
+    if (typeof v === "string") out[k] = v;
+  }
+  const n = Number(s.mailboxes);
+  if (s.mailboxes !== undefined && Number.isInteger(n)) out.mailboxes = n;
+  return out;
+};
+const start = createRoute({ getParentRoute: () => root, path: "/start", component: StartPage, validateSearch: startSearch });
+/** "Add work email": the optional step between choosing a plan and /start. */
+const startEmail = createRoute({ getParentRoute: () => root, path: "/start/email", component: WorkEmailStepPage, validateSearch: startSearch });
 const startThanks = createRoute({
   getParentRoute: () => root, path: "/start/thanks", component: StartThanksPage,
   validateSearch: (s: Record<string, unknown>): { demo?: string; emailed?: string } => ({
@@ -102,7 +111,7 @@ function ModuleRoute() {
 }
 
 const tree = root.addChildren([
-  index, callback, onboarding, newBusiness, admin, invite, forgot, start, startThanks, startDemoPay, plansPage, terms, privacy, publicPage,
+  index, callback, onboarding, newBusiness, admin, invite, forgot, start, startEmail, startThanks, startDemoPay, plansPage, terms, privacy, publicPage,
   tenant.addChildren([
     t("/", Dashboard),
     t("/contacts", () => <Gate perm="core:contacts.read"><EntityList key="contacts" cfg={cfg(contactsConfig)} /></Gate>, newSearch),

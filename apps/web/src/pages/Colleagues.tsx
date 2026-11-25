@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { KeyRound, MailCheck, MoreHorizontal, UserPlus, Users } from "lucide-react";
 import {
-  Badge, Button, Card, ConfirmDialog, CopyField, Dialog, DialogContent, DialogFooter, DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  Badge, Button, Card, Checkbox, ConfirmDialog, CopyField, Dialog, DialogContent, DialogFooter, DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger, EmptyState, ErrorState, Field, Input, PageHeader, Select, Skeleton, Table, TBody, TD, TH, THead, TR,
 } from "@office/ui";
 import { ApiError, errorMessage } from "../api/client.ts";
@@ -11,6 +11,7 @@ import type { Member, Role } from "../api/types.ts";
 import { useTenant } from "../lib/tenant.tsx";
 import { fmtDate, initials } from "../lib/format.ts";
 import { useAuth } from "../auth/auth.tsx";
+import { useAddons, useWorkmailSwitch } from "../lib/addons.ts";
 
 const MIN_PASSWORD = 10;
 
@@ -23,7 +24,8 @@ function makePassword() {
   return `${s.slice(0, 4)}-${s.slice(4, 8)}-${s.slice(8)}`;
 }
 
-interface Made { name: string; email: string; password: string }
+interface Made { name: string; email: string; password: string; mailbox?: { address: string; password: string; webmailUrl: string | null } | undefined; mailboxError?: string | undefined }
+interface WmDomain { id: string; name: string; status: string }
 interface Invited { email: string; link: string; emailed: boolean; emailError: string | null }
 
 /** Colleagues: the people who work in this business. The owner creates their sign-in accounts here. */
@@ -48,9 +50,23 @@ export function ColleaguesPage() {
   const [invited, setInvited] = useState<Invited | null>(null);
   const [removing, setRemoving] = useState<Member | null>(null);
 
+  // Work email: offered here when adding someone. On = pick an address; off = offer to turn it on.
+  const addons = useAddons();
+  const wmOn = access.modules.some((m) => m.key === "workmail") && can("workmail:mailbox.write");
+  const wmOffer = !wmOn && !!addons.data?.workmail.available && can("core:modules.manage");
+  const wmDomains = useTQuery<WmDomain[]>(["workmail-domains"], "/m/workmail/domains", undefined, { enabled: open && wmOn });
+  const readyDomains = (wmDomains.data ?? []).filter((d) => d.status === "active");
+  const [wantMail, setWantMail] = useState(false);
+  const [local, setLocal] = useState("");
+  const [localEdited, setLocalEdited] = useState(false);
+  const [domainId, setDomainId] = useState("");
+  const [askPay, setAskPay] = useState(false);
+  const turnOn = useWorkmailSwitch();
+  const suggest = (n: string) => n.trim().split(/\s+/)[0]?.toLowerCase().normalize("NFKD").replace(/[^a-z0-9._-]/g, "") ?? "";
+
   const start = () => {
     setName(""); setEmail(""); setRole("member"); setPassword(makePassword());
-    setError(null); setExists(false); setMade(null); setInvited(null); setOpen(true);
+    setError(null); setExists(false); setMade(null); setInvited(null); setWantMail(false); setLocal(""); setLocalEdited(false); setDomainId(""); setAskPay(false); setOpen(true); if (wmOn) void wmDomains.refetch();
   };
   const close = () => { setOpen(false); setPassword(""); setMade(null); setInvited(null); };
   const refresh = () => void members.refetch();
@@ -58,8 +74,18 @@ export function ColleaguesPage() {
   const create = async () => {
     setBusy(true); setError(null); setExists(false);
     try {
-      await api.post("/members/accounts", { name: name.trim(), email: email.trim(), password, roles: [role] });
-      setMade({ name: name.trim(), email: email.trim().toLowerCase(), password });
+      const acct = await api.post<{ userId: string }>("/members/accounts", { name: name.trim(), email: email.trim(), password, roles: [role] });
+      const result: Made = { name: name.trim(), email: email.trim().toLowerCase(), password };
+      if (wantMail && wmOn && local && (domainId || readyDomains[0]?.id)) {
+        // The account exists now; if the mailbox can't be made, say so but keep the account.
+        try {
+          const m = await api.post<{ address: string; password: string; webmailUrl: string | null }>("/m/workmail/mailboxes", {
+            domainId: domainId || readyDomains[0]!.id, localPart: local, name: name.trim(), userId: acct.userId,
+          });
+          result.mailbox = { address: m.address, password: m.password, webmailUrl: m.webmailUrl };
+        } catch (e) { result.mailboxError = errorMessage(e); }
+      }
+      setMade(result);
       refresh();
     } catch (e) {
       setError(errorMessage(e));
@@ -140,6 +166,15 @@ export function ColleaguesPage() {
               <CopyField value={made.password} label="Copy password" />
             </div>
             <p className="text-xs text-muted-foreground">This is the only time the password is shown. Office doesn't keep it.</p>
+            {made.mailbox && (
+              <div className="grid gap-2 rounded-md border p-3" aria-label="Work email">
+                <p className="text-sm font-medium">Work email</p>
+                <CopyField value={made.mailbox.address} label="Copy work email address" />
+                <CopyField value={made.mailbox.password} label="Copy work email password" />
+                <p className="text-xs text-muted-foreground">Also shown only once. {made.mailbox.webmailUrl && <a className="underline" href={made.mailbox.webmailUrl} target="_blank" rel="noreferrer">Open webmail</a>}</p>
+              </div>
+            )}
+            {made.mailboxError && <p role="alert" className="text-sm text-destructive">The account is ready, but the work email wasn't created: {made.mailboxError} You can create it later under Work email.</p>}
             <DialogFooter><Button onClick={close}>Done</Button></DialogFooter>
           </DialogContent>
         ) : invited ? (
@@ -173,6 +208,46 @@ export function ColleaguesPage() {
                   </div>
                 )}
               </Field>
+              {wmOn && (
+                <div className="grid gap-2 rounded-md border p-3">
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <Checkbox checked={wantMail} disabled={!readyDomains.length} aria-label="Give them a work email"
+                      onCheckedChange={(v) => { const on = v === true; setWantMail(on); if (on && !localEdited) setLocal(suggest(name)); }} />
+                    Give them a work email
+                  </label>
+                  {!wmDomains.isPending && !readyDomains.length && (
+                    <p className="text-xs text-muted-foreground">Work email is on, but you don't have a company domain yet. <Link className="underline" to={`/t/${tenant.slug}/m/workmail/email`}>Choose a domain</Link> first.</p>
+                  )}
+                  {wantMail && readyDomains.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Input aria-label="Work email name" required className="flex-1" value={local} placeholder="anna" onChange={(e) => { setLocal(e.target.value.toLowerCase()); setLocalEdited(true); }} />
+                      <span className="text-muted-foreground">@</span>
+                      <Select aria-label="Work email domain" value={domainId || readyDomains[0]!.id} onChange={(e) => setDomainId(e.target.value)}>
+                        {readyDomains.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              )}
+              {wmOffer && (
+                <div className="grid gap-2 rounded-md border border-dashed p-3 text-sm">
+                  <p className="font-medium">Give them a work email?</p>
+                  {!askPay ? (
+                    <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => setAskPay(true)}>Turn on Work email</Button>
+                  ) : (
+                    <div className="grid gap-2">
+                      <p className="text-muted-foreground">
+                        {addons.data?.workmail.price ? `This adds ${addons.data.workmail.price} to your subscription.` : "No extra charge for your business."}
+                        {" "}Then you choose a company domain and can give each colleague an address like anna@yourcompany.com.
+                      </p>
+                      <div className="flex gap-2">
+                        <Button type="button" size="sm" loading={turnOn.isPending} onClick={() => turnOn.mutate(true, { onSuccess: () => setAskPay(false) })}>Yes, turn it on</Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => setAskPay(false)}>Not now</Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               {error && (
                 <div role="alert" className="grid gap-2 rounded-md border border-destructive/40 p-3 text-sm text-destructive">
                   {error}
@@ -181,7 +256,7 @@ export function ColleaguesPage() {
               )}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={close}>Cancel</Button>
-                <Button type="submit" loading={busy} disabled={!name.trim() || !email.trim() || !pwOk}>Create account</Button>
+                <Button type="submit" loading={busy} disabled={!name.trim() || !email.trim() || !pwOk || (wantMail && !local)}>Create account</Button>
               </DialogFooter>
             </form>
           </DialogContent>

@@ -14,6 +14,7 @@ import { invitationEmail, passwordResetEmail, type Mailer } from "../mail.ts";
 import type { Identity } from "../identity.ts";
 import { registerOwnerRoutes } from "./owner.ts";
 import { registerBillingRoutes } from "./billing.ts";
+import { registerAddonRoutes } from "./addons.ts";
 import { registerContactRoutes } from "./contact.ts";
 import type { Billing } from "../billing.ts";
 
@@ -96,6 +97,7 @@ export const registerRoutes: FastifyPluginAsync<{
 
   await registerContactRoutes(app, { db, mailer: o.mailer, contactEmail: o.contactEmail, inTenant });
   await registerBillingRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, billing: o.billing, contactEmail: o.contactEmail, inTenant, testPayments: o.testPayments, modules: o.modules });
+  await registerAddonRoutes(app, { db, billing: o.billing, modules: o.modules, inTenant });
   await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, contactEmail: o.contactEmail, platformAdmin, modules: o.modules });
 
   // ───── Members ─────

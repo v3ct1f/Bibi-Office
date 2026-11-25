@@ -44,6 +44,7 @@ Owner flows check a feature count ("10 of 11 included"); adding a feature change
 ## Where things stand (2026-11-23)
 - Branch `claude/youthful-hypatia-4bnse8`, several commits ahead of GitHub (not pushed).
 - Session 35: paying owners create their own account and business (`/plans` -> `/start` -> payment -> email -> `/new-business`); without Stripe keys locally the payment is a demo page (nothing charged); Program admin invites owners instead of creating businesses.
+- Session 37: optional "Add work email" step after choosing a plan (`/start/email`; prices in `packages/core/src/plans.ts` `WORK_EMAIL`); merged the Work email module (Session 36). `turbo` may be blocked by Windows app control: run tests with `pnpm -r test`.
 - Latest work: Leads (Session 25), program owner viewing businesses (26), Colleagues (27: owner creates a
   worker's account with a starting password; the worker picks their own at first sign-in), and deleting a
   business now only needs its name typed.

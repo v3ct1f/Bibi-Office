@@ -25,7 +25,10 @@ export async function changePlan(tx: Tx, ctx: RequestContext, d: ModuleDeps, inp
   }
   await tx.update(tenants).set({ plan: target.key, planInterval: input.interval, planTest: true, planChangedAt: new Date(), updatedAt: new Date() })
     .where(eq(tenants.id, ctx.tenantId));
-  const r = await setAllowedModules(tx, ctx, d, planModuleKeys(d.registry, target));
+  // Paid extras (Work email) are bought on top of any plan, so they stay on when the plan changes.
+  const [t] = await tx.select({ addons: tenants.addons }).from(tenants).where(eq(tenants.id, ctx.tenantId));
+  const extras = (t?.addons ?? []).filter((k) => d.registry.get(k));
+  const r = await setAllowedModules(tx, ctx, d, withDependencies(d.registry, [...new Set([...planModuleKeys(d.registry, target), ...extras])]));
   await audit(tx, ctx, "tenant.plan_changed", { type: "tenant", id: ctx.tenantId },
     { from: cur.key, to: target.key, interval: input.interval, testPayment: true, turnedOff: r.turnedOff });
   return { plan: target.key, interval: input.interval, turnedOff: r.turnedOff };

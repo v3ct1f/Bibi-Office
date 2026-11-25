@@ -6,7 +6,7 @@ import { eq, ne, and } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import {
   AppError, PLANS, REGION_KEYS, createBusinessFromSignup, listOwnerEmails, peopleCount, planByKey, recordDemoSignup, recordPaidSignup,
-  setBusinessStatus, setOwnerSignupEnded, tenantPlan, type Plan, type RequestContext,
+  setBusinessStatus, setOwnerSignupEnded, tenantPlan, WORK_EMAIL, type Plan, type RequestContext, type WorkmailWish,
 } from "@office/core";
 import { changePlan, planModuleKeys, type ModuleDeps } from "@office/platform";
 import { tenants, type Db, type Tx } from "@office/db";
@@ -14,12 +14,16 @@ import { paymentFailedEmail, serviceResumedEmail, type Mailer } from "../mail.ts
 import { sendOwnerSignupEmail } from "../owner-signup-mail.ts";
 import type { Identity } from "../identity.ts";
 import { verifyStripeSignature, type Billing } from "../billing.ts";
+import { activateAddon } from "../addons.ts";
+import { getProvider } from "@office/module-workmail";
 
 const PUBLIC = { auth: "public" } as const;
 /** Date of the Terms and Privacy Policy text a customer agrees to; bump it (here and in apps/web/src/legal/company.ts) when they change. */
 export const TERMS_VERSION = "2026-11-24.1";
 const STRIPE_ACTOR = { userId: null, email: "stripe" } as const;
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
+/** A domain name like yourcompany.com or my-shop.co.uk (lowercase). */
+const DOMAIN = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$/;
 
 interface StripeEvent { id: string; type: string; data: { object: Record<string, unknown>; previous_attributes?: Record<string, unknown> } }
 const str = (v: unknown) => (typeof v === "string" && v ? v : null);
@@ -52,8 +56,36 @@ export async function registerBillingRoutes(
   });
   const planList = () => PLANS.map(describe);
 
+  /**
+   * Work email at sign-up ("Add work email" step after choosing a plan): prices from core/plans.ts WORK_EMAIL.
+   * Offered with demo payments only for now; with real Stripe it is added from Add features after sign-up, until
+   * Stripe has a per-mailbox and a per-domain price (docs/stripe-setup.md).
+   */
+  const workmailOffer = () => (o.testPayments && !o.billing && o.modules.registry.get("workmail") && getProvider()
+    ? { domainPerYear: WORK_EMAIL.domainPerYear, mailboxPerMonth: WORK_EMAIL.mailboxPerMonth, exampleMailboxes: WORK_EMAIL.exampleMailboxes, maxMailboxes: WORK_EMAIL.maxMailboxes, currency: "EUR" }
+    : null);
+
   app.get("/signup/config", { config: PUBLIC, schema: { tags: ["signup"] } }, async () =>
-    ({ open: !!o.billing || o.testPayments, price: o.billing?.label ?? "", testMode: o.testPayments }));
+    ({ open: !!o.billing || o.testPayments, price: o.billing?.label ?? "", testMode: o.testPayments, workmail: workmailOffer() }));
+
+  /**
+   * Sign-up step "Add work email": is this domain free? Availability and our yearly price only (the price comes from
+   * the provider with our minimum, see app.ts; nothing is reserved). Only while Work email is offered at sign-up.
+   */
+  app.get("/signup/domain-check", {
+    config: { auth: "public", rateLimit: { max: 30, timeWindow: "5 minutes" } },
+    schema: { tags: ["signup"], querystring: z.object({ q: z.string().trim().toLowerCase().min(1).max(253) }) },
+  }, async (req) => {
+    const provider = getProvider();
+    if (!workmailOffer() || !provider) throw new AppError(503, "workmail_unavailable", "Work email isn't offered here yet.");
+    try {
+      const offers = await provider.searchDomains(req.query.q);
+      return { offers: offers.map((x) => ({ domain: x.domain, available: x.available, pricePerYear: x.priceCents === null ? null : x.priceCents / 100, currency: x.currency })) };
+    } catch (e) {
+      req.log.warn({ err: e }, "domain check failed");
+      throw new AppError(502, "domain_check_failed", "We couldn't check that name just now. Try again in a moment.");
+    }
+  });
 
   /** The plans for the public landing page. */
   app.get("/plans", { config: PUBLIC, schema: { tags: ["signup"] } }, async () => ({ testMode: o.testPayments, plans: planList() }));
@@ -64,7 +96,7 @@ export async function registerBillingRoutes(
    * Stripe payment does: the sign-up is recorded (with the chosen plan) and the "create your account" email goes out.
    * Pending demo checkouts live in memory for an hour; nothing is charged and no card is asked for.
    */
-  const demoCheckouts = new Map<string, { email: string; plan: Plan; interval: "monthly" | "yearly"; createdAt: number }>();
+  const demoCheckouts = new Map<string, { email: string; plan: Plan; interval: "monthly" | "yearly"; workmail: WorkmailWish | null; createdAt: number }>();
   const DEMO_TTL = 60 * 60_000;
   const demoCheckout = (id: string) => {
     const d = demoCheckouts.get(id);
@@ -76,7 +108,7 @@ export async function registerBillingRoutes(
 
   app.get("/signup/demo/:id", { config: PUBLIC, schema: { tags: ["signup"], params: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/) }) } }, async (req) => {
     const d = demoCheckout(req.params.id);
-    return { email: d.email, interval: d.interval, plan: describe(d.plan) };
+    return { email: d.email, interval: d.interval, plan: describe(d.plan), workmail: d.workmail, prices: WORK_EMAIL };
   });
 
   app.post("/signup/demo/:id/pay", {
@@ -85,7 +117,7 @@ export async function registerBillingRoutes(
   }, async (req) => {
     const d = demoCheckout(req.params.id);
     demoCheckouts.delete(req.params.id);   // one payment per checkout, like Stripe
-    const signup = await recordDemoSignup(o.db, { email: d.email, plan: d.plan.key, interval: d.interval, termsVersion: TERMS_VERSION });
+    const signup = await recordDemoSignup(o.db, { email: d.email, plan: d.plan.key, interval: d.interval, termsVersion: TERMS_VERSION, workmail: d.workmail });
     const sent = await sendOwnerSignupEmail({ db: o.db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, contact: contactLine, log: req.log }, signup);
     if (!sent.emailed) req.log.info({ email: d.email, link: sent.link }, "demo payment: create-your-account email not sent (mail isn't set up); open this link and sign in with that email");
     return { ok: true, emailed: sent.emailed, plan: d.plan.key };
@@ -130,6 +162,14 @@ export async function registerBillingRoutes(
         acceptTerms: z.literal(true, { error: "Please accept the Terms and the Privacy Policy" }),
         /** Must be ticked: "I am signing up for business or professional use" (the Terms are for businesses only). */
         businessUse: z.literal(true, { error: "Please confirm this is for business or professional use" }),
+        /**
+         * Optional, from the "Add work email" step: how many work mailboxes, and the company domain they'd like.
+         * The domain is only remembered: it is bought after the owner has created their business. Demo payments only for now.
+         */
+        workmail: z.object({
+          mailboxes: z.int().min(1).max(WORK_EMAIL.maxMailboxes),
+          domain: z.string().trim().toLowerCase().regex(DOMAIN, "That doesn't look like a domain name, e.g. yourcompany.com").optional(),
+        }).strict().optional(),
       }).strict(),
     },
   }, async (req) => {
@@ -140,10 +180,13 @@ export async function registerBillingRoutes(
       for (const [k, v] of demoCheckouts) if (Date.now() - v.createdAt > DEMO_TTL) demoCheckouts.delete(k);
       if (demoCheckouts.size > 1000) throw new AppError(503, "busy", "Too many demo payments open. Try again in a moment.");
       const id = randomBytes(18).toString("base64url");
-      demoCheckouts.set(id, { email, plan, interval: req.body.interval, createdAt: Date.now() });
+      if (req.body.workmail && !workmailOffer()) throw new AppError(400, "workmail_unavailable", "Work email isn't offered here yet.");
+      const wm = req.body.workmail;
+      demoCheckouts.set(id, { email, plan, interval: req.body.interval, workmail: wm ? { mailboxes: wm.mailboxes, domain: wm.domain ?? null } : null, createdAt: Date.now() });
       return { url: `${o.appUrl}/start/demo-pay/${id}`, demo: true };
     }
     if (!o.billing) throw new AppError(503, "signup_closed", "Sign-up isn't open yet.");
+    if (req.body.workmail) throw new AppError(400, "workmail_unavailable", "Work email can't be added during sign-up yet. Add it from Add features once your business is set up.");
     try {
       const url = await o.billing.createCheckout({
         email,
@@ -175,7 +218,17 @@ export async function registerBillingRoutes(
     if (p.kind !== "user" || !p.emailVerified) throw new AppError(403, "no_signup", "Sign in with the email address you paid with.");
     const t = await createBusinessFromSignup(o.db, { userId: p.userId, email: p.email }, req.body, { requestId: req.id, ip: req.ip, userAgent: req.headers["user-agent"] },
       (key) => { const plan = planByKey(key); return plan ? planModuleKeys(o.modules.registry, plan) : null; });
-    return reply.status(201).send({ id: t.id, slug: t.slug, name: t.name, region: t.region, plan: t.plan });
+    // Work email chosen at sign-up: switch the feature on now. The domain they wanted is bought from the Work email page.
+    let workmail: { mailboxes: number; domain: string | null; on: boolean } | null = null;
+    if (t.workmail) {
+      let on = false;
+      if (o.modules.registry.get("workmail")) {
+        try { await activateAddon(o.db, o.modules, { userId: p.userId, email: p.email }, t.id, "workmail", { requestId: req.id, ip: req.ip }); on = true; }
+        catch (err) { req.log.error({ err, tenantId: t.id }, "Work email chosen at sign-up but couldn't be switched on; the owner can add it from Add features"); }
+      }
+      workmail = { ...t.workmail, on };
+    }
+    return reply.status(201).send({ id: t.id, slug: t.slug, name: t.name, region: t.region, plan: t.plan, workmail });
   });
 
   /** The business owner's "Manage subscription" button: Stripe's page to change the card, see invoices or cancel. */

@@ -13,10 +13,11 @@ import ai from "@office/module-ai/ui";
 import kpi from "@office/module-kpi/ui";
 import leads from "@office/module-leads/ui";
 import messages from "@office/module-messages/ui";
+import workmail from "@office/module-workmail/ui";
 import docs from "@office/module-docs/ui";
 import scheduling from "@office/module-scheduling/ui";
 import invoicing from "@office/module-invoicing/ui";
 
-export const MODULE_UIS: ModuleUi[] = [invoicing, crm, expenses, scheduling, inventory, support, hr, docs, ai, kpi, leads, messages];
+export const MODULE_UIS: ModuleUi[] = [invoicing, crm, expenses, scheduling, inventory, support, hr, docs, ai, kpi, leads, messages, workmail];
 
 export const moduleUi = (key: string, list: ModuleUi[] = MODULE_UIS) => list.find((m) => m.key === key);

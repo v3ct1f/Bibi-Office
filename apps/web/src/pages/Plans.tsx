@@ -48,7 +48,7 @@ export function PlansPage() {
               plans={q.data.plans} interval={interval} highlight="business"
               action={(p) => (
                 <Button className="w-full" size="lg" variant={p.key === "business" ? "default" : "outline"} aria-label={`Choose ${p.name}`}
-                  onClick={() => void navigate({ to: "/start", search: { plan: p.key, interval } })}>
+                  onClick={() => void navigate({ to: "/start/email", search: { plan: p.key, interval } })}>
                   Choose this plan
                 </Button>
               )}

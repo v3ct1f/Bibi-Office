@@ -35,6 +35,11 @@ const Env = z.object({
   STRIPE_PRICE_ID: z.string().optional(),
   /** Price as shown on the sign-up page, e.g. "€29 per month". */
   STRIPE_PRICE_LABEL: z.string().optional(),
+  /** Work email add-on: the monthly extra's Stripe price id and how it is shown (e.g. "EUR 9 per month"). Without them, Work email is free where it is turned on. */
+  STRIPE_WORKMAIL_PRICE_ID: z.string().optional(),
+  STRIPE_WORKMAIL_PRICE_LABEL: z.string().optional(),
+  /** Who sells domains and mailboxes for Work email. "fake" = a pretend one (nothing real is bought; for trying it out). Default: fake while developing, off in production until a real provider is set up. */
+  WORKMAIL_PROVIDER: z.enum(["fake", "off"]).optional(),
   /** true = anyone who signs in may create their own business. false (default) = only program owners create businesses. */
   SELF_SIGNUP: z.stringbool().default(false),
   /**

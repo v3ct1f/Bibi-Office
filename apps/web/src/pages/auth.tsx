@@ -167,8 +167,13 @@ export function CreateBusinessPage() {
   const effSlug = slugEdited ? slug : slugify(name);
   const slugBad = effSlug !== "" && !SLUG_RE.test(effSlug);
   const create = useMutation({
-    mutationFn: () => request<{ id: string; slug: string }>("POST", "/signup/business", { body: { name: name.trim(), slug: effSlug, region } }),
-    onSuccess: async (t) => { await qc.invalidateQueries({ queryKey: ["me"] }); rememberTenant(t.slug); navigate({ to: "/t/$slug", params: { slug: t.slug } }); },
+    mutationFn: () => request<{ id: string; slug: string; workmail: { mailboxes: number; domain: string | null; on: boolean } | null }>("POST", "/signup/business", { body: { name: name.trim(), slug: effSlug, region } }),
+    onSuccess: async (t) => {
+      await qc.invalidateQueries({ queryKey: ["me"] }); rememberTenant(t.slug);
+      // Work email chosen at sign-up: go straight to it, with the domain they wanted ready to buy.
+      if (t.workmail?.on) navigate({ href: `/t/${t.slug}/m/workmail/email${t.workmail.domain ? `?want=${encodeURIComponent(t.workmail.domain)}` : ""}` });
+      else navigate({ to: "/t/$slug", params: { slug: t.slug } });
+    },
   });
   if (me.isPending) return <Loading />;
   if (me.isError) return <FullPage><Card className="w-full max-w-md"><ErrorState error={me.error} onRetry={() => me.refetch()} /></Card></FullPage>;
