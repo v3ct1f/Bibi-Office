@@ -10,7 +10,7 @@ import {
 import type { JWTVerifyGetKey } from "jose";
 import { sql } from "drizzle-orm";
 import { uuidv7, type Db } from "@office/db";
-import { AppError, WORK_EMAIL } from "@office/core";
+import { AppError, FixedRatesProvider, WORK_EMAIL, type RatesProvider } from "@office/core";
 import { createAuthenticator } from "./plugins/auth.ts";
 import { registerErrorHandler } from "./plugins/errors.ts";
 import { makeTenantRunner } from "./tenant.ts";
@@ -24,6 +24,7 @@ import type { Identity } from "./identity.ts";
 import type { Billing } from "./billing.ts";
 import { enableGuard, workmailPayments } from "./addons.ts";
 import { configureWorkmail, type WorkmailProvider } from "@office/module-workmail";
+import { configureMail, type MailProvider } from "@office/module-mail";
 
 export interface AppDeps {
   db: Db;
@@ -36,6 +37,10 @@ export interface AppDeps {
   billing?: Billing | null;
   /** The company that sells domains and mailboxes for Work email; null or missing = the feature says "not set up". */
   workmailProvider?: WorkmailProvider | null;
+  /** The mail server behind everyone's Mail inbox (IMAP/SMTP); null or missing = Mail says "not set up". */
+  mailProvider?: MailProvider | null;
+  /** Where exchange rates come from (for showing prices in other currencies). Default: a fixed built-in table, no network. */
+  rates?: RatesProvider;
   /** Receives public contact-form messages; without it (or without mail) the form is closed. */
   contactEmail?: string;
   jwks?: JWTVerifyGetKey;      // injectable for tests
@@ -130,10 +135,11 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
 
   const appUrl = (d.config.APP_URL ?? d.config.CORS_ORIGINS[0] ?? "http://localhost:5173").replace(/\/+$/, "");
   configureWorkmail({ provider: d.workmailProvider ? withOurDomainPrice(d.workmailProvider) : null, payments: workmailPayments(d.db, d.billing ?? null, appUrl, !!d.testPayments && !d.billing && d.config.NODE_ENV !== "production") });
+  configureMail({ provider: d.mailProvider ?? null });
   await seedPlatformAdmins(d.db, d.platformAdmins ?? []);
   const inTenant = makeTenantRunner(d.db, d.platform.registry.all().flatMap((m) => m.manifest.roles.viewer ?? []));
   await app.register(registerRoutes, {
-    prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER, mailer: d.mailer ?? null, identity: d.identity ?? null,
+    prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER, mailer: d.mailer ?? null, identity: d.identity ?? null, rates: d.rates ?? new FixedRatesProvider(),
     selfSignup: d.selfSignup ?? false, testPayments: !!d.testPayments && !d.billing && d.config.NODE_ENV !== "production", billing: d.billing ?? null, contactEmail: d.contactEmail, modules: d.platform,
     appUrl: (d.config.APP_URL ?? d.config.CORS_ORIGINS[0] ?? "http://localhost:5173").replace(/\/+$/, ""),
   });

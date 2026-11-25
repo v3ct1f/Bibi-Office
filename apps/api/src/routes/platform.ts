@@ -36,7 +36,7 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
       const can = (p?: string) => !p || hasPermission(ctx.actor.permissions, p);
       const enabled = await enabledModuleKeys(tx);
       return {
-        tenant: { id: t.id, slug: t.slug, name: t.name, region: t.region, plan: t.plan, createdAt: t.createdAt },
+        tenant: { id: t.id, slug: t.slug, name: t.name, region: t.region, plan: t.plan, createdAt: t.createdAt, displayCurrency: t.displayCurrency ?? "EUR" },
         actor: { type: ctx.actor.type, id: ctx.actor.id },
         viewing: ctx.actor.viewingAs === "program_owner",
         permissions: [...ctx.actor.permissions].sort(),

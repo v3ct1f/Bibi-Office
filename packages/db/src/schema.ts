@@ -40,6 +40,8 @@ export const tenants = pgTable("tenants", {
   region: text("region").notNull().default("eu"),
   status: text("status").$type<"active" | "suspended" | "deleted">().notNull().default("active"),
   settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
+  /** Currency this business likes to see its numbers in (null = EUR). Never changes stored amounts or existing invoices. */
+  displayCurrency: text("display_currency"),
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
@@ -51,6 +53,9 @@ export const users = pgTable("users", {
   name: text("name"),
   locale: text("locale").notNull().default("en"),
   tz: text("tz").notNull().default("UTC"),
+  /** The language and currency this person picked in the app (null = not chosen yet). */
+  uiLocale: text("ui_locale"),
+  uiCurrency: text("ui_currency"),
   status: text("status").$type<"active" | "disabled">().notNull().default("active"),
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),

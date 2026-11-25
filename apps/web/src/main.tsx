@@ -1,3 +1,4 @@
+import "./i18n/intl.ts";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -6,6 +7,7 @@ import { Toaster } from "@office/ui";
 import { ApiError, setUnauthorizedHandler } from "./api/client.ts";
 import { AuthProvider, userManager } from "./auth/auth.tsx";
 import { ThemeProvider, useTheme } from "./lib/theme.tsx";
+import { PreferencesSync } from "./lib/preferences.tsx";
 import { createAppRouter } from "./router.tsx";
 import "./index.css";
 
@@ -34,6 +36,7 @@ createRoot(document.getElementById("root")!).render(
     <ThemeProvider>
       <AuthProvider>
         <QueryClientProvider client={queryClient}>
+          <PreferencesSync />
           <RouterProvider router={router} />
           <ThemedToaster />
         </QueryClientProvider>

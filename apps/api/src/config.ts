@@ -40,6 +40,10 @@ const Env = z.object({
   STRIPE_WORKMAIL_PRICE_LABEL: z.string().optional(),
   /** Who sells domains and mailboxes for Work email. "fake" = a pretend one (nothing real is bought; for trying it out). Default: fake while developing, off in production until a real provider is set up. */
   WORKMAIL_PROVIDER: z.enum(["fake", "off"]).optional(),
+  /** The mail server behind the Mail inbox: fake (pretend mail, development only) or off. Default: fake while developing, off in production. */
+  MAIL_PROVIDER: z.enum(["fake", "off"]).optional(),
+  /** Exchange rates for showing prices in other currencies, as JSON with units per 1 EUR, e.g. {"USD":1.09,"GBP":0.86}. Missing = the built-in approximate table. Prices are still billed in EUR. */
+  RATES_JSON: z.string().optional(),
   /** true = anyone who signs in may create their own business. false (default) = only program owners create businesses. */
   SELF_SIGNUP: z.stringbool().default(false),
   /**

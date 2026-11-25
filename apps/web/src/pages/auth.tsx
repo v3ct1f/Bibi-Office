@@ -8,13 +8,18 @@ import { errorMessage, request } from "../api/client.ts";
 import type { TenantRef } from "../api/types.ts";
 import { useMe } from "../shell/AppShell.tsx";
 import { REGIONS, REGION_HINT } from "../lib/regions.ts";
+import { t } from "../i18n/core.ts";
+import { PreferencesButton } from "../shell/Preferences.tsx";
 
 const LAST = "office.lastTenant";
 export const rememberTenant = (slug: string) => { try { localStorage.setItem(LAST, slug); } catch { /* ignore */ } };
 const lastTenant = () => { try { return localStorage.getItem(LAST); } catch { return null; } };
 
 export const FullPage = ({ children }: { children: ReactNode }) => (
-  <div className="grid min-h-screen place-items-center bg-muted/40 p-4">{children}</div>
+  <div className="relative grid min-h-screen place-items-center bg-muted/40 p-4">
+    <div className="absolute right-3 top-3"><PreferencesButton /></div>
+    {children}
+  </div>
 );
 export const Loading = () => <FullPage><Spinner /></FullPage>;
 
@@ -26,15 +31,15 @@ export function SignIn() {
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <img src="/favicon.svg" alt="" className="mb-2 size-10" />
-          <CardTitle className="text-lg">Welcome to Office</CardTitle>
-          <CardDescription>Sign in with your organization account to continue.</CardDescription>
+          <CardTitle className="text-lg">{t("signin.title")}</CardTitle>
+          <CardDescription>{t("signin.desc")}</CardDescription>
         </CardHeader>
         <CardContent>
           <Button className="w-full" size="lg" loading={busy} onClick={() => { setBusy(true); void signIn().catch(() => setBusy(false)); }}>
-            <LogIn /> Sign in
+            <LogIn /> {t("common.signIn")}
           </Button>
-          <Button asChild variant="link" className="mt-2 w-full text-muted-foreground"><a href="/forgot-password">Forgot your password or never set one?</a></Button>
-          <p className="mt-3 text-center text-xs text-muted-foreground"><a className="underline" href="/terms">Terms</a> · <a className="underline" href="/privacy">Privacy Policy</a></p>
+          <Button asChild variant="link" className="mt-2 w-full text-muted-foreground"><a href="/forgot-password">{t("signin.forgot")}</a></Button>
+          <p className="mt-3 text-center text-xs text-muted-foreground"><a className="underline" href="/terms">{t("legal.terms")}</a> · <a className="underline" href="/privacy">{t("legal.privacy")}</a></p>
         </CardContent>
       </Card>
     </FullPage>

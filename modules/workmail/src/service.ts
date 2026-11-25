@@ -396,6 +396,7 @@ export async function resumeMailbox(ctx: ModuleContext, id: string) {
   if (row.status === "suspended") {
     await setActive(ctx, row, true, null);
     await ctx.audit.log("mailbox.resumed", { type: "mailbox", id });
+    await ctx.events.emit("workmail.mailbox.resumed", { id, userId: row.userId });
   }
   return (await mailboxDtos(ctx, [(await loadMailbox(ctx, id))]))[0]!;
 }

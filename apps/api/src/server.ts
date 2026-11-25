@@ -9,6 +9,13 @@ import { stripeBilling } from "./billing.ts";
 import { keycloakIdentity } from "./keycloak.ts";
 import { scheduleErasure } from "./erasure.ts";
 import { fakeProvider } from "@office/module-workmail";
+import { fakeMailProvider } from "@office/module-mail";
+import { FIXED_RATES, FixedRatesProvider, parseRatesJson } from "@office/core";
+
+const ratesFromConfig = (json: string | undefined) => {
+  const table = parseRatesJson(json);
+  return table ? new FixedRatesProvider(table, new Date().toISOString().slice(0, 10), "config") : new FixedRatesProvider(FIXED_RATES);
+};
 
 const config = loadConfig();
 const { db, close } = createDb(config.DATABASE_URL_APP, { max: 20 });
@@ -23,7 +30,9 @@ const app = await buildApp({
     workmailPriceId: config.STRIPE_WORKMAIL_PRICE_ID, workmailLabel: config.STRIPE_WORKMAIL_PRICE_LABEL,
   }),
   contactEmail: config.CONTACT_EMAIL,
+  rates: ratesFromConfig(config.RATES_JSON),
   workmailProvider: (config.WORKMAIL_PROVIDER ?? (config.NODE_ENV === "production" ? "off" : "fake")) === "fake" ? fakeProvider() : null,
+  mailProvider: (config.MAIL_PROVIDER ?? (config.NODE_ENV === "production" ? "off" : "fake")) === "fake" ? fakeMailProvider() : null,
   platformAdmins: config.PLATFORM_ADMIN_EMAILS, selfSignup: config.SELF_SIGNUP, testPayments: config.TEST_PAYMENTS, platform: { registry: createRegistry(), secrets: new SecretBox(config.SECRETS_KEY) },
 });
 

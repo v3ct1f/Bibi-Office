@@ -29,7 +29,7 @@ export interface Plan {
 }
 
 const STARTER = ["invoicing", "leads", "crm"];
-const BUSINESS = [...STARTER, "messages", "expenses", "scheduling", "hr", "inventory", "docs", "kpi"];
+const BUSINESS = [...STARTER, "messages", "mail", "expenses", "scheduling", "hr", "inventory", "docs", "kpi"];
 const COMPLETE = [...BUSINESS, "support", "ai"];
 
 export const PLANS: readonly Plan[] = [

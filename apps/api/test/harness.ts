@@ -8,7 +8,7 @@ import { buildApp } from "../src/app.ts";
 export const ISSUER = "https://idp.test/realms/office";
 export const AUDIENCE = "office-api";
 
-export async function setup(modules: ModuleDefinition[] = [], opts: { authFailuresPerMin?: number; mailer?: import("../src/mail.ts").Mailer; identity?: import("../src/identity.ts").Identity; selfSignup?: boolean; billing?: import("../src/billing.ts").Billing | null; contactEmail?: string; testPayments?: boolean; nodeEnv?: "test" | "production"; workmailProvider?: import("@office/module-workmail").WorkmailProvider | null } = {}) {
+export async function setup(modules: ModuleDefinition[] = [], opts: { authFailuresPerMin?: number; mailer?: import("../src/mail.ts").Mailer; identity?: import("../src/identity.ts").Identity; selfSignup?: boolean; billing?: import("../src/billing.ts").Billing | null; contactEmail?: string; testPayments?: boolean; nodeEnv?: "test" | "production"; workmailProvider?: import("@office/module-workmail").WorkmailProvider | null; mailProvider?: import("@office/module-mail").MailProvider | null; rates?: import("@office/core").RatesProvider } = {}) {
   const tdb = await createTestDatabase();
   const registry = new ModuleRegistry(modules);
   if (modules.length) await installModules(tdb.ownerUrl, registry, () => {});

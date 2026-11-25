@@ -12,7 +12,12 @@ import { mailboxCostBefore, type MailboxPrice } from "@office/module-workmail/ui
 import { Link } from "@tanstack/react-router";
 import { fmtDate } from "../../lib/format.ts";
 import { COMPANY } from "../../legal/company.ts";
-import { CAPABILITY_LABEL, IntervalToggle, PlanCards, eur, perMonth, priceText, type Interval, type PlanInfo } from "../PlanCards.tsx";
+import { capabilityLabel, IntervalToggle, PlanCards, perMonth, priceText, type Interval, type PlanInfo } from "../PlanCards.tsx";
+
+/** Inside the app prices are the real ones: euros, which is what is billed. */
+const euroFmt = new Intl.NumberFormat(undefined, { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const eur = (n: number) => euroFmt.format(n);
+const CAPABILITY_LABEL = { api: capabilityLabel("api"), workflows: capabilityLabel("workflows") } as const;
 
 interface PlanResponse {
   testMode: boolean;
@@ -111,7 +116,7 @@ export function PlanPage() {
               <IntervalToggle value={shownInterval} onChange={setIntervalValue} />
             </div>
             <PlanCards
-              plans={plans} interval={shownInterval} highlight={undefined}
+              plans={plans} interval={shownInterval} highlight={undefined} exact
               action={(p) => {
                 const isCurrent = cur?.key === p.key && current.interval === shownInterval;
                 const up = !cur || rank(p.key) > rank(cur.key);
@@ -151,7 +156,7 @@ function ConfirmPlan({ target, interval, current, busy, onCancel, onConfirm }: {
   const tooMany = current.people > target.people;
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onCancel(); }}>
-      <DialogContent title={`Switch to ${target.name}`} description={`${priceText(target, interval)}, up to ${target.people} people.`}>
+      <DialogContent title={`Switch to ${target.name}`} description={`${priceText(target, interval, eur)}, up to ${target.people} people.`}>
         <div className="grid gap-3 text-sm">
           {gained.length + gainedCaps.length > 0 && (
             <p><strong>You get:</strong> {[...gained.map((f) => f.name), ...gainedCaps.map((c) => CAPABILITY_LABEL[c])].join(", ")}.</p>
@@ -166,7 +171,7 @@ function ConfirmPlan({ target, interval, current, busy, onCancel, onConfirm }: {
               You have {current.people} people (members and waiting invitations) and {target.name} includes {target.people}. Remove {current.people - target.people} first.
             </p>
           )}
-          <p className="flex items-start gap-1.5 text-muted-foreground"><FlaskConical className="mt-0.5 size-4 shrink-0 text-primary" /> This is a test payment: nothing is charged ({priceText(target, interval)} would be the price).</p>
+          <p className="flex items-start gap-1.5 text-muted-foreground"><FlaskConical className="mt-0.5 size-4 shrink-0 text-primary" /> This is a test payment: nothing is charged ({priceText(target, interval, eur)} would be the price).</p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
