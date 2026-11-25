@@ -5,7 +5,7 @@ import { metrics } from "./metrics.ts";
 import { SOURCES } from "./schema.ts";
 import {
   ActivityInput, addActivity, AssignInput, assignLeads, ConvertInput, convertLead, createLead, deleteLead, FormInput, getForm, getLead, LeadInput, LeadPatch, ImportInput, importLeads, ListQuery,
-  listLeads, PublicSubmit, publicFormView, publicSubmit, replaceFormLink, saveForm, setStatus, settingsOf, StatusInput, summary, Token, updateLead,
+  leadFromMail,   listLeads, PublicSubmit, publicFormView, publicSubmit, replaceFormLink, saveForm, setStatus, settingsOf, StatusInput, summary, Token, updateLead,
 } from "./service.ts";
 
 const READ = "leads:lead.read", WRITE = "leads:lead.write", FORM = "leads:form.manage";
@@ -35,7 +35,7 @@ export default defineModule({
     category: "sales",
     roles: { manager: [READ, WRITE, FORM], member: [READ, WRITE], viewer: [READ] },
     entities: ["lead", "activity", "form"],
-    events: { emits: EVENTS.map((type) => ({ type })), subscribes: [] },
+    events: { emits: EVENTS.map((type) => ({ type })), subscribes: ["mail.lead.requested"] },
     workflow: {
       triggers: EVENTS,
       actions: [
@@ -63,6 +63,10 @@ export default defineModule({
   },
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
   metrics,
+  handlers: {
+    // Someone chose "Add as lead" on an email in Mail (only if Leads is on for that business).
+    "mail.lead.requested": async (ctx, e) => { await leadFromMail(ctx, e.payload); },
+  },
   routes: [
     route({ method: "GET", path: "/config", permission: READ, handler: async (ctx) => ({ currency: settingsOf(ctx).currency }) }),
     route({ method: "GET", path: "/summary", permission: READ, handler: (ctx) => summary(ctx) }),

@@ -15,7 +15,7 @@ export type { FakeProvider } from "./fake-provider.ts";
 const READ = "workmail:mailbox.read", WRITE = "workmail:mailbox.write", DOMAIN = "workmail:domain.manage";
 const Id = z.object({ id: z.uuid() });
 
-const EVENTS = ["workmail.domain.registered", "workmail.mailbox.created", "workmail.mailbox.suspended", "workmail.mailbox.deleted"];
+const EVENTS = ["workmail.domain.registered", "workmail.mailbox.created", "workmail.mailbox.suspended", "workmail.mailbox.resumed", "workmail.mailbox.deleted"];
 
 export default defineModule({
   manifest: {

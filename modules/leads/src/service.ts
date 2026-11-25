@@ -455,3 +455,23 @@ export async function publicSubmit(ctx: ModuleContext, token: string, body: z.in
   }, { firstNote: "Sent the web form" });
   return { thanks: f.thanks };
 }
+
+// ── From the Mail inbox (event "mail.lead.requested": someone chose "Add as lead" on a message) ──
+/** Adds the sender as a lead, or notes the email on their open lead. Never reads the mail itself: only what Mail sends in the event. */
+export async function leadFromMail(ctx: ModuleContext, p: Record<string, unknown>) {
+  const email = typeof p.email === "string" ? p.email.trim().toLowerCase() : "";
+  if (!email) return;
+  const name = typeof p.name === "string" ? p.name.trim() : "";
+  const subject = typeof p.subject === "string" ? p.subject.trim() : "";
+  const [open] = await ctx.db.select().from(leads).where(and(sql`lower(${leads.email}) = ${email}`, inArray(leads.status, OPEN))).orderBy(desc(leads.id)).limit(1);
+  if (open) {
+    await log(ctx, open.id, "email", `Added again from an email${subject ? `: “${subject}”` : ""}`);
+    return;
+  }
+  const parts = name.split(/\s+/).filter(Boolean);
+  const owner = typeof p.requestedBy === "string" && (await ctx.people.get(p.requestedBy)) ? p.requestedBy : null;
+  await createLead(ctx, {
+    firstName: parts[0] ?? null, lastName: parts.slice(1).join(" ") || null, email, source: "email", ownerId: owner,
+    ...(subject ? { message: subject } : {}),
+  }, { firstNote: `Added from an email${subject ? `: “${subject}”` : ""}` });
+}

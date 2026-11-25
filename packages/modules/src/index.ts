@@ -15,6 +15,7 @@ import workmail from "@office/module-workmail";
 import docs from "@office/module-docs";
 import invoicing from "@office/module-invoicing";
 import messages from "@office/module-messages";
+import mail from "@office/module-mail";
 
-export const MODULES: ModuleDefinition[] = [invoicing, crm, expenses, scheduling, inventory, support, hr, docs, ai, kpi, leads, messages, workmail];
+export const MODULES: ModuleDefinition[] = [invoicing, crm, expenses, scheduling, inventory, support, hr, docs, ai, kpi, leads, messages, workmail, mail];
 export const createRegistry = () => new ModuleRegistry(MODULES);

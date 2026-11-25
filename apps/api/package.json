@@ -44,6 +44,7 @@
     "@office/module-leads": "workspace:*",
     "@office/module-messages": "workspace:*",
     "@office/module-workmail": "workspace:*",
+    "@office/module-mail": "workspace:*",
     "@office/module-scheduling": "workspace:*",
     "@office/module-support": "workspace:*",
     "@office/testing": "workspace:*",
