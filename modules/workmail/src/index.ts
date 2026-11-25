@@ -3,7 +3,7 @@ import { z } from "zod";
 import { defineModule, route } from "@office/sdk";
 import {
   checkDomain, config, ConnectInput, connectDomain, confirmOrder, createMailbox, deleteMailbox, listDomains, listMailboxes, MailboxInput,
-  MailboxListQuery, OrderInput, orderDomain, removeDomain, resetPassword, resumeMailbox, SearchQuery, searchDomains, suspendForUser,
+  MailboxListQuery, OrderInput, orderDomain, removeDomain, RemoveDomainInput, resetPassword, resumeMailbox, SearchQuery, searchDomains, suspendForUser,
   suspendMailbox, setFeature, transferOut,
 } from "./service.ts";
 
@@ -15,7 +15,7 @@ export type { FakeProvider } from "./fake-provider.ts";
 const READ = "workmail:mailbox.read", WRITE = "workmail:mailbox.write", DOMAIN = "workmail:domain.manage";
 const Id = z.object({ id: z.uuid() });
 
-const EVENTS = ["workmail.domain.registered", "workmail.mailbox.created", "workmail.mailbox.suspended", "workmail.mailbox.deleted"];
+const EVENTS = ["workmail.domain.registered", "workmail.domain.removed", "workmail.mailbox.created", "workmail.mailbox.suspended", "workmail.mailbox.deleted"];
 
 export default defineModule({
   manifest: {
@@ -72,7 +72,7 @@ export default defineModule({
     route({ method: "POST", path: "/domains/:id/confirm", permission: DOMAIN, params: Id, handler: (ctx, { params }) => confirmOrder(ctx, params.id) }),
     route({ method: "POST", path: "/domains/:id/check", permission: DOMAIN, params: Id, handler: (ctx, { params }) => checkDomain(ctx, params.id) }),
     route({ method: "POST", path: "/domains/:id/transfer-out", permission: DOMAIN, params: Id, handler: (ctx, { params }) => transferOut(ctx, params.id) }),
-    route({ method: "DELETE", path: "/domains/:id", permission: DOMAIN, params: Id, status: 204, handler: (ctx, { params }) => removeDomain(ctx, params.id) }),
+    route({ method: "POST", path: "/domains/:id/remove", permission: DOMAIN, params: Id, body: RemoveDomainInput, handler: (ctx, { params, body }) => removeDomain(ctx, params.id, body) }),
     route({ method: "GET", path: "/mailboxes", permission: READ, query: MailboxListQuery, handler: (ctx, { query }) => listMailboxes(ctx, query) }),
     route({ method: "POST", path: "/mailboxes", permission: WRITE, status: 201, body: MailboxInput, handler: (ctx, { body }) => createMailbox(ctx, body) }),
     route({ method: "POST", path: "/mailboxes/:id/suspend", permission: WRITE, params: Id, handler: (ctx, { params }) => suspendMailbox(ctx, params.id) }),

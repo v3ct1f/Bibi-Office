@@ -33,6 +33,11 @@ number as `WORK_EMAIL.mailboxPerMonth` in `packages/core/src/plans.ts`; change b
 ```
 STRIPE_WORKMAIL_PRICE_ID=price_...
 STRIPE_WORKMAIL_PRICE_LABEL=EUR 3 per mailbox per month
+
+**Cancelling / removing a domain (before going live).** Removing a domain lowers the line's quantity and cancelling Work email removes the line;
+both use `proration_behavior: create_prorations`, so Stripe credits the unused part of the month on the next invoice (the screens say so). If you
+would rather it ran to the end of the period, use a subscription schedule instead. A bought domain is only "not renewed" in Office today: once a real
+domain provider is wired in, switch its auto-renew off at the provider when a domain is removed. Test both in Stripe test mode first.
 ```
 Before going live with Work email at sign-up: the "Add work email" step (prices in `packages/core/src/plans.ts` `WORK_EMAIL`: EUR 3 per mailbox per month, EUR 19 per domain per year) is only offered with demo payments. With Stripe it needs a per-mailbox monthly price (quantity = mailboxes) and the checkout lines added; until then owners add Work email from Add features after sign-up.
 

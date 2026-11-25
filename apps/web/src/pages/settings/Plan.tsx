@@ -7,6 +7,9 @@ import {
 import { request } from "../../api/client.ts";
 import { useTMutation, useTQuery } from "../../api/hooks.ts";
 import { useTenant } from "../../lib/tenant.tsx";
+import { useAddons } from "../../lib/addons.ts";
+import { mailboxCostBefore, type MailboxPrice } from "@office/module-workmail/ui";
+import { Link } from "@tanstack/react-router";
 import { fmtDate } from "../../lib/format.ts";
 import { COMPANY } from "../../legal/company.ts";
 import { CAPABILITY_LABEL, IntervalToggle, PlanCards, eur, perMonth, priceText, type Interval, type PlanInfo } from "../PlanCards.tsx";
@@ -25,6 +28,10 @@ export function PlanPage() {
   const [interval, setIntervalValue] = useState<Interval | null>(null);
   const [target, setTarget] = useState<PlanInfo | null>(null);
   const manage = can("core:tenant.manage");
+  // Work email (a paid extra): what it adds each month, with a way to manage or cancel it.
+  const addons = useAddons();
+  const wmOn = !!addons.data?.workmail.enabled;
+  const wm = useTQuery<{ mailboxesUsed: number; mailboxPrice: MailboxPrice | null }>(["workmail-config"], "/m/workmail/config", undefined, { enabled: wmOn });
 
   const change = useTMutation((v: { plan: string; interval: Interval }) => request<{ plan: string; turnedOff: string[] }>("POST", "/billing/plan", { body: v, tenantId: tenant.id }), {
     invalidate: [["billing-plan"], ["modules"]],
@@ -78,6 +85,20 @@ export function PlanPage() {
             )}
           </CardContent>
         </Card>
+
+        {wmOn && wm.data && (() => {
+          const price = wm.data.mailboxPrice;
+          const extra = price && price.mode !== "free" ? wm.data.mailboxesUsed * price.perMonth : 0;
+          return (
+            <Card data-testid="workmail-extra">
+              <CardContent className="grid gap-1.5 pt-6 text-sm">
+                <p><strong>Work email:</strong> {wm.data.mailboxesUsed} {wm.data.mailboxesUsed === 1 ? "mailbox" : "mailboxes"}{extra ? ` = ${eur(extra)} per month` : ""}. <span className="text-muted-foreground">{mailboxCostBefore(price).replace("This adds", "Each one adds")}</span></p>
+                {cur && extra > 0 && <p data-testid="monthly-total"><strong>Total per month:</strong> {eur(Math.round((perMonth(cur, current.interval) + extra) * 100) / 100)}{current.test ? " (demo: nothing is charged)" : ""}</p>}
+                {can("core:modules.manage") && <p><Link className="underline" to={`/t/${tenant.slug}/m/workmail/email`}>Manage or cancel Work email</Link> (remove a domain, or switch Work email off and stop its charge).</p>}
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {current.stripe ? (
           <p className="text-sm text-muted-foreground">You pay through Stripe. Use <strong>Manage subscription</strong> above to change your card or cancel. For a different plan, write to {COMPANY.email}.</p>

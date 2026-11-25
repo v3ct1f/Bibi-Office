@@ -452,6 +452,14 @@ pay -> `owner_signups.workmail_mailboxes / workmail_domain` (migration 0017) -> 
 `/t/<slug>/m/workmail/email?want=<domain>`, where `BuyDomainDialog` searches it at once. The domain is ordered and paid there (module flow).
 Add-ons survive plan changes: `changePlan` keeps `tenants.addons` in `allowed_modules`; `activateAddon` and `POST /billing/addons/workmail` add it.
 
+**Removing a domain / cancelling Work email (Session 39).** `POST /m/workmail/domains/:id/remove {confirm: <name>}` needs both
+`workmail:domain.manage` and `core:modules.manage`. It switches the domain's mailboxes off with `suspend_reason = 'domain_removed'`
+(excluded from `billable()`, so the count and the Stripe quantity drop; mail is kept; they can't be resumed), marks the domain `removed`
+with `removed_at` (a bought one stays listed and transferable until it expires; never renewed), then emits `workmail.domain.removed`
+and `workmail.mailbox.suspended` through `ctx.events`. `DELETE /billing/addons/workmail` (platform) disables the module, removes the
+Stripe line (`removeAddOn`, prorated credit), audits `tenant.addon_cancelled` and emits `core.addon.cancelled`; data stays, so enabling
+again restores everything. `GET /billing/addons` gives `planPerMonth` so Settings -> Plan can show the total.
+
 **Mailbox charging (Session 38).** Each mailbox that isn't deleted costs `WORK_EMAIL.mailboxPerMonth`. The module asks the platform through
 `WorkmailPayments` (injected in `app.ts`): `mailboxPrice(tenantId)` -> `{ perMonth, currency, mode: stripe | demo | free }` (`workmailCharging`
 in `addons.ts`), shown via `/m/workmail/config` (`mailboxesUsed`, `mailboxPrice`) and `/billing/addons` (`workmail.mailbox`); and

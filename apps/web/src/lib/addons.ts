@@ -5,6 +5,8 @@ import { useTenant } from "./tenant.tsx";
 
 /** What the API says about paid extras (see /billing/addons). */
 export interface AddonInfo {
+  /** The plan's price per month (yearly plans: the year / 12), for showing the new monthly total; null without a plan. */
+  planPerMonth: number | null;
   workmail: {
     /** The feature exists and the server has an email provider. */
     available: boolean;

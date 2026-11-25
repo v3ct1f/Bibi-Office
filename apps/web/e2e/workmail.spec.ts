@@ -152,10 +152,62 @@ test("a mailbox can be made by hand, and its password is shown once", async () =
   await expect(page.getByRole("table", { name: "Mailboxes" })).toContainText("info@mailco.com");
 });
 
-test("the feature can be taken off and keeps its data", async () => {
+test("a domain can be removed: it says what happens, needs the name typed, and the price drops", async () => {
+  await expect(page.getByTestId("domain-mailco.com")).toBeVisible();
+  await page.getByRole("button", { name: "Remove mailco.com" }).click();
+  const d = page.getByRole("dialog");
+  const list = d.getByTestId("remove-consequences");
+  await expect(list).toContainText("stays registered in your business's name");
+  await expect(list).toContainText("won't be renewed");
+  await expect(list).toContainText("isn't refunded");
+  await expect(list).toContainText("mailboxes are switched off");
+  await expect(list).toContainText("nothing is deleted");
+  await expect(list).toContainText("(demo: nothing is charged or refunded)");
+  // Can't be confirmed until the domain's name is typed.
+  const go = d.getByRole("button", { name: "Remove domain" });
+  await expect(go).toBeDisabled();
+  await d.getByLabel("Type mailco.com to confirm").fill("mailco.co");
+  await expect(go).toBeDisabled();
+  await d.getByLabel("Type mailco.com to confirm").fill("mailco.com");
+  await expect(go).toBeEnabled();
+  // Keep it first: nothing changes.
+  await d.getByRole("button", { name: "Keep it" }).click();
+  await expect(page.getByTestId("domain-mailco.com")).toContainText("Ready");
+  await page.getByRole("button", { name: "Remove mailco.com" }).click();
+  await page.getByRole("dialog").getByLabel("Type mailco.com to confirm").fill("mailco.com");
+  await page.getByRole("dialog").getByRole("button", { name: "Remove domain" }).click();
+  // A bought domain stays listed as removed (still theirs until it expires); its mailboxes are off, mail kept.
+  await expect(page.getByTestId("domain-mailco.com")).toContainText("Removed, not renewed");
+  await expect(page.getByTestId("domain-mailco.com")).toContainText("Still registered in your business's name");
+  await expect(page.getByRole("table", { name: "Mailboxes" })).toContainText("domain removed, mail kept");
+  await expect(page.getByTestId("mailbox-usage")).toContainText("0 of 10 mailboxes used.");
+});
+
+test("Cancel Work email is on its page, needs 'cancel' typed, and keeps the data", async () => {
+  await page.getByRole("button", { name: "Cancel Work email" }).click();
+  const d = page.getByRole("dialog");
+  await expect(d.getByTestId("remove-consequences")).toContainText("Nothing is deleted");
+  await expect(d.getByTestId("remove-consequences")).toContainText("Adding Work email again brings everything back");
+  const go = d.getByRole("button", { name: "Cancel Work email" });
+  await expect(go).toBeDisabled();
+  await d.getByLabel("Type cancel to confirm").fill("cancel");
+  await go.click();
+  await expect(page).toHaveURL(/\/features$/);
+  await expect(page.getByRole("button", { name: "Add Work email" })).toBeVisible();
+  await expect(nav().getByRole("link", { name: "Work email" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Add Work email" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Add Work email" }).click();
+  await nav().getByRole("link", { name: "Work email" }).click();
+  await expect(page.getByTestId("domain-mailco.com")).toContainText("Removed, not renewed");
+});
+
+test("the feature can be taken off from Add features (typed confirmation) and keeps its data", async () => {
   await nav().getByRole("link", { name: "Add features" }).click();
   await page.getByRole("button", { name: "Remove Work email" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Remove" }).click();
+  const dlg = page.getByRole("dialog");
+  await expect(dlg).toContainText("Nothing is deleted");
+  await dlg.getByLabel("Type cancel to confirm").fill("cancel");
+  await dlg.getByRole("button", { name: "Cancel Work email" }).click();
   await expect(page.getByRole("button", { name: "Add Work email" })).toBeVisible();
   await expect(nav().getByRole("link", { name: "Work email" })).toHaveCount(0);
   await page.getByRole("button", { name: "Add Work email" }).click();
@@ -164,5 +216,5 @@ test("the feature can be taken off and keeps its data", async () => {
   await expect(confirm).toContainText("Each work mailbox costs €3 per month (demo: nothing is charged).");
   await confirm.getByRole("button", { name: "Add Work email" }).click();
   await nav().getByRole("link", { name: "Work email" }).click();
-  await expect(page.getByTestId("domain-mailco.com")).toContainText("Ready");
+  await expect(page.getByTestId("domain-mailco.com")).toContainText("Removed, not renewed");
 });

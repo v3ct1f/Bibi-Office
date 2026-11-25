@@ -4,15 +4,15 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Badge, Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, ConfirmDialog, Dialog, DialogContent, DialogFooter,
-  EmptyState, ErrorState, PageHeader, SchemaForm, Skeleton, cn,
+  EmptyState, ErrorState, Field, Input, PageHeader, SchemaForm, Skeleton, cn,
 } from "@office/ui";
 import type { ModuleInfo } from "../api/types.ts";
 import { useTMutation, useTQuery } from "../api/hooks.ts";
 import { useTenant } from "../lib/tenant.tsx";
 import { fmtDate } from "../lib/format.ts";
 import { moduleIcon } from "../shell/icons.tsx";
-import { mailboxCostBefore } from "@office/module-workmail/ui";
-import { useAddons } from "../lib/addons.ts";
+import { cancelWorkEmailLines, mailboxCostBefore } from "@office/module-workmail/ui";
+import { useAddons, type AddonInfo } from "../lib/addons.ts";
 
 export const CATEGORY_LABELS: Record<string, string> = {
   finance: "Money", sales: "Sales", team: "Team", operations: "Operations", other: "Other",
@@ -125,7 +125,9 @@ export function FeaturesPage() {
           </div>
         )}
 
-      <ConfirmDialog open={!!removing} onOpenChange={(o) => !o && setRemoving(null)} destructive confirmLabel="Remove"
+      <CancelWorkEmail open={removing?.key === "workmail"} addons={addons.data} onClose={() => setRemoving(null)}
+        onConfirm={() => toggle.mutateAsync({ key: "workmail", name: removing!.name, on: false }).then(() => setRemoving(null))} />
+      <ConfirmDialog open={!!removing && removing.key !== "workmail"} onOpenChange={(o) => !o && setRemoving(null)} destructive confirmLabel="Remove"
         title={`Remove ${removing?.name}?`} description="Its pages, automations and API access stop for everyone in this workspace. Nothing is deleted: add it again any time and everything is back."
         onConfirm={() => toggle.mutateAsync({ key: removing!.key, name: removing!.name, on: false })} />
 
@@ -148,5 +150,33 @@ export function FeaturesPage() {
         )}
       </Dialog>
     </>
+  );
+}
+
+/** Removing Work email: the same list of what happens as on the Work email page, and "cancel" typed to confirm. */
+function CancelWorkEmail({ open, addons, onClose, onConfirm }: {
+  open: boolean; addons: AddonInfo | undefined; onClose: () => void; onConfirm: () => Promise<unknown>;
+}) {
+  const cfg = useTQuery<{ mailboxesUsed: number }>(["workmail-config"], "/m/workmail/config", undefined, { enabled: open });
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const close = () => { setTyped(""); onClose(); };
+  const lines = cancelWorkEmailLines(addons?.workmail.mailbox ?? null, addons?.planPerMonth ?? null, cfg.data?.mailboxesUsed ?? 0);
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && close()}>
+      <DialogContent title="Cancel Work email?" description="Please read what happens first.">
+        <form className="grid gap-4" onSubmit={(e) => {
+          e.preventDefault(); if (typed.trim().toLowerCase() !== "cancel") return;
+          setBusy(true); void onConfirm().finally(() => { setBusy(false); setTyped(""); });
+        }}>
+          <ul className="grid list-disc gap-1.5 pl-5 text-sm" data-testid="remove-consequences">{lines.map((l) => <li key={l}>{l}</li>)}</ul>
+          <Field label="Type cancel to confirm">{(a) => <Input {...a} autoComplete="off" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="cancel" />}</Field>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={close}>Keep it</Button>
+            <Button type="submit" variant="destructive" loading={busy} disabled={typed.trim().toLowerCase() !== "cancel" || cfg.isPending}>Cancel Work email</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

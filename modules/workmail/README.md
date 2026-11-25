@@ -22,10 +22,13 @@ domain (bought: awaiting_payment -> active | connected: dns_pending -> active | 
   └─< mailbox (active | suspended | deleted; optional user_id = the colleague it belongs to)
 ```
 - Domain names are unique across all businesses (partial unique index); a name another business holds answers "already taken".
-- A bought domain cannot be removed from the list (it stays the business's); a connected one can once it has no mailboxes.
+- **Removing a domain** (`POST /domains/:id/remove {confirm}`; needs `core:modules.manage` too): the name must be typed. Its mailboxes are switched off
+  (`domain_removed`, mail kept, not billed, can't be resumed). A connected domain is disconnected; a bought one stays registered to the business
+  until it expires, **not renewed, not refunded**, shown as "Removed, not renewed" and still movable with "Take it with you".
+- **Cancel Work email** (button on the page, and Add features): "cancel" typed; the add-on and its charge go, data is kept, adding it again restores everything.
 - Up to `maxMailboxes` (setting, default 10) live mailboxes per business.
 - Mailbox owners must be active members. People without `workmail:mailbox.write` see only their own mailbox.
-- `suspend_reason`: `colleague_removed`, `feature_off` (feature turned off, resumes when turned back on) or `by_hand`.
+- `suspend_reason`: `colleague_removed`, `feature_off` (feature turned off, resumes when turned back on), `by_hand` or `domain_removed` (never resumes by itself).
 
 ## Provider interface (swap the company without touching the module)
 `src/provider.ts` defines `WorkmailProvider`: `searchDomains`, `registerDomain` (registrant = the business; sets mail DNS itself),

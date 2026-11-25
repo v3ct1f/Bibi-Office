@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { AppError, WORK_EMAIL, type RequestContext } from "@office/core";
+import { AppError, audit, emitEvent, tenantPlan, WORK_EMAIL, type RequestContext } from "@office/core";
 import { tenants, type Db, type Tx } from "@office/db";
 import { disableModule, enableModule, enabledModuleKeys, type ModuleDeps } from "@office/platform";
 import { getProvider } from "@office/module-workmail";
@@ -41,6 +41,11 @@ export async function registerAddonRoutes(
           price: needsPayment(o.billing, { stripeSubscriptionId: t.sub }) ? `€${WORK_EMAIL.mailboxPerMonth} per mailbox per month` : null,
           active: t.addons.includes("workmail"), enabled,
         },
+        /** The plan's price per month (a yearly plan: its year divided by 12), to show the new monthly total; null without a plan. */
+        planPerMonth: await (async () => {
+          const cur = await tenantPlan(tx, ctx.tenantId);
+          return cur.plan ? Math.round(((cur.interval === "yearly" ? cur.plan.yearly / 12 : cur.plan.monthly)) * 100) / 100 : null;
+        })(),
       };
     }));
 
@@ -73,10 +78,15 @@ export async function registerAddonRoutes(
         throw new AppError(502, "payment_unavailable", "The extra couldn't be taken off your subscription just now. Please try again in a moment.");
       }
     }
+    const charging = await workmailCharging(o.db, o.billing, o.testPayments, tenantId);
     await o.inTenant(req, "core:modules.manage", async (tx, ctx) => {
       await tx.update(tenants).set({ addons: sqlRemove("workmail") }).where(eq(tenants.id, ctx.tenantId));
       await disableModule(tx, ctx, o.modules, "workmail");
+      // Kept on record and told to anyone listening (the data stays; adding it again brings everything back).
+      await audit(tx, ctx, "tenant.addon_cancelled", { type: "tenant", id: ctx.tenantId }, { addon: "workmail", charging: charging.mode });
+      await emitEvent(tx, ctx, "core.addon.cancelled", { addon: "workmail" });
     });
-    return { ok: true };
+    /** How the charge ended: "stripe" = taken off the subscription now, the unused part of this month credited; "demo"/"free" = nothing was charged. */
+    return { ok: true, charging: charging.mode };
   });
 }

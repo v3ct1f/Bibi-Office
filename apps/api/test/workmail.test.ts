@@ -103,8 +103,13 @@ describe("work email: domains", () => {
     expect(audit.length).toBe(1);
   });
 
-  it("a domain bought through us can't be removed from the list (it stays theirs)", async () => {
-    expect((await A().del(`${M}/domains/${domainId}`)).status).toBe(409);
+  it("removing a domain needs its name typed, and the right to manage features", async () => {
+    const wrong = await A().post(`${M}/domains/${domainId}/remove`, { confirm: "nope.com" });
+    expect(wrong.status).toBe(400);
+    expect((await A().post(`${M}/domains/${domainId}/remove`, {})).status).toBe(400);
+    expect((await h.client(member, tA).post(`${M}/domains/${domainId}/remove`, { confirm: "tribulis.com" })).status).toBe(403);
+    // Nothing happened.
+    expect((await A().get(`${M}/domains`)).body.find((d: { id: string }) => d.id === domainId).status).toBe("active");
   });
 
   it("connects a domain the business already owns: shows the records, then checks them", async () => {
@@ -123,8 +128,10 @@ describe("work email: domains", () => {
     expect(yes.body).toMatchObject({ ok: true, missing: [], domain: { status: "active" } });
     // Their own registrar holds it, so there's no code from us.
     expect((await A().post(`${M}/domains/${c.body.id}/transfer-out`, {})).status).toBe(400);
-    // It can be taken off the list when it has no mailboxes.
-    expect((await A().del(`${M}/domains/${c.body.id}`)).status).toBe(204);
+    // It can be taken off the list (no mailboxes here: nothing to switch off).
+    const gone = await A().post(`${M}/domains/${c.body.id}/remove`, { confirm: "MyCafe.example" });
+    expect(gone.status).toBe(200);
+    expect(gone.body).toMatchObject({ domain: "mycafe.example", source: "connected", mailboxesSwitchedOff: 0, keptUntil: null });
     expect((await A().get(`${M}/domains`)).body.map((d: { name: string }) => d.name)).toEqual(["tribulis.com"]);
   });
 
@@ -132,7 +139,7 @@ describe("work email: domains", () => {
     const c = await A().post(`${M}/domains/connect`, { domain: "dns-ok-shop.example" });
     const ok = await A().post(`${M}/domains/${c.body.id}/check`, {});
     expect(ok.body.ok).toBe(true);
-    await A().del(`${M}/domains/${c.body.id}`);
+    expect((await A().post(`${M}/domains/${c.body.id}/remove`, { confirm: "dns-ok-shop.example" })).status).toBe(200);
   });
 
   it("explains a provider failure instead of crashing, and keeps the order to retry", async () => {
@@ -271,13 +278,7 @@ describe("work email: mailboxes", () => {
     expect(r.body.title).toMatch(/up to 3 work mailboxes/);
   });
 
-  it("can't remove a domain that still has mailboxes", async () => {
-    const c = await A().post(`${M}/domains/connect`, { domain: "dns-ok-two.example" });
-    await A().post(`${M}/domains/${c.body.id}/check`, {});
-    await A().patch("/modules/workmail/settings", { maxMailboxes: 20 });
-    await A().post(`${M}/mailboxes`, { domainId: c.body.id, localPart: "hi", name: "Hi" });
-    expect((await A().del(`${M}/domains/${c.body.id}`)).status).toBe(409);
-  });
+
 
   it("turning the feature off pauses mail, turning it on resumes it; nothing is deleted", async () => {
     const active = () => [...provider.mailboxes.values()].filter((m) => !m.deleted && m.active).length;
@@ -290,6 +291,60 @@ describe("work email: mailboxes", () => {
     expect(active()).toBe(before);
     const rows = await h.asOwner(tA, (tx) => tx`select count(*)::int as n from workmail_mailboxes where status <> 'deleted'`);
     expect(rows[0]!.n).toBeGreaterThan(0);
+  });
+});
+
+describe("work email: removing a domain", () => {
+  const used = async () => (await A().get(`${M}/config`)).body.mailboxesUsed as number;
+
+  it("a connected domain is disconnected; its mailboxes are switched off, mail kept, no longer billed", async () => {
+    await A().patch("/modules/workmail/settings", { maxMailboxes: 50 });
+    const c = await A().post(`${M}/domains/connect`, { domain: "dns-ok-two.example" });
+    await A().post(`${M}/domains/${c.body.id}/check`, {});
+    const hi = await A().post(`${M}/mailboxes`, { domainId: c.body.id, localPart: "hi", name: "Hi" });
+    expect(hi.status).toBe(201);
+    const before = await used();
+    const listed = (await A().get(`${M}/domains`)).body.find((d: { id: string }) => d.id === c.body.id);
+    expect(listed.mailboxes).toBe(1);
+
+    const r = await A().post(`${M}/domains/${c.body.id}/remove`, { confirm: "dns-ok-two.example" });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ domain: "dns-ok-two.example", source: "connected", mailboxesSwitchedOff: 1, keptUntil: null });
+
+    // Gone from the list; the mailbox still exists (mail kept) but is off, and can't be switched back on.
+    expect((await A().get(`${M}/domains`)).body.some((d: { id: string }) => d.id === c.body.id)).toBe(false);
+    const box = (await A().get(`${M}/mailboxes`)).body.find((m: { id: string }) => m.id === hi.body.id);
+    expect(box).toMatchObject({ status: "suspended", suspendReason: "domain_removed" });
+    expect([...provider.mailboxes.values()].find((m) => m.address === "hi@dns-ok-two.example")).toMatchObject({ active: false, deleted: false });
+    const back = await A().post(`${M}/mailboxes/${hi.body.id}/resume`, {});
+    expect(back.status).toBe(409);
+    expect(back.body.title).toMatch(/domain was removed/);
+    // Billing: one mailbox fewer.
+    expect(await used()).toBe(before - 1);
+    // Recorded, and announced through the event system.
+    await pump(tA);
+    expect(await types(tA)).toContain("workmail.domain.removed");
+    const audit = await h.asOwner(tA, (tx) => tx`select action from audit_log where action = 'workmail.domain.removed'`);
+    expect(audit.length).toBeGreaterThan(0);
+    // Removing it twice isn't possible.
+    expect((await A().post(`${M}/domains/${c.body.id}/remove`, { confirm: "dns-ok-two.example" })).status).toBe(404);
+  });
+
+  it("a bought domain stays registered to the business until it expires (not renewed) and can still be moved away", async () => {
+    const o = await A().post(`${M}/domains/order`, { domain: "keepsake.com", registrant: REG });
+    expect(o.status).toBe(201);
+    const id = o.body.domain.id as string;
+    const r = await A().post(`${M}/domains/${id}/remove`, { confirm: "keepsake.com" });
+    expect(r.status).toBe(200);
+    expect(r.body.keptUntil).toBeTruthy();
+    expect(r.body.transferFrom).toBeTruthy();
+    const listed = (await A().get(`${M}/domains`)).body.find((d: { id: string }) => d.id === id);
+    expect(listed).toMatchObject({ status: "removed", transferable: true });
+    expect(listed.removedAt).toBeTruthy();
+    // No new mailboxes on it, but the transfer code still works after the 60-day lock.
+    expect((await A().post(`${M}/mailboxes`, { domainId: id, localPart: "x", name: "X" })).status).toBeGreaterThanOrEqual(400);
+    await h.asOwner(tA, (tx) => tx`update workmail_domains set registered_at = now() - interval '61 days' where id = ${id}`);
+    expect((await A().post(`${M}/domains/${id}/transfer-out`, {})).status).toBe(200);
   });
 });
 

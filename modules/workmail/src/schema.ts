@@ -6,7 +6,7 @@ const ts = (n: string) => timestamp(n, { withTimezone: true });
 
 export type DomainStatus = "awaiting_payment" | "dns_pending" | "active" | "removed";
 export type MailboxStatus = "active" | "suspended" | "deleted";
-export type SuspendReason = "colleague_removed" | "feature_off" | "by_hand";
+export type SuspendReason = "colleague_removed" | "feature_off" | "by_hand" | "domain_removed";
 
 export const domains = pgTable("workmail_domains", {
   id: uuid("id").primaryKey(),
@@ -23,6 +23,8 @@ export const domains = pgTable("workmail_domains", {
   registeredAt: ts("registered_at"),
   expiresOn: date("expires_on", { mode: "string" }),
   dnsCheckedAt: ts("dns_checked_at"),
+  /** When it was removed from Work email (a bought one stays the business's until it expires, not renewed). */
+  removedAt: ts("removed_at"),
   createdBy: text("created_by"),
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),

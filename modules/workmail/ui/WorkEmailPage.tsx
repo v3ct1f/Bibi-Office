@@ -6,6 +6,7 @@ import {
 } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import { BuyDomainDialog, ConnectDomainDialog, RecordsTable, TransferDialog } from "./DomainDialogs.tsx";
+import { CancelWorkEmailDialog, RemoveDomainDialog } from "./RemoveDialogs.tsx";
 import {
   DomainBadge, errorMessage, fmtDate, fmtMoney, mailboxCostAfter, mailboxCostBefore, mailboxCostShort, REASON, useLoad,
   type Config, type Domain, type Mailbox, type MailboxPrice, type Member, type NewMailbox,
@@ -19,6 +20,10 @@ export function WorkEmailPage(_: PageProps) {
   const cfg = useLoad(() => host.api.get<Config>("/config"), [host]);
   const domains = useLoad(() => host.api.get<Domain[]>("/domains"), [host]);
   const boxes = useLoad(() => host.api.get<Mailbox[]>("/mailboxes"), [host]);
+  // Removing a domain or cancelling changes what the business pays: only people who manage features (and billing) may.
+  const manageBilling = host.can("core:modules.manage");
+  const plan = useLoad(() => host.core.get<{ planPerMonth: number | null }>("/billing/addons").catch(() => ({ planPerMonth: null })), [host]);
+  const [cancelling, setCancelling] = useState(false);
   const reloadAll = () => { void cfg.reload(); void domains.reload(); void boxes.reload(); };
 
   const [buying, setBuying] = useState(false);
@@ -73,7 +78,12 @@ export function WorkEmailPage(_: PageProps) {
   return (
     <>
       <PageHeader title="Work email" description="Your company domain and a work mailbox for each colleague, like anna@yourcompany.com."
-        actions={manageMail && ready.length > 0 && <Button onClick={() => setMaking(true)}><Plus /> New mailbox</Button>} />
+        actions={(
+          <div className="flex flex-wrap gap-2">
+            {manageMail && ready.length > 0 && <Button onClick={() => setMaking(true)}><Plus /> New mailbox</Button>}
+            {manageBilling && <Button variant="outline" onClick={() => setCancelling(true)}>Cancel Work email</Button>}
+          </div>
+        )} />
 
       {(manageDomains || (domains.data?.length ?? 0) > 0) && (
         <Card className="mb-4 grid gap-3 p-5">
@@ -95,7 +105,9 @@ export function WorkEmailPage(_: PageProps) {
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-2 font-medium">{d.name} <DomainBadge status={d.status} /></p>
                     <p className="text-xs text-muted-foreground">
-                      {d.source === "bought"
+                      {d.status === "removed"
+                        ? `Removed from Work email. Still registered in your business's name${d.expiresOn ? ` until ${fmtDate(d.expiresOn)}` : ""}, then it expires (not renewed).`
+                        : d.source === "bought"
                         ? `Registered in ${d.registrant?.name ?? "your business"}'s name — it's yours${d.expiresOn ? `, renews ${fmtDate(d.expiresOn)}` : ""}${d.priceCents !== null && d.currency ? ` (${fmtMoney(d.priceCents, d.currency)} per year)` : ""}`
                         : "Your own domain, connected"}
                     </p>
@@ -108,7 +120,7 @@ export function WorkEmailPage(_: PageProps) {
                         <Button size="sm" variant="outline" onClick={() => void act(() => host.api.post(`/domains/${d.id}/confirm`), `${d.name} is yours`)}>Check payment</Button>
                       )}
                       {d.transferable && <Button size="sm" variant="outline" onClick={() => setMoving(d)}>Take it with you</Button>}
-                      {!d.transferable && <Button size="sm" variant="ghost" onClick={() => setRemoveDomain(d)}>Remove</Button>}
+                      {d.status !== "removed" && manageBilling && <Button size="sm" variant="ghost" aria-label={`Remove ${d.name}`} onClick={() => setRemoveDomain(d)}>Remove</Button>}
                     </div>
                   )}
                 </li>
@@ -147,7 +159,7 @@ export function WorkEmailPage(_: PageProps) {
                             setCreated({ address: m.address, password: r.password, webmailUrl: m.webmailUrl, title: "New password" });
                           }, "Password changed")}><KeyRound /> New password</DropdownMenuItem>}
                           {manageMail && m.status === "active" && <DropdownMenuItem onSelect={() => void act(() => host.api.post(`/mailboxes/${m.id}/suspend`), `${m.address} is off`)}>Switch off</DropdownMenuItem>}
-                          {manageMail && m.status === "suspended" && <DropdownMenuItem onSelect={() => void act(() => host.api.post(`/mailboxes/${m.id}/resume`), `${m.address} is on`)}>Switch back on</DropdownMenuItem>}
+                          {manageMail && m.status === "suspended" && m.suspendReason !== "domain_removed" && <DropdownMenuItem onSelect={() => void act(() => host.api.post(`/mailboxes/${m.id}/resume`), `${m.address} is on`)}>Switch back on</DropdownMenuItem>}
                           {manageMail && <DropdownMenuItem destructive onSelect={() => setRemoveBox(m)}>Delete…</DropdownMenuItem>}
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -193,9 +205,10 @@ export function WorkEmailPage(_: PageProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <ConfirmDialog open={!!removeDomain} onOpenChange={(o) => !o && setRemoveDomain(null)} destructive confirmLabel="Remove"
-        title={`Remove ${removeDomain?.name ?? ""}?`} description="It's taken off this list. A domain you own elsewhere is not affected."
-        onConfirm={async () => { await host.api.del(`/domains/${removeDomain!.id}`); reloadAll(); }} />
+      <RemoveDomainDialog domain={removeDomain} price={cfg.data.mailboxPrice} planPerMonth={plan.data?.planPerMonth ?? null} used={cfg.data.mailboxesUsed}
+        onClose={() => setRemoveDomain(null)} onDone={() => { setRemoveDomain(null); reloadAll(); }} />
+      <CancelWorkEmailDialog open={cancelling} price={cfg.data.mailboxPrice} planPerMonth={plan.data?.planPerMonth ?? null} used={cfg.data.mailboxesUsed}
+        onClose={() => setCancelling(false)} />
       <ConfirmDialog open={!!removeBox} onOpenChange={(o) => !o && setRemoveBox(null)} destructive confirmLabel="Delete mailbox"
         title={`Delete ${removeBox?.address ?? ""}?`} description="The mailbox and the mail in it are deleted at the provider. To keep the mail, switch it off instead."
         onConfirm={async () => { await host.api.del(`/mailboxes/${removeBox!.id}`); reloadAll(); }} />

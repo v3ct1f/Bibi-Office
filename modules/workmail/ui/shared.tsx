@@ -4,13 +4,14 @@ import { Badge } from "@office/ui";
 // ── Types (mirror the API) ───────────────────────────────────────────────────
 export interface DnsRecord { type: "MX" | "TXT" | "CNAME"; host: string; value: string; priority?: number }
 export interface Domain {
-  id: string; name: string; source: "bought" | "connected"; status: "awaiting_payment" | "dns_pending" | "active";
+  id: string; name: string; source: "bought" | "connected"; status: "awaiting_payment" | "dns_pending" | "active" | "removed";
+  registeredAt: string | null; removedAt: string | null; mailboxes?: number;
   priceCents: number | null; currency: string | null; registrant: { name: string; email: string } | null;
   expiresOn: string | null; lastError: string | null; transferable: boolean; records: DnsRecord[] | null;
 }
 export interface Mailbox {
   id: string; address: string; localPart: string; domainId: string; domain: string; name: string; userId: string | null;
-  status: "active" | "suspended"; suspendReason: "colleague_removed" | "feature_off" | "by_hand" | null; webmailUrl: string | null;
+  status: "active" | "suspended"; suspendReason: "colleague_removed" | "feature_off" | "by_hand" | "domain_removed" | null; webmailUrl: string | null;
 }
 export type NewMailbox = Mailbox & { password: string };
 export interface Offer { domain: string; available: boolean; priceCents: number | null; currency: string }
@@ -48,8 +49,9 @@ export const DOMAIN_STATUS: Record<Domain["status"], { label: string; variant: "
   active: { label: "Ready", variant: "success" },
   dns_pending: { label: "Waiting for DNS records", variant: "warning" },
   awaiting_payment: { label: "Waiting for payment", variant: "warning" },
+  removed: { label: "Removed, not renewed", variant: "neutral" },
 };
-export const REASON: Record<string, string> = { colleague_removed: "colleague removed", feature_off: "Work email was off", by_hand: "switched off" };
+export const REASON: Record<string, string> = { colleague_removed: "colleague removed", feature_off: "Work email was off", by_hand: "switched off", domain_removed: "domain removed, mail kept" };
 export const DomainBadge = ({ status }: { status: Domain["status"] }) => <Badge variant={DOMAIN_STATUS[status].variant}>{DOMAIN_STATUS[status].label}</Badge>;
 
 export function fmtMoney(cents: number, currency: string): string {

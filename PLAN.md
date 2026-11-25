@@ -44,6 +44,7 @@
 | 36 | Work email: company domain + work mailboxes (pretend provider) | ✅ done |
 | 37 | "Add work email" step in the sign-up, prices in one place | ✅ done |
 | 38 | Work email: each mailbox EUR 3/month, price shown before and after creating one | ✅ done |
+| 39 | Work email: remove a domain, Cancel Work email, new monthly total | ✅ done |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
@@ -61,6 +62,13 @@
 - Each module in `/modules/<name>` with its own README.
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
+
+## Session 39, Work email: removing a domain and cancelling Work email
+- **Remove a domain** (Work email page, "Remove" on a domain; only people who manage features, `core:modules.manage`, as it changes the bill): a dialog first lists what happens, and the domain's name must be typed. The domain's mailboxes are **switched off** (mail stops arriving; the mail already in them is **kept**, nothing is deleted) with the reason "domain removed"; they stop being billed and can't be switched back on. A **connected** domain is simply disconnected (it stays theirs at their registrar). A **bought** domain stays registered in the business's name until it expires and is **not renewed**; the year paid is **not refunded**; it stays listed as "Removed, not renewed" so it can still be moved with "Take it with you" after the 60-day lock.
+- **Cancel Work email** ("Cancel Work email" button on the Work email page, and "Remove" on Add features): same kind of dialog, "cancel" must be typed. Work email switches off for everyone, the extra charge goes, **all data is kept**, and adding it again brings everything back. Settings -> Plan shows the new monthly total (plan + mailboxes).
+- **Money wording is true to what the code does:** in demo mode "nothing is charged or refunded". With real Stripe the Work email line's quantity drops (or the line is removed on cancel) and Stripe credits the unused part of the month on the next bill (`create_prorations`). That is *not* literally "at the end of the period"; if that is wanted before going live, use subscription schedules (see `docs/stripe-setup.md`). Real Stripe code was not touched.
+- Audit: `workmail.domain.removed` (module) and `tenant.addon_cancelled` (platform). Events: `workmail.domain.removed`, `workmail.mailbox.suspended` (reason `domain_removed`), `core.addon.cancelled`. Migration `modules/workmail/migrations/0002_remove_domain.sql`. The old `DELETE /domains/:id` is now `POST /domains/:id/remove {confirm}`.
+- Tests: api workmail (removal needs typed name and rights; mailboxes off, mail kept, count down; bought domain kept and movable; event and audit), addons (cancel returns `charging`, audit row); browser workmail 10 (remove dialog, typed confirmation, Cancel Work email, Add features dialog).
 
 ## Session 38, Work email: the price of each mailbox is said before it's made
 - **Bug:** adding a colleague with "Give them a work email" showed no price at all once Work email was on, and the billing code charged one flat extra (with up to 10 mailboxes) while the sign-up page said EUR 3 per mailbox.

@@ -131,7 +131,11 @@ describe("turning Work email on later", () => {
   });
 
   it("taking it off stops the extra, switches the feature off and keeps the domain's records", async () => {
-    expect((await b.c.del("/billing/addons/workmail")).status).toBe(200);
+    const off = await b.c.del("/billing/addons/workmail");
+    expect(off.status).toBe(200);
+    expect(off.body).toMatchObject({ ok: true, charging: "stripe" });
+    const audit = await h.asOwner(b.id, (tx) => tx`select action from audit_log where action = 'tenant.addon_cancelled'`);
+    expect(audit.length).toBe(1);
     expect(removed).toEqual(["sub_later"]);
     expect((await b.c.get("/billing/addons")).body.workmail).toMatchObject({ active: false, enabled: false });
     expect((await b.c.get("/m/workmail/domains")).status).toBe(403);
