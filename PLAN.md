@@ -44,6 +44,7 @@
 | 36 | Work email: company domain + work mailboxes (pretend provider) | ✅ done |
 | 37 | "Add work email" step in the sign-up, prices in one place | ✅ done |
 | 39 | Module: Mail (every person's own private inbox, Gmail-style, pretend mail server only) | ✅ phase 1 done |
+| 40 | Mail ready for a real mail server: IMAP/SMTP, worker sync, two-way sync, linking old mailboxes, storage limit, Trash clean-up, Terms/Privacy text | ✅ done (no real host connected yet) |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
@@ -61,6 +62,18 @@
 - Each module in `/modules/<name>` with its own README.
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
+
+## Session 40, Mail: ready for a real mail server
+- **What:** the whole "Before real use" list from Session 39. Mail can now use a real mail server. It hasn't been connected to one yet (that needs the host's details, see below).
+- **Real mail server:** `modules/mail/src/imap-provider.ts` reads over IMAP and sends over SMTP. Office signs in to each mailbox with a **master user** that the mail host gives Office (Dovecot and Stalwart have this), so no mailbox password is ever stored. Turned on with `MAIL_PROVIDER=imap` plus the `MAIL_IMAP_*`, `MAIL_SUBMIT_*` and `MAIL_MASTER_*` settings (server environment only; list in `modules/mail/README.md`).
+- **Fetching in the worker:** with a real server, new mail is fetched by the worker every minute (job `sync_mail`), never inside a page request. The pretend server still fetches when the page asks.
+- **Two-way sync:** read, star, archive, spam, trash, restore and delete-forever made in Office are written back to the server. Read/star changes made in another mail app (a phone) show up in Office. Sent mail is also saved in the server's Sent folder.
+- **Old mailboxes:** turning Mail on asks Work email (by event) for every existing mailbox, and a person without one can press "Link my work mailbox". Switched-off mailboxes come in paused.
+- **Storage:** 2 GB per person, shown in the sidebar. When full, fetching and sending stop with a clear message and nothing is lost. Trash and Spam are emptied after 30 days, on the server too. Both numbers can be changed (`MAIL_QUOTA_MB`, `MAIL_TRASH_DAYS`).
+- **Terms and Privacy Policy:** new paragraphs on Mail (only the person can read it, what is kept and for how long, the mail host as a processor, the 2 GB limit).
+- **Changed elsewhere:** Work email answers `mail.mailboxes.requested`; `apps/api` and `apps/worker` build the provider with `mailProviderFromEnv`; the worker now depends on `@office/module-mail`; the support test mail servers expose their IMAP server; the Mail browser test company is now "Inbox Co" (it clashed with Work email's "Mail Co" when both ran together).
+- **Tests:** module `imap-provider.test.ts` 6 (against real in-memory IMAP + SMTP servers), api `mail-server.test.ts` 9 (linking, worker fetch, write-back, phone changes, delete on the server, Sent copy, full mailbox, 30-day clean-up, privacy of the new table), browser `mail.spec.ts` 10.
+- **Needs the user:** choose the mail host and get a master user (Titan may not have one; a self-run Stalwart does); check 2 GB / 30 days; decide how long a departed colleague's mail is kept; have the new legal text checked.
 
 ## Session 39, Mail: a private inbox for every person (phase 1)
 - **What:** new feature **Mail** (`modules/mail`, `/inbox`): each person has their own mailbox inside Office; nobody else can read it (not even owners or admins), enforced by Postgres row-level security on the person (`app.mail_user`), not just in code. The scope plan is `mail-scope.md` in the session notes (phase 1 below, later phases in the module README).

@@ -67,6 +67,7 @@ Provider problems answer 424 with a plain message (the platform hides 5xx detail
 Emits `workmail.domain.registered { id, domain, source, expiresOn }`, `workmail.mailbox.created { id, address, domain, userId }`,
 `workmail.mailbox.suspended { id, reason, userId }`, `workmail.mailbox.deleted { id, userId }`.
 Subscribes to `core.member.removed` (suspends that person's mailboxes). Turning the feature off pauses all mail, on resumes what it paused (lifecycle).
+Also answers Mail's `mail.mailboxes.requested { userId | null }` by replaying `workmail.mailbox.created { ..., status, replay: true }` for each mailbox that belongs to a person (all, or that one person), so mailboxes made before Mail was on get linked.
 Audit: `workmail.domain.bought`, `.domain.connect_started`, `.domain.connected`, `.domain.transfer_code_shown`, `.domain.removed`, `.mailbox.*`.
 
 ## UI slots

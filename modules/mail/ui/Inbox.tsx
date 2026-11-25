@@ -12,7 +12,7 @@ import { Compose } from "./Compose.tsx";
 import { ThreadView } from "./ThreadView.tsx";
 import { tt, type MailKey } from "./i18n.ts";
 import {
-  DOT, errorMessage, fmtListDate, folderName, isTyping, LABEL_COLORS, type AccountInfo, type Folders, type MailMessage, type Thread, type ThreadItem,
+  DOT, errorMessage, fmtListDate, fmtSize, folderName, isTyping, LABEL_COLORS, type AccountInfo, type Folders, type MailMessage, type Thread, type ThreadItem,
 } from "./shared.tsx";
 
 type Action = "read" | "unread" | "star" | "unstar" | "archive" | "inbox" | "spam" | "trash" | "delete" | "label" | "unlabel";
@@ -24,6 +24,23 @@ const FOLDER_ICON: Record<string, typeof InboxIcon> = {
 const PAGE = 30;
 
 // ── The page ─────────────────────────────────────────────────────────────────
+/** No mailbox yet: one made in Work email before Mail was on can be linked (Work email answers by event, so we look again shortly). */
+function NoMailbox({ onLinked }: { onLinked: () => Promise<void> }) {
+  const host = useModuleHost();
+  const [asked, setAsked] = useState(false);
+  const link = async () => {
+    try {
+      await host.api.post("/account/link", {});
+      setAsked(true);
+      for (const ms of [1500, 4000, 10_000]) setTimeout(() => void onLinked(), ms);
+    } catch (e) { toast.error(errorMessage(e)); }
+  };
+  return (
+    <EmptyState icon={<Mail />} title={tt("noMailbox")} description={asked ? tt("linkAsked") : tt("noMailboxLink")}
+      action={<Button variant="outline" onClick={() => void link()} disabled={asked} data-testid="link-mailbox">{tt("linkMailbox")}</Button>} />
+  );
+}
+
 export function InboxPage(_: PageProps) {
   const host = useModuleHost();
   const [info, setInfo] = useState<AccountInfo | null>(null);
@@ -36,7 +53,7 @@ export function InboxPage(_: PageProps) {
   if (infoError && !info) return <ErrorState error={infoError} onRetry={() => void loadInfo()} />;
   if (!info) return <div className="grid gap-3"><Skeleton className="h-10 w-64" /><Skeleton className="h-96" /></div>;
   if (!info.available) return <EmptyState icon={<Mail />} title={tt("notReady")} />;
-  if (!info.account) return <EmptyState icon={<Mail />} title={tt("noMailbox")} />;
+  if (!info.account) return <NoMailbox onLinked={loadInfo} />;
   return <Mailbox info={info} reloadInfo={loadInfo} />;
 }
 
@@ -98,8 +115,9 @@ function Mailbox({ info, reloadInfo }: { info: AccountInfo; reloadInfo: () => Pr
   const syncNow = useCallback(async (manual = false) => {
     if (paused) return;
     try {
-      const r = await host.api.post<{ received: number }>("/sync", {});
-      if (r.received > 0 || manual) { await refreshAll(); await reloadInfo(); }
+      const r = await host.api.post<{ received: number; background?: boolean }>("/sync", {});
+      // With a real mail server the server fetches every minute: just show what has arrived since.
+      if (r.received > 0 || manual || r.background) { await refreshAll(); if (manual || r.received > 0) await reloadInfo(); }
     } catch (e) { if (manual) toast.error(errorMessage(e)); }
   }, [host, paused, refreshAll, reloadInfo]);
   const syncRef = useRef(syncNow); syncRef.current = syncNow;
@@ -147,9 +165,10 @@ function Mailbox({ info, reloadInfo }: { info: AccountInfo; reloadInfo: () => Pr
       if (goneFromList) setChecked(new Set());
       if (extra.done) toast.success(extra.done);
       await refreshAll();
+      if (action === "delete") void reloadInfo(); // room was freed
       if (openId && ids.includes(openId) && !goneFromList) { try { setThread(await host.api.get<Thread>(`/threads/${openId}`)); } catch { /* may have moved */ } }
     } catch (e) { toast.error(errorMessage(e)); }
-  }, [host, targets, view, openId, refreshAll]);
+  }, [host, targets, view, openId, refreshAll, reloadInfo]);
 
   const inTrash = view.kind === "folder" && (view.key === "trash" || view.key === "spam");
 
@@ -280,6 +299,15 @@ function Mailbox({ info, reloadInfo }: { info: AccountInfo; reloadInfo: () => Pr
             })}
           </ul>
         </nav>
+        {info.storage && (
+          <div className="border-t px-3 pt-2 text-xs text-muted-foreground" data-testid="storage" title={info.limits.trashDays ? tt("trashNote", { days: info.limits.trashDays }) : undefined}>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="meter" aria-valuemin={0} aria-valuemax={info.storage.quotaBytes} aria-valuenow={info.storage.usedBytes} aria-label={tt("storageUsed", { used: fmtSize(info.storage.usedBytes), quota: fmtSize(info.storage.quotaBytes) })}>
+              <div className={cn("h-full rounded-full", info.storage.full ? "bg-destructive" : info.storage.usedBytes / info.storage.quotaBytes > 0.85 ? "bg-warning" : "bg-primary")}
+                style={{ width: `${Math.min(100, Math.max(1, (info.storage.usedBytes / info.storage.quotaBytes) * 100))}%` }} />
+            </div>
+            <p className="mt-1">{tt("storageUsed", { used: fmtSize(info.storage.usedBytes), quota: fmtSize(info.storage.quotaBytes) })}</p>
+          </div>
+        )}
         <div className="flex items-center gap-1 border-t p-2">
           <span className="min-w-0 flex-1 truncate px-1 text-xs text-muted-foreground" title={tt("onlyMe")} data-testid="my-address">{account.address}</span>
           <Button variant="ghost" size="icon" className="size-8" aria-label={tt("settings")} onClick={() => setSettings(true)}><Settings /></Button>
@@ -312,7 +340,7 @@ function Mailbox({ info, reloadInfo }: { info: AccountInfo; reloadInfo: () => Pr
               <div className="flex flex-1 items-center gap-1">
                 <span className="flex-1 truncate px-1 text-sm font-medium" data-testid="view-title">{viewTitle}</span>
                 {view.kind === "folder" && (view.key === "trash" || view.key === "spam") && items && items.length > 0 && (
-                  <Button size="sm" variant="ghost" onClick={async () => { try { await host.api.post("/folders/trash/empty", {}); await refreshAll(); } catch (e) { toast.error(errorMessage(e)); } }}>{tt("emptyTrash")}</Button>
+                  <Button size="sm" variant="ghost" onClick={async () => { try { await host.api.post("/folders/trash/empty", {}); await refreshAll(); await reloadInfo(); } catch (e) { toast.error(errorMessage(e)); } }}>{tt("emptyTrash")}</Button>
                 )}
                 <Tool label={tt("refresh")} icon={<RefreshCw />} onClick={() => void syncNow(true)} testId="refresh" />
               </div>
@@ -376,7 +404,10 @@ function Mailbox({ info, reloadInfo }: { info: AccountInfo; reloadInfo: () => Pr
         ) : <div className="m-auto p-8 text-center text-sm text-muted-foreground">{paused ? tt("paused") : tt("selectOne")}</div>}
       </section>
 
-      {paused && <div className="fixed inset-x-0 bottom-0 z-30 bg-warning-soft px-4 py-2 text-center text-sm text-warning" role="status">{tt("paused")}</div>}
+      {paused ? <div className="fixed inset-x-0 bottom-0 z-30 bg-warning-soft px-4 py-2 text-center text-sm text-warning" role="status">{tt("paused")}</div>
+        : info.storage?.full ? <div className="fixed inset-x-0 bottom-0 z-30 bg-destructive/10 px-4 py-2 text-center text-sm text-destructive" role="status" data-testid="mailbox-full">{tt("full")}</div>
+        : account.lastSyncError ? <div className="fixed inset-x-0 bottom-0 z-30 bg-warning-soft px-4 py-2 text-center text-sm text-warning" role="status" data-testid="sync-problem">{tt("syncProblem", { reason: account.lastSyncError })}</div>
+        : null}
       {draft && info && (
         <Compose key={draft.id} draft={draft} limits={info.limits} onClose={() => { setDraft(null); void refreshAll(); }}
           onSent={() => { setDraft(null); void refreshAll(); if (openId) void host.api.get<Thread>(`/threads/${openId}`).then(setThread).catch(() => {}); }} />

@@ -3,8 +3,13 @@ import { tt } from "./i18n.ts";
 
 // ── Types (mirror the API) ───────────────────────────────────────────────────
 export interface Addr { name: string; email: string }
-export interface Account { id: string; address: string; name: string; signature: string; source: "workmail" | "local"; status: "active" | "paused"; lastSyncedAt: string | null }
-export interface AccountInfo { available: boolean; account: Account | null; limits: { maxFileBytes: number; maxTotalBytes: number } }
+export interface Account { id: string; address: string; name: string; signature: string; source: "workmail" | "local"; status: "active" | "paused"; lastSyncedAt: string | null; lastSyncError?: string | null }
+export interface AccountInfo {
+  available: boolean; account: Account | null; limits: { maxFileBytes: number; maxTotalBytes: number; trashDays?: number };
+  /** A real mail server: new mail is fetched by the server every minute. */
+  background?: boolean;
+  storage?: { usedBytes: number; quotaBytes: number; full: boolean } | null;
+}
 export interface Label { id: string; name: string; color: string }
 export interface FolderInfo { key: string; unread: number; total?: number }
 export interface Folders { folders: FolderInfo[]; labels: (Label & { unread: number })[] }
@@ -40,7 +45,8 @@ export const fmtFull = (iso: string) => new Intl.DateTimeFormat(undefined, { dat
 export function fmtSize(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  if (n < 1024 ** 3) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 ** 3).toFixed(1)} GB`;
 }
 export const displayName = (a: Addr) => a.name.trim() || a.email;
 

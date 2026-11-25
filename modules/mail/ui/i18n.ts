@@ -23,6 +23,11 @@ const en = {
   paused: "Your mailbox is switched off, so you can read old mail but not send or receive. Ask the owner to switch it back on.",
   shortcuts: "Keyboard shortcuts", close: "Close", quoted: "Show earlier text", tooBig: "{name} is too big (the limit is 5 MB per file).",
   sendFail: "Couldn't send", addRecipient: "Add at least one person in To.", onlyMe: "Only you can read this mailbox.",
+  linkMailbox: "Link my work mailbox", linkAsked: "Asked for your work mailbox. If you have one, it appears here in a moment.",
+  noMailboxLink: "Already have a work email? Link it here.", storageUsed: "{used} of {quota} used",
+  full: "Your mailbox is full. Delete old mail or empty the Trash to receive and send again.",
+  syncProblem: "New mail couldn't be fetched: {reason}", checkedEveryMinute: "New mail is checked every minute.",
+  trashNote: "Mail in Trash and Spam is deleted for good after {days} days.",
 };
 export type MailKey = keyof typeof en;
 

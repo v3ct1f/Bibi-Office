@@ -72,6 +72,7 @@ export function TermsPage() {
       <S title="7. Your data">
         <p>The data you put into the Service remains yours. You allow us to store and process it only to provide the Service to you, as described in the Privacy Policy. You are responsible for having the right to enter that data, for example your customers' details.</p>
         <p>Our staff and the program owner may look at a business's data when needed for support, security or to follow the law. Each such visit by the program owner is recorded in the business's own history.</p>
+        <p><strong>Mail</strong> is the exception: each person's mailbox in the Service can be read only by that person. The business owner, its admins and the program owner cannot open it from the Service. Each person may keep up to 2 GB of mail; when a mailbox is full, new mail waits on the mail server and sending stops until room is made. Mail in Trash and Spam is deleted for good after 30 days.</p>
       </S>
       <S title="8. Acceptable use">
         <p>Do not use the Service for anything illegal, to send spam, to attack or overload it, to try to reach another business's data, or to resell it without our written agreement. We may pause an account that breaks these rules.</p>
@@ -119,12 +120,14 @@ export function PrivacyPage() {
         <p>Whatever your business stores in the Service, such as contacts, companies, invoices, expenses, schedules, staff details, documents and support emails, is stored for you and kept separate from every other business. We use it only to provide the Service. We do not sell it, use it for advertising, or use it to train AI models.</p>
         <p>If you turn on the AI summaries feature with your own Claude key, the text you ask it to summarise is sent to Anthropic under your own account with them.</p>
         <p>The program owner (us) can look inside a business, read-only, for support and security. Every such visit is recorded in the business's own history.</p>
+        <p><strong>Mail.</strong> If your business uses Mail, the Service keeps a copy of each person's email (messages, attachments, sender and recipient addresses, and read, star and folder state) so they can read and search it, and keeps it in step with the mail server in both directions. A mailbox can be read only by the person it belongs to: not by the business owner, its admins or us through the Service, and this is enforced by the database itself. We do not scan mail for advertising and do not use it to train AI models. When someone asks to add a sender as a contact or lead, only the sender's name, address and the subject are shared with those features. The Service does not store any mailbox password; it reaches the mail server with access the mail host gives the Service itself.</p>
       </S>
       <S title="4. Who else handles data (processors)">
         <ul>
           <li><strong>Stripe</strong>, for payments. Stripe is also responsible for the payment data it collects and has its own privacy policy.</li>
           <li><strong>{C.hosting}</strong>, which hosts the Service and its database in the European Union. The data region you pick when you create your business is kept as your preference; for now all data is kept in the EU.</li>
           <li><strong>An email delivery service</strong>, to send account emails.</li>
+          <li><strong>The mail host</strong> that runs the work mailboxes, if your business uses Work email and Mail. It stores and delivers that mail.</li>
           <li><strong>Anthropic</strong>, only if you use AI summaries, as described above.</li>
         </ul>
         <p>We do not sell personal data. We share it with these providers only as needed to run the Service, under contracts that require them to protect it. Where data goes to a country outside the European Economic Area (for example Stripe or Anthropic in the United States), we rely on the safeguards the law provides, such as standard contractual clauses.</p>
@@ -134,6 +137,7 @@ export function PrivacyPage() {
           <li>Account and business data: while your subscription is active, and up to {C.keepDays} days after it ends, then it is permanently deleted, together with the sign-in accounts of people who belong to no other business.</li>
           <li>Invoices and payment records of ours: as long as tax and accounting law requires.</li>
           <li>Security logs: for a limited time, normally up to 12 months.</li>
+          <li>Mail: until the person deletes it. Mail in Trash and Spam is deleted for good after 30 days, and deleting mail in the Service also deletes it on the mail server. When a work mailbox is switched off or removed, its mail already in the Service stays readable to that person until it is deleted or the business's data is deleted as above.</li>
         </ul>
       </S>
       <S title="6. Your rights">
