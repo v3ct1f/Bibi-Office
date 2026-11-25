@@ -68,25 +68,8 @@ export async function registerAddonRoutes(
     return { ok: true, charged: charge };
   });
 
-  app.delete("/billing/addons/workmail", { config: AUTH, schema: { tags: ["billing"], headers: tenantHeader } }, async (req) => {
-    const tenantId = await o.inTenant(req, "core:modules.manage", async (_tx, ctx) => ctx.tenantId);
-    const t = await load(tenantId);
-    if (needsPayment(o.billing, { stripeSubscriptionId: t.sub }) && t.addons.includes("workmail")) {
-      try { await o.billing!.removeAddOn(t.sub!, "workmail"); }
-      catch (e) {
-        req.log.error({ err: e }, "stripe add-on removal failed");
-        throw new AppError(502, "payment_unavailable", "The extra couldn't be taken off your subscription just now. Please try again in a moment.");
-      }
-    }
-    const charging = await workmailCharging(o.db, o.billing, o.testPayments, tenantId);
-    await o.inTenant(req, "core:modules.manage", async (tx, ctx) => {
-      await tx.update(tenants).set({ addons: sqlRemove("workmail") }).where(eq(tenants.id, ctx.tenantId));
-      await disableModule(tx, ctx, o.modules, "workmail");
-      // Kept on record and told to anyone listening (the data stays; adding it again brings everything back).
-      await audit(tx, ctx, "tenant.addon_cancelled", { type: "tenant", id: ctx.tenantId }, { addon: "workmail", charging: charging.mode });
-      await emitEvent(tx, ctx, "core.addon.cancelled", { addon: "workmail" });
-    });
-    /** How the charge ended: "stripe" = taken off the subscription now, the unused part of this month credited; "demo"/"free" = nothing was charged. */
-    return { ok: true, charging: charging.mode };
+  app.delete("/billing/addons/workmail", { config: AUTH, schema: { tags: ["billing"], headers: tenantHeader } }, async () => {
+    // Work email is built in for every business now: nothing to cancel (each mailbox is paid for as it is made).
+    throw new AppError(409, "built_in", "Work email is built in. Switch off or delete the mailboxes you no longer need.");
   });
 }

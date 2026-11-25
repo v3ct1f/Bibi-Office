@@ -66,6 +66,14 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 43, Add features by category; Work email is built in
+- **Add features** is now one section per category (Money, Sales, Team, Operations...), each with its own heading, instead of filter buttons.
+- **Work email is no longer a feature.** It is switched on for every business from the start (`BUILT_IN_MODULES` in `packages/core/src/plans.ts`; `ensureBuiltInModules` in `apps/api/src/addons.ts` runs at start-up and when a business is created, signs up or has its allowed features changed). It is not listed under Add features or on the program owner's "Choose features" screen, and can't be removed (`POST /modules/workmail/disable` and `DELETE /billing/addons/workmail` answer 409 `built_in`). "Cancel Work email" is gone.
+- **Menu:** Work email sits in the **Admin** group, above Workflows.
+- **Money is unchanged:** turning it on costs nothing; each mailbox is EUR 3 per month, a domain is paid yearly. Because the Stripe line used to be added when someone "added" the feature, the first mailbox now adds the Work email line to the subscription itself (`mailboxesChanged`), so mailboxes are never left unbilled.
+- The colleague dialog no longer offers "Turn on Work email" (it's always on); the owner screen counts only listed features ("12 of 13 included").
+- Tests: api addons, signup-workmail and workmail updated; browser features, workmail, owner and colleagues updated.
+
 ## Session 42, Mail: ready for a real mail server
 - **Fix: a feature added to a plan now reaches businesses already on it.** A business's allowed features are saved when it picks a plan, so businesses created before Mail couldn't add it ("Not part of your plan"). `syncPlanFeatures` (`packages/core/src/plans.ts`) runs when the API starts and adds whatever each plan includes to the businesses on it; it only adds (paid extras and features given on top stay; businesses without a plan stay unlimited). Test: api `plan-sync.test.ts` 2.
 - **What:** the whole "Before real use" list from Session 39. Mail can now use a real mail server. It hasn't been connected to one yet (that needs the host's details, see below).

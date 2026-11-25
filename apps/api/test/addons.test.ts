@@ -58,41 +58,26 @@ describe("Work email at sign-up with real (Stripe) payments", () => {
     expect((await h.client().get("/signup/domain-check?q=tickco")).status).toBe(503);
   });
 
-  it("the new business has its normal subscription and Work email stays off", async () => {
+  it("the new business has its normal subscription and Work email is on from the start", async () => {
     const b = await paidBusiness("sub_skip", "sara", "skip-co");
+    // Built in: on straight away, nothing on the subscription until a mailbox is made.
     expect((await b.c.get("/billing/addons")).body.workmail).toMatchObject({
-      available: true, active: false, enabled: false, price: "€3 per mailbox per month", mailbox: { perMonth: 3, currency: "EUR", mode: "stripe" },
+      available: true, active: false, enabled: true, price: "€3 per mailbox per month", mailbox: { perMonth: 3, currency: "EUR", mode: "stripe" },
     });
-    expect((await b.c.get("/m/workmail/domains")).status).toBe(403);
+    expect((await b.c.get("/m/workmail/domains")).status).toBe(200);
     expect(added).toEqual([]);
   });
 });
 
-describe("turning Work email on later", () => {
+describe("Work email on a Stripe subscription", () => {
   let b: Awaited<ReturnType<typeof paidBusiness>>;
   beforeAll(async () => { b = await paidBusiness("sub_later", "lea", "later-co"); });
 
-  it("can't be switched on from Add features without paying", async () => {
-    const r = await b.c.post("/modules/workmail/enable", {});
-    expect(r.status).toBe(402);
-    expect(r.body.title).toMatch(/paid extra/);
-    expect((await b.c.get("/billing/addons")).body.workmail.enabled).toBe(false);
-  });
-
-  it("adds the extra to the subscription and switches the feature on", async () => {
-    failAdd = true;
-    const bad = await b.c.post("/billing/addons/workmail", {});
-    expect(bad.status).toBe(502);
-    expect((await b.c.get("/billing/addons")).body.workmail).toMatchObject({ active: false, enabled: false });
-    failAdd = false;
-
-    const r = await b.c.post("/billing/addons/workmail", {});
-    expect(r.body).toEqual({ ok: true, charged: true });
-    expect(added).toEqual(["sub_later"]);
-    expect((await b.c.get("/billing/addons")).body.workmail).toMatchObject({ active: true, enabled: true });
+  it("is already on and can't be removed", async () => {
+    expect((await b.c.get("/billing/addons")).body.workmail).toMatchObject({ enabled: true });
+    expect((await b.c.post("/modules/workmail/disable", {})).status).toBe(409);
+    expect((await b.c.del("/billing/addons/workmail")).status).toBe(409);
     expect((await b.c.get("/m/workmail/config")).body).toMatchObject({ available: true });
-    // Doing it twice is harmless.
-    expect((await b.c.post("/billing/addons/workmail", {})).status).toBe(200);
   });
 
   it("a domain is paid for on the payment page and finished after paying", async () => {
@@ -109,9 +94,17 @@ describe("turning Work email on later", () => {
     const cfg = (await b.c.get("/m/workmail/config")).body;
     expect(cfg).toMatchObject({ mailboxesUsed: 0, maxMailboxes: 10, mailboxPrice: { perMonth: 3, currency: "EUR", mode: "stripe" } });
     const [dom] = (await b.c.get("/m/workmail/domains")).body as { id: string }[];
+    // The first mailbox puts the Work email line on the subscription. If that fails, no mailbox is made.
+    failAdd = true;
+    const declined = await b.c.post("/m/workmail/mailboxes", { domainId: dom!.id, localPart: "zed", name: "Zed" });
+    failAdd = false;
+    expect(declined.status).toBe(409);
+    expect((await b.c.get("/m/workmail/config")).body.mailboxesUsed).toBe(0);
     const anna = await b.c.post("/m/workmail/mailboxes", { domainId: dom!.id, localPart: "anna", name: "Anna" });
     expect(anna.status).toBe(201);
+    expect(added).toContain("sub_later");
     expect(quantities.at(-1)).toEqual(["sub_later", 1]);
+    expect((await b.c.get("/billing/addons")).body.workmail).toMatchObject({ active: true, enabled: true });
     const ben = await b.c.post("/m/workmail/mailboxes", { domainId: dom!.id, localPart: "ben", name: "Ben" });
     expect(quantities.at(-1)).toEqual(["sub_later", 2]);
     expect((await b.c.get("/m/workmail/config")).body.mailboxesUsed).toBe(2);
@@ -130,31 +123,18 @@ describe("turning Work email on later", () => {
     expect((await b.c.get("/m/workmail/config")).body.mailboxesUsed).toBe(1);
   });
 
-  it("taking it off stops the extra, switches the feature off and keeps the domain's records", async () => {
-    const off = await b.c.del("/billing/addons/workmail");
-    expect(off.status).toBe(200);
-    expect(off.body).toMatchObject({ ok: true, charging: "stripe" });
-    const audit = await h.asOwner(b.id, (tx) => tx`select action from audit_log where action = 'tenant.addon_cancelled'`);
-    expect(audit.length).toBe(1);
-    expect(removed).toEqual(["sub_later"]);
-    expect((await b.c.get("/billing/addons")).body.workmail).toMatchObject({ active: false, enabled: false });
-    expect((await b.c.get("/m/workmail/domains")).status).toBe(403);
-    const rows = await h.asOwner(b.id, (tx) => tx`select name, status from workmail_domains`);
-    expect(rows).toEqual([{ name: "laterco.com", status: "active" }]);
-  });
 });
 
 describe("a business without a Stripe subscription", () => {
-  it("turns it on at no extra charge", async () => {
+  it("has it on at no extra charge", async () => {
     const made = await h.client(boss).post("/platform/businesses", { name: "Free Co", slug: "free-co", ownerEmail: "fred@example.com" });
     const fred = await h.token("fred");
     await h.client(fred).get("/me");
     await h.client(fred).post("/invitations/accept", { tenantId: made.body.business.id, token: (made.body.invitation.link as string).split("/").pop() });
     const c = h.client(fred, made.body.business.id);
     const n = added.length;
-    expect((await c.get("/billing/addons")).body.workmail).toMatchObject({ available: true, price: null, mailbox: { perMonth: 3, mode: "free" } });
-    expect((await c.post("/billing/addons/workmail", {})).body).toEqual({ ok: true, charged: false });
-    expect(added.length).toBe(n);
+    expect((await c.get("/billing/addons")).body.workmail).toMatchObject({ available: true, enabled: true, price: null, mailbox: { perMonth: 3, mode: "free" } });
     expect((await c.get("/m/workmail/domains")).status).toBe(200);
+    expect(added.length).toBe(n);
   });
 });

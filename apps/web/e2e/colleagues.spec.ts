@@ -23,7 +23,7 @@ test("the owner creates an account for a worker", async () => {
   await page.getByRole("button", { name: "Add colleague" }).click();
   const d = page.getByRole("dialog");
   await d.getByLabel("Name").fill("Walt Worker");
-  await d.getByLabel("Email").fill("walt@example.com");
+  await d.getByLabel(/^Email/).fill("walt@example.com");
   await d.getByLabel("Role").selectOption("member");
   const pw = d.getByLabel("Starting password");
   await expect(pw).not.toHaveValue(""); // one is made up for you
@@ -42,7 +42,7 @@ test("someone already in the business can't be added twice", async () => {
   await page.getByRole("button", { name: "Add colleague" }).click();
   const d = page.getByRole("dialog");
   await d.getByLabel("Name").fill("Walt Again");
-  await d.getByLabel("Email").fill("walt@example.com");
+  await d.getByLabel(/^Email/).fill("walt@example.com");
   await d.getByRole("button", { name: "Create account" }).click();
   await expect(d.getByRole("alert")).toContainText("already a member");
   await d.getByRole("button", { name: "Cancel" }).click();

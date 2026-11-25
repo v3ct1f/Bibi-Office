@@ -6,7 +6,7 @@ import {
 } from "@office/ui";
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import { BuyDomainDialog, ConnectDomainDialog, RecordsTable, TransferDialog } from "./DomainDialogs.tsx";
-import { CancelWorkEmailDialog, RemoveDomainDialog } from "./RemoveDialogs.tsx";
+import { RemoveDomainDialog } from "./RemoveDialogs.tsx";
 import {
   DomainBadge, errorMessage, fmtDate, fmtMoney, mailboxCostAfter, mailboxCostBefore, mailboxCostShort, REASON, useLoad,
   type Config, type Domain, type Mailbox, type MailboxPrice, type Member, type NewMailbox,
@@ -23,7 +23,6 @@ export function WorkEmailPage(_: PageProps) {
   // Removing a domain or cancelling changes what the business pays: only people who manage features (and billing) may.
   const manageBilling = host.can("core:modules.manage");
   const plan = useLoad(() => host.core.get<{ planPerMonth: number | null }>("/billing/addons").catch(() => ({ planPerMonth: null })), [host]);
-  const [cancelling, setCancelling] = useState(false);
   const reloadAll = () => { void cfg.reload(); void domains.reload(); void boxes.reload(); };
 
   const [buying, setBuying] = useState(false);
@@ -81,7 +80,6 @@ export function WorkEmailPage(_: PageProps) {
         actions={(
           <div className="flex flex-wrap gap-2">
             {manageMail && ready.length > 0 && <Button onClick={() => setMaking(true)}><Plus /> New mailbox</Button>}
-            {manageBilling && <Button variant="outline" onClick={() => setCancelling(true)}>Cancel Work email</Button>}
           </div>
         )} />
 
@@ -207,8 +205,6 @@ export function WorkEmailPage(_: PageProps) {
       </Dialog>
       <RemoveDomainDialog domain={removeDomain} price={cfg.data.mailboxPrice} planPerMonth={plan.data?.planPerMonth ?? null} used={cfg.data.mailboxesUsed}
         onClose={() => setRemoveDomain(null)} onDone={() => { setRemoveDomain(null); reloadAll(); }} />
-      <CancelWorkEmailDialog open={cancelling} price={cfg.data.mailboxPrice} planPerMonth={plan.data?.planPerMonth ?? null} used={cfg.data.mailboxesUsed}
-        onClose={() => setCancelling(false)} />
       <ConfirmDialog open={!!removeBox} onOpenChange={(o) => !o && setRemoveBox(null)} destructive confirmLabel="Delete mailbox"
         title={`Delete ${removeBox?.address ?? ""}?`} description="The mailbox and the mail in it are deleted at the provider. To keep the mail, switch it off instead."
         onConfirm={async () => { await host.api.del(`/mailboxes/${removeBox!.id}`); reloadAll(); }} />

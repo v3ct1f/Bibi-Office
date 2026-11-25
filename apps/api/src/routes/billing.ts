@@ -14,7 +14,7 @@ import { paymentFailedEmail, serviceResumedEmail, type Mailer } from "../mail.ts
 import { sendOwnerSignupEmail } from "../owner-signup-mail.ts";
 import type { Identity } from "../identity.ts";
 import { verifyStripeSignature, type Billing } from "../billing.ts";
-import { activateAddon } from "../addons.ts";
+import { activateAddon, ensureBuiltInModules } from "../addons.ts";
 import { getProvider } from "@office/module-workmail";
 
 const PUBLIC = { auth: "public" } as const;
@@ -218,6 +218,7 @@ export async function registerBillingRoutes(
     if (p.kind !== "user" || !p.emailVerified) throw new AppError(403, "no_signup", "Sign in with the email address you paid with.");
     const t = await createBusinessFromSignup(o.db, { userId: p.userId, email: p.email }, req.body, { requestId: req.id, ip: req.ip, userAgent: req.headers["user-agent"] },
       (key) => { const plan = planByKey(key); return plan ? planModuleKeys(o.modules.registry, plan) : null; });
+    await ensureBuiltInModules(o.db, o.modules, t.id);
     // Work email chosen at sign-up: switch the feature on now. The domain they wanted is bought from the Work email page.
     let workmail: { mailboxes: number; domain: string | null; on: boolean } | null = null;
     if (t.workmail) {

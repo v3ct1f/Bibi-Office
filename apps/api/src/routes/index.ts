@@ -15,6 +15,7 @@ import type { Identity } from "../identity.ts";
 import { registerOwnerRoutes } from "./owner.ts";
 import { registerBillingRoutes } from "./billing.ts";
 import { registerAddonRoutes } from "./addons.ts";
+import { ensureBuiltInModules } from "../addons.ts";
 import { registerContactRoutes } from "./contact.ts";
 import { registerPreferenceRoutes } from "./preferences.ts";
 import type { Billing } from "../billing.ts";
@@ -78,6 +79,7 @@ export const registerRoutes: FastifyPluginAsync<{
     if (p.kind !== "user") throw forbidden("Only users can create tenants");
     if (!o.selfSignup && !(await platformAdmin(req))) throw forbidden("New businesses are set up by the program owner. Ask them for an invitation.");
     const t = await createTenant(db, req.body, { userId: p.userId }, { requestId: req.id, ip: req.ip, userAgent: req.headers["user-agent"] });
+    await ensureBuiltInModules(db, o.modules, t.id);
     return reply.status(201).send(t);
   });
 

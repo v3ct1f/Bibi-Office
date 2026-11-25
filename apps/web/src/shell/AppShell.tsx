@@ -165,7 +165,9 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { tenant, can, slots } = useTenant();
   const base = `/t/${tenant.slug}`;
   const p = onNavigate ? { onNavigate } : {};
-  const moduleNav = slots("nav.main").filter((s) => s.slot.route);
+  // Work email is built in: it lives under Admin (above Workflows), not in the feature list.
+  const workEmail = slots("nav.main").find((s) => s.module === "workmail" && s.slot.route);
+  const moduleNav = slots("nav.main").filter((s) => s.slot.route && s.module !== "workmail");
   const data = [
     { to: `${base}/contacts`, label: t("nav.contacts"), icon: Contact, perm: "core:contacts.read" },
     { to: `${base}/companies`, label: t("nav.companies"), icon: Building2, perm: "core:companies.read" },
@@ -189,8 +191,9 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             {can("core:modules.manage") && <NavItem to={`${base}/features`} icon={PackagePlus} {...p}>{t("nav.addFeatures")}</NavItem>}
           </Group>
         )}
-        {(can("core:workflows.read") || SETTINGS_PERMS.some(can)) && (
+        {(workEmail || can("core:workflows.read") || SETTINGS_PERMS.some(can)) && (
           <Group label={t("nav.admin")}>
+            {workEmail && <NavItem to={`${base}/m/workmail${workEmail.slot.route}`} icon={moduleIcon(workEmail.slot.icon)} {...p}>{workEmail.slot.label ?? workEmail.moduleName}</NavItem>}
             {can("core:workflows.read") && <NavItem to={`${base}/workflows`} icon={Workflow} {...p}>{t("nav.workflows")}</NavItem>}
             {SETTINGS_PERMS.some(can) && <NavItem to={`${base}/settings`} icon={Settings} {...p}>{t("nav.settings")}</NavItem>}
           </Group>

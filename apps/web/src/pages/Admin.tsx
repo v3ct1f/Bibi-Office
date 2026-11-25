@@ -193,7 +193,7 @@ export function AdminPage() {
                     </TD>
                     <TD className="hidden md:table-cell">{b.members}</TD>
                     <TD className="hidden lg:table-cell"><span className="text-sm text-muted-foreground">
-                      {b.allowedFeatures === null ? "All included" : `${b.allowedFeatures.length} of ${features.length} included`}
+                      {b.allowedFeatures === null ? "All included" : `${b.allowedFeatures.filter((k) => features.some((f) => f.key === k)).length} of ${features.length} included`}
                       <span className="block text-xs">{b.features.length ? `${b.features.length} turned on` : "None turned on"}</span>
                     </span></TD>
                     <TD className="hidden md:table-cell">{fmtDate(b.createdAt)}</TD>

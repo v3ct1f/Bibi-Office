@@ -22,7 +22,7 @@ import type { Config } from "./config.ts";
 import type { Mailer } from "./mail.ts";
 import type { Identity } from "./identity.ts";
 import type { Billing } from "./billing.ts";
-import { enableGuard, workmailPayments } from "./addons.ts";
+import { enableGuard, ensureBuiltInModules, workmailPayments } from "./addons.ts";
 import { configureWorkmail, type WorkmailProvider } from "@office/module-workmail";
 import { configureMail, type MailProvider } from "@office/module-mail";
 
@@ -139,6 +139,7 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   configureWorkmail({ provider: d.workmailProvider ? withOurDomainPrice(d.workmailProvider) : null, payments: workmailPayments(d.db, d.billing ?? null, appUrl, !!d.testPayments && !d.billing && d.config.NODE_ENV !== "production") });
   configureMail({ provider: d.mailProvider ?? null, ...(d.mailLimits ?? {}) });
   await seedPlatformAdmins(d.db, d.platformAdmins ?? []);
+  await ensureBuiltInModules(d.db, d.platform, undefined, (e) => app.log.warn({ err: e }, "could not switch on built-in features"));
   await syncPlanFeatures(d.db).catch((e) => app.log.warn({ err: e }, "could not update plan features"));
   const inTenant = makeTenantRunner(d.db, d.platform.registry.all().flatMap((m) => m.manifest.roles.viewer ?? []));
   await app.register(registerRoutes, {

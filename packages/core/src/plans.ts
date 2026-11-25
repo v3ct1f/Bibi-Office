@@ -87,6 +87,9 @@ export async function syncPlanFeatures(db: Db): Promise<number> {
   return changed;
 }
 
+/** Features every business has from the start; they are not part of a plan and not listed under Add features. */
+export const BUILT_IN_MODULES: readonly string[] = ["workmail"];
+
 export const planByKey = (key: string | null | undefined): Plan | undefined => PLANS.find((p) => p.key === key);
 export const planPrice = (p: Plan, interval: PlanInterval) => (interval === "yearly" ? p.yearly : p.monthly);
 

@@ -1,9 +1,11 @@
-import { eq, sql } from "drizzle-orm";
-import { AppError, platformContext, WORK_EMAIL, type PlatformActor, type RequestContext } from "@office/core";
+import { eq, ne, sql } from "drizzle-orm";
+import { AppError, BUILT_IN_MODULES, platformContext, WORK_EMAIL, type PlatformActor, type RequestContext } from "@office/core";
 import { tenants, withTenant, type Db, type Tx } from "@office/db";
-import { enableModule, type ModuleDeps } from "@office/platform";
+import { enableModule, enabledModuleKeys, type ModuleDeps } from "@office/platform";
 import type { MailboxPrice, WorkmailPayments } from "@office/module-workmail";
 import type { Billing } from "./billing.ts";
+
+export { BUILT_IN_MODULES };
 
 /** Paid extras: a feature (module) that costs extra each month on the business's subscription. */
 export const ADDON_KEYS = ["workmail"] as const;
@@ -25,6 +27,29 @@ export function enableGuard(db: Db, billing: Billing | null) {
       throw new AppError(402, "addon_required", `Work email is a paid extra (${billing.workmailLabel}). Turn it on from Add features, where you can see the price first.`);
     }
   };
+}
+
+/**
+ * Features every business has from the start (Work email): switched on for all businesses, not listed under Add features.
+ * Turning it on costs nothing by itself (each mailbox is paid); it never removes anything. Run at start-up and whenever a
+ * business is created or its allowed features change. One business: pass its id.
+ */
+export async function ensureBuiltInModules(db: Db, modules: ModuleDeps, tenantId?: string, log?: (e: unknown) => void) {
+  const keys = BUILT_IN_MODULES.filter((k) => modules.registry.get(k));
+  if (!keys.length) return;
+  const ids = tenantId ? [tenantId] : (await db.select({ id: tenants.id }).from(tenants).where(ne(tenants.status, "deleted"))).map((t) => t.id);
+  for (const id of ids) {
+    try {
+      await withTenant(db, id, async (tx) => {
+        const on = await enabledModuleKeys(tx);
+        for (const key of keys) {
+          if (on.has(key)) continue;
+          await tx.update(tenants).set({ allowedModules: sqlAllow(key) }).where(eq(tenants.id, id));
+          await enableModule(tx, platformContext(id, { userId: null, email: "system" }, { requestId: "built-in" }), modules, key);
+        }
+      });
+    } catch (e) { log?.(e); }
+  }
 }
 
 /** Records the add-on on the business and turns the feature on. */
@@ -59,7 +84,11 @@ export function workmailPayments(db: Db, billing: Billing | null, appUrl: string
     async mailboxesChanged({ tenantId, count }) {
       if (!billing?.workmailLabel) return;
       const [t] = await db.select({ sub: tenants.stripeSubscriptionId }).from(tenants).where(eq(tenants.id, tenantId));
-      if (t?.sub) await billing.setAddOnQuantity(t.sub, "workmail", count);
+      if (!t?.sub) return;
+      // Work email is built in, so the line may not be on the subscription yet: put it there (safe to repeat), then set the count.
+      if (count > 0) await billing.addAddOn(t.sub, "workmail", count);
+      await billing.setAddOnQuantity(t.sub, "workmail", count);
+      if (count > 0) await db.update(tenants).set({ addons: sqlAddAddon("workmail") }).where(eq(tenants.id, tenantId));
     },
     async chargeDomain(i) {
       if (!billing) return { status: "paid" };

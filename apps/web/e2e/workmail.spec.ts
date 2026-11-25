@@ -18,20 +18,27 @@ test.beforeAll(async ({ browser }) => {
   await expect(page.getByRole("heading", { name: "Welcome back, Maya" })).toBeVisible();
 });
 
-test("adding a colleague offers to turn on Work email, and says what is still missing", async () => {
+test("Work email is built in: under Admin above Workflows, not on Add features; adding a colleague says what is missing", async () => {
+  // In the menu: Admin group, Work email right above Workflows.
+  const links = await nav().getByRole("link").allInnerTexts();
+  const names = links.map((l) => l.trim());
+  expect(names.indexOf("Work email")).toBeGreaterThan(-1);
+  expect(names.indexOf("Work email")).toBeLessThan(names.indexOf("Workflows"));
+  expect(names.indexOf("Work email")).toBeGreaterThan(names.indexOf("Add features"));
+  // It isn't a feature you add or remove.
+  await nav().getByRole("link", { name: "Add features" }).click();
+  await expect(page.getByRole("heading", { name: "Add features" })).toBeVisible();
+  await expect(page.getByTestId("feature-workmail")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Work email/ })).toHaveCount(0);
+
   await nav().getByRole("link", { name: "Colleagues" }).click();
   await page.getByRole("button", { name: "Add colleague" }).click();
   const d = page.getByRole("dialog");
-  await expect(d.getByText("Give them a work email?")).toBeVisible();
-  await d.getByRole("button", { name: "Turn on Work email" }).click();
-  // The price is said before anything is turned on (demo server: nothing is charged).
-  await expect(d.getByText("Turning it on costs nothing by itself. Each work mailbox costs €3 per month (demo: nothing is charged).")).toBeVisible();
-  await d.getByRole("button", { name: "Yes, turn it on" }).click();
-  // On now, but no domain yet.
+  await expect(d.getByRole("button", { name: "Turn on Work email" })).toHaveCount(0);
+  // On from the start, but no domain yet.
   await expect(d.getByText("you don't have a company domain yet")).toBeVisible();
   await expect(d.getByRole("checkbox", { name: "Give them a work email" })).toBeDisabled();
   await d.getByRole("button", { name: "Cancel" }).click();
-  await expect(nav().getByRole("link", { name: "Work email" })).toBeVisible();
 });
 
 test("search for a domain, see what is taken, and get one", async () => {
@@ -183,38 +190,9 @@ test("a domain can be removed: it says what happens, needs the name typed, and t
   await expect(page.getByTestId("mailbox-usage")).toContainText("0 of 10 mailboxes used.");
 });
 
-test("Cancel Work email is on its page, needs 'cancel' typed, and keeps the data", async () => {
-  await page.getByRole("button", { name: "Cancel Work email" }).click();
-  const d = page.getByRole("dialog");
-  await expect(d.getByTestId("remove-consequences")).toContainText("Nothing is deleted");
-  await expect(d.getByTestId("remove-consequences")).toContainText("Adding Work email again brings everything back");
-  const go = d.getByRole("button", { name: "Cancel Work email" });
-  await expect(go).toBeDisabled();
-  await d.getByLabel("Type cancel to confirm").fill("cancel");
-  await go.click();
-  await expect(page).toHaveURL(/\/features$/);
-  await expect(page.getByRole("button", { name: "Add Work email" })).toBeVisible();
-  await expect(nav().getByRole("link", { name: "Work email" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Add Work email" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Add Work email" }).click();
+test("Work email can't be cancelled or removed: the domain's records stay", async () => {
   await nav().getByRole("link", { name: "Work email" }).click();
-  await expect(page.getByTestId("domain-mailco.com")).toContainText("Removed, not renewed");
-});
-
-test("the feature can be taken off from Add features (typed confirmation) and keeps its data", async () => {
-  await nav().getByRole("link", { name: "Add features" }).click();
-  await page.getByRole("button", { name: "Remove Work email" }).click();
-  const dlg = page.getByRole("dialog");
-  await expect(dlg).toContainText("Nothing is deleted");
-  await dlg.getByLabel("Type cancel to confirm").fill("cancel");
-  await dlg.getByRole("button", { name: "Cancel Work email" }).click();
-  await expect(page.getByRole("button", { name: "Add Work email" })).toBeVisible();
-  await expect(nav().getByRole("link", { name: "Work email" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Add Work email" }).click();
-  // The price is said before it's turned back on.
-  const confirm = page.getByRole("dialog");
-  await expect(confirm).toContainText("Each work mailbox costs €3 per month (demo: nothing is charged).");
-  await confirm.getByRole("button", { name: "Add Work email" }).click();
-  await nav().getByRole("link", { name: "Work email" }).click();
+  await expect(page.getByRole("heading", { name: "Work email" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel Work email" })).toHaveCount(0);
   await expect(page.getByTestId("domain-mailco.com")).toContainText("Removed, not renewed");
 });

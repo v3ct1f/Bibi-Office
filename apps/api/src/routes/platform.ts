@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { AppError, assertCapability, getTenant, hasPermission, requirePermission, type RequestContext } from "@office/core";
+import { AppError, BUILT_IN_MODULES, assertCapability, getTenant, hasPermission, requirePermission, type RequestContext } from "@office/core";
 import { and, eq } from "drizzle-orm";
 import { tenants, withTenant, type Db, type Tx } from "@office/db";
 import {
@@ -53,7 +53,10 @@ export const registerPlatformRoutes: FastifyPluginAsync<PlatformOpts> = async (a
   app.post("/modules/:key/enable", { config: AUTH, schema: { tags: ["modules"], headers: tenantHeader, params: ModKey } },
     (req) => inTenant(req, "core:modules.manage", async (tx, ctx) => { await o.beforeEnable?.(tx, ctx, req.params.key); return enableModule(tx, ctx, md, req.params.key); }));
   app.post("/modules/:key/disable", { config: AUTH, schema: { tags: ["modules"], headers: tenantHeader, params: ModKey } },
-    (req) => inTenant(req, "core:modules.manage", (tx, ctx) => disableModule(tx, ctx, md, req.params.key)));
+    (req) => inTenant(req, "core:modules.manage", (tx, ctx) => {
+      if (BUILT_IN_MODULES.includes(req.params.key)) throw new AppError(409, "built_in", "This feature is built in and can't be removed.");
+      return disableModule(tx, ctx, md, req.params.key);
+    }));
   app.patch("/modules/:key/settings", {
     config: AUTH, schema: { tags: ["modules"], headers: tenantHeader, params: ModKey, body: z.record(z.string(), z.unknown()) },
   }, (req) => inTenant(req, "core:modules.manage", (tx, ctx) => updateModuleSettings(tx, ctx, md, req.params.key, req.body)));

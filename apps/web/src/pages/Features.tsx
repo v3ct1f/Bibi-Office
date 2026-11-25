@@ -11,8 +11,9 @@ import { useTMutation, useTQuery } from "../api/hooks.ts";
 import { useTenant } from "../lib/tenant.tsx";
 import { fmtDate } from "../lib/format.ts";
 import { moduleIcon } from "../shell/icons.tsx";
-import { cancelWorkEmailLines, mailboxCostBefore } from "@office/module-workmail/ui";
-import { useAddons, type AddonInfo } from "../lib/addons.ts";
+
+/** Features every business has from the start: not added or removed on this page. */
+export const BUILT_IN_FEATURES = ["workmail"];
 
 export const CATEGORY_LABELS: Record<string, string> = {
   finance: "Money", sales: "Sales", team: "Team", operations: "Operations", other: "Other",
@@ -32,7 +33,6 @@ export function FeaturesPage() {
   const qc = useQueryClient();
   const mods = useTQuery<ModuleInfo[]>(["modules"], "/modules");
   const manage = can("core:modules.manage");
-  const [category, setCategory] = useState<string>("all");
   const [removing, setRemoving] = useState<ModuleInfo | null>(null);
   const [configuring, setConfiguring] = useState<ModuleInfo | null>(null);
   const [values, setValues] = useState<Record<string, unknown>>({});
@@ -40,21 +40,16 @@ export function FeaturesPage() {
 
   // Adding changes nav, permissions and slots -> refresh the access summary too.
   const refreshAccess = () => qc.invalidateQueries({ queryKey: ["access", tenant.id] });
-  const addons = useAddons();
-  const [addingPaid, setAddingPaid] = useState<ModuleInfo | null>(null);
-  // Work email is a paid extra: it goes through the billing step (adds or removes its price on the subscription).
-  const toggle = useTMutation((m: { key: string; name: string; on: boolean }) => m.key === "workmail"
-    ? (m.on ? api.post("/billing/addons/workmail") : api.del("/billing/addons/workmail"))
-    : api.post(`/modules/${m.key}/${m.on ? "enable" : "disable"}`), {
-    invalidate: [["modules"], ["roles"], ["addons"]], success: (_r, v) => (v.on ? `${v.name} added` : `${v.name} removed`), onSuccess: () => void refreshAccess(),
+  const toggle = useTMutation((m: { key: string; name: string; on: boolean }) => api.post(`/modules/${m.key}/${m.on ? "enable" : "disable"}`), {
+    invalidate: [["modules"], ["roles"]], success: (_r, v) => (v.on ? `${v.name} added` : `${v.name} removed`), onSuccess: () => void refreshAccess(),
   });
   const save = useTMutation((m: ModuleInfo) => api.patch<ModuleInfo>(`/modules/${m.key}/settings`, values), {
     invalidate: [["modules"]], success: "Settings saved", onSuccess: () => setConfiguring(null),
   });
-  const all = mods.data ?? [];
+  // Built-in features (Work email) are always on and have their own place in the menu, so they are not listed here.
+  const all = (mods.data ?? []).filter((m) => !BUILT_IN_FEATURES.includes(m.key));
   const enabledKeys = new Set(all.filter((m) => m.enabled).map((m) => m.key));
   const categories = [...new Set(all.map((m) => m.category))].sort((a, b) => Object.keys(CATEGORY_LABELS).indexOf(a) - Object.keys(CATEGORY_LABELS).indexOf(b));
-  const shown = all.filter((m) => category === "all" || m.category === category);
   const nameOf = (key: string) => all.find((m) => m.key === key)?.name ?? key;
 
   return (
@@ -63,22 +58,16 @@ export function FeaturesPage() {
         ? "Turn on only what your business needs. Each feature adds its own pages; removing one hides them and keeps all of its data."
         : "Features your workspace can use. Only owners and admins can add or remove them."} />
 
-      {categories.length > 1 && (
-        <div role="group" aria-label="Filter by category" className="-mx-4 mb-4 flex gap-1.5 overflow-x-auto px-4 lg:mx-0 lg:px-0">
-          {["all", ...categories].map((c) => (
-            <Button key={c} size="sm" variant={category === c ? "default" : "outline"} aria-pressed={category === c} onClick={() => setCategory(c)}>
-              {c === "all" ? "All" : CATEGORY_LABELS[c] ?? c}
-            </Button>
-          ))}
-        </div>
-      )}
-
       {mods.isPending ? <div className="grid gap-3 md:grid-cols-2"><Skeleton className="h-48" /><Skeleton className="h-48" /></div>
         : mods.isError ? <Card><ErrorState error={mods.error} onRetry={() => mods.refetch()} /></Card>
         : !all.length ? <Card><EmptyState icon={<Blocks />} title="No features available" description="This installation doesn’t include any feature modules yet." /></Card>
         : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {shown.map((m) => {
+          <div className="grid gap-8">
+            {categories.map((c) => (
+              <section key={c} aria-labelledby={`cat-${c}`} data-testid={`category-${c}`}>
+                <h2 id={`cat-${c}`} className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{CATEGORY_LABELS[c] ?? c}</h2>
+                <div className="grid gap-3 md:grid-cols-2">
+            {all.filter((m) => m.category === c).map((m) => {
               const Icon = moduleIcon(m.icon ?? undefined);
               const missing = m.dependsOn.filter((d) => !enabledKeys.has(d));
               return (
@@ -111,7 +100,7 @@ export function FeaturesPage() {
                       ? <Button size="sm" variant="outline" aria-label={`Remove ${m.name}`} disabled={toggle.isPending} onClick={() => setRemoving(m)}>Remove</Button>
                       : <Button size="sm" aria-label={`Add ${m.name}`} loading={toggle.isPending && toggle.variables?.key === m.key}
                           disabled={toggle.isPending || missing.length > 0} title={missing.length ? `Add ${missing.map(nameOf).join(", ")} first` : undefined}
-                          onClick={() => (m.key === "workmail" && addons.data && addons.data.workmail.mailbox.mode !== "free" ? setAddingPaid(m) : toggle.mutate({ key: m.key, name: m.name, on: true }))}><Plus /> Add</Button>)}
+                          onClick={() => toggle.mutate({ key: m.key, name: m.name, on: true })}><Plus /> Add</Button>)}
                     {m.enabled && mainRoute(m) && (
                       <Button size="sm" variant="ghost" onClick={() => go(m, mainRoute(m)!.route!)}>Open {mainRoute(m)!.label ?? m.name} <ArrowRight /></Button>
                     )}
@@ -122,19 +111,15 @@ export function FeaturesPage() {
                 </Card>
               );
             })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
 
-      <CancelWorkEmail open={removing?.key === "workmail"} addons={addons.data} onClose={() => setRemoving(null)}
-        onConfirm={() => toggle.mutateAsync({ key: "workmail", name: removing!.name, on: false }).then(() => setRemoving(null))} />
-      <ConfirmDialog open={!!removing && removing.key !== "workmail"} onOpenChange={(o) => !o && setRemoving(null)} destructive confirmLabel="Remove"
+      <ConfirmDialog open={!!removing} onOpenChange={(o) => !o && setRemoving(null)} destructive confirmLabel="Remove"
         title={`Remove ${removing?.name}?`} description="Its pages, automations and API access stop for everyone in this workspace. Nothing is deleted: add it again any time and everything is back."
         onConfirm={() => toggle.mutateAsync({ key: removing!.key, name: removing!.name, on: false })} />
-
-      <ConfirmDialog open={!!addingPaid} onOpenChange={(o) => !o && setAddingPaid(null)} confirmLabel={`Add ${addingPaid?.name ?? ""}`}
-        title={`Add ${addingPaid?.name}?`}
-        description={`Turning it on costs nothing by itself. ${addons.data ? mailboxCostBefore(addons.data.workmail.mailbox).replace("This adds", "Each work mailbox you create adds") : ""}${addons.data?.workmail.mailbox.mode === "stripe" ? " It's charged to the card you already use, pro rata for this month." : ""} A company domain is paid once a year when you get one. You can remove Work email any time.`}
-        onConfirm={() => toggle.mutateAsync({ key: addingPaid!.key, name: addingPaid!.name, on: true })} />
 
       <Dialog open={!!configuring} onOpenChange={(o) => !o && setConfiguring(null)}>
         {configuring && (
@@ -150,33 +135,5 @@ export function FeaturesPage() {
         )}
       </Dialog>
     </>
-  );
-}
-
-/** Removing Work email: the same list of what happens as on the Work email page, and "cancel" typed to confirm. */
-function CancelWorkEmail({ open, addons, onClose, onConfirm }: {
-  open: boolean; addons: AddonInfo | undefined; onClose: () => void; onConfirm: () => Promise<unknown>;
-}) {
-  const cfg = useTQuery<{ mailboxesUsed: number }>(["workmail-config"], "/m/workmail/config", undefined, { enabled: open });
-  const [typed, setTyped] = useState("");
-  const [busy, setBusy] = useState(false);
-  const close = () => { setTyped(""); onClose(); };
-  const lines = cancelWorkEmailLines(addons?.workmail.mailbox ?? null, addons?.planPerMonth ?? null, cfg.data?.mailboxesUsed ?? 0);
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent title="Cancel Work email?" description="Please read what happens first.">
-        <form className="grid gap-4" onSubmit={(e) => {
-          e.preventDefault(); if (typed.trim().toLowerCase() !== "cancel") return;
-          setBusy(true); void onConfirm().finally(() => { setBusy(false); setTyped(""); });
-        }}>
-          <ul className="grid list-disc gap-1.5 pl-5 text-sm" data-testid="remove-consequences">{lines.map((l) => <li key={l}>{l}</li>)}</ul>
-          <Field label="Type cancel to confirm">{(a) => <Input {...a} autoComplete="off" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="cancel" />}</Field>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={close}>Keep it</Button>
-            <Button type="submit" variant="destructive" loading={busy} disabled={typed.trim().toLowerCase() !== "cancel" || cfg.isPending}>Cancel Work email</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }

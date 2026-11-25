@@ -98,25 +98,3 @@ export function RemoveDomainDialog({ domain, price, planPerMonth, used, onClose,
       onConfirm={() => void remove()} onClose={() => { setError(null); onClose(); }} />
   );
 }
-
-export function CancelWorkEmailDialog({ open, price, planPerMonth, used, onClose }: {
-  open: boolean; price: MailboxPrice | null; planPerMonth: number | null; used: number; onClose: () => void;
-}) {
-  const host = useModuleHost();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const cancel = async () => {
-    setBusy(true); setError(null);
-    try {
-      await host.core.del("/billing/addons/workmail");
-      toast.success("Work email cancelled. Your data is kept.");
-      // The feature is off now: go to Add features, where it can be added back.
-      window.location.assign(`/t/${host.tenant.slug}/features`);
-    } catch (e) { setError(errorMessage(e)); setBusy(false); }
-  };
-  return (
-    <TypedConfirm open={open} title="Cancel Work email?" lines={cancelWorkEmailLines(price, planPerMonth, used)}
-      word="cancel" label="Type cancel to confirm" confirmLabel="Cancel Work email" busy={busy} error={error}
-      onConfirm={() => void cancel()} onClose={() => { setError(null); onClose(); }} />
-  );
-}

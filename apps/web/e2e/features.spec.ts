@@ -25,9 +25,12 @@ test("nothing is on by default; adding a feature shows its pages", async () => {
   await expect(page.getByRole("heading", { name: "Add features" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Remove / })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Sales", exact: true }).click();
-  await expect(page.getByTestId("feature-invoicing")).toHaveCount(0);
-  await page.getByRole("button", { name: "All", exact: true }).click();
+  // Features are grouped by category, each under its own heading.
+  await expect(page.getByRole("heading", { name: "Sales", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Money", exact: true })).toBeVisible();
+  await expect(page.getByTestId("category-sales").getByTestId("feature-crm")).toBeVisible();
+  await expect(page.getByTestId("category-sales").getByTestId("feature-invoicing")).toHaveCount(0);
+  await expect(page.getByTestId("category-finance").getByTestId("feature-invoicing")).toBeVisible();
 
   await page.getByRole("button", { name: "Add CRM" }).click();
   await expect(page.getByText("CRM added").first()).toBeVisible();

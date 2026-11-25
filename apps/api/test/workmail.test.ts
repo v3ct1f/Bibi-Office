@@ -37,9 +37,7 @@ afterAll(async () => { await h.teardown(); });
 describe("work email: domains", () => {
   let domainId: string;
 
-  it("is off until the feature is turned on", async () => {
-    expect((await A().get(`${M}/domains`)).status).toBe(403);
-    expect((await A().post("/modules/workmail/enable", {})).status).toBe(200);
+  it("is on from the start for every business (built in)", async () => {
     expect((await A().get(`${M}/domains`)).body).toEqual([]);
     expect((await A().get(`${M}/config`)).body).toMatchObject({ available: true, hasDomain: false, maxMailboxes: 10 });
   });
@@ -280,18 +278,14 @@ describe("work email: mailboxes", () => {
 
 
 
-  it("turning the feature off pauses mail, turning it on resumes it; nothing is deleted", async () => {
+  it("can't be turned off: it's built in", async () => {
     const active = () => [...provider.mailboxes.values()].filter((m) => !m.deleted && m.active).length;
     const before = active();
     expect(before).toBeGreaterThan(0);
-    expect((await A().post("/modules/workmail/disable", {})).status).toBe(200);
-    expect(active()).toBe(0);
-    expect((await A().post("/modules/workmail/enable", {})).status).toBe(200);
-    // Back on: the ones that were paused because of the feature come back; the colleague's stays off.
+    expect((await A().post("/modules/workmail/disable", {})).status).toBe(409);
     expect(active()).toBe(before);
-    const rows = await h.asOwner(tA, (tx) => tx`select count(*)::int as n from workmail_mailboxes where status <> 'deleted'`);
-    expect(rows[0]!.n).toBeGreaterThan(0);
   });
+
 });
 
 describe("work email: removing a domain", () => {

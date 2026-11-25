@@ -102,13 +102,12 @@ describe("signing up with Work email", () => {
     expect(o.made.workmail).toEqual({ mailboxes: 2, domain: null, on: true });
   });
 
-  it("skipped: the business starts without Work email, and it can be turned on later at no extra charge here", async () => {
+  it("skipped: the business still has Work email (it's built in), and nothing extra is charged", async () => {
     const o = await signUp("sam", { plan: "starter" });
     expect(o.page.workmail).toBeNull();
     expect(o.made.workmail).toBeNull();
-    expect((await o.c.get("/billing/addons")).body.workmail).toMatchObject({ active: false, enabled: false });
-    expect((await o.c.get("/m/workmail/domains")).status).toBe(403);
-    expect((await o.c.post("/billing/addons/workmail", {})).body).toEqual({ ok: true, charged: false });
-    expect((await o.c.get("/billing/addons")).body.workmail).toMatchObject({ active: true, enabled: true });
+    expect((await o.c.get("/billing/addons")).body.workmail).toMatchObject({ active: false, enabled: true });
+    expect((await o.c.get("/m/workmail/domains")).status).toBe(200);
   });
+
 });

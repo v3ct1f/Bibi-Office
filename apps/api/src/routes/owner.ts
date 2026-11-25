@@ -1,3 +1,4 @@
+import { BUILT_IN_MODULES, ensureBuiltInModules } from "../addons.ts";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -137,7 +138,7 @@ export async function registerOwnerRoutes(
   app.get("/platform/features", { config: AUTH, schema: { tags: ["platform"] } }, async (req) => {
     await admin(req);
     return {
-      items: o.modules.registry.all().map((m) => ({
+      items: o.modules.registry.all().filter((m) => !BUILT_IN_MODULES.includes(m.manifest.key)).map((m) => ({
         key: m.manifest.key, name: m.manifest.name, description: m.manifest.description, category: m.manifest.category, dependsOn: m.manifest.dependsOn,
       })),
     };
@@ -149,12 +150,14 @@ export async function registerOwnerRoutes(
     schema: { tags: ["platform"], params: Id, body: z.object({ features: z.array(z.string().regex(/^[a-z][a-z0-9-]{1,40}$/)).max(200).nullable() }).strict() },
   }, async (req) => {
     const a = await admin(req);
-    return withTenant(o.db, req.params.id, async (tx) => {
+    const out = await withTenant(o.db, req.params.id, async (tx) => {
       const [t] = await tx.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.id, req.params.id), ne(tenants.status, "deleted")));
       if (!t) throw notFound("Business");
       const r = await setAllowedModules(tx, platformContext(t.id, a, meta(req)), o.modules, req.body.features);
-      return { features: r.allowed, turnedOff: r.turnedOff };
+      return { features: r.allowed, turnedOff: r.turnedOff.filter((k) => !BUILT_IN_MODULES.includes(k)) };
     });
+    await ensureBuiltInModules(o.db, o.modules, req.params.id); // built-in features stay on whatever is chosen
+    return out;
   });
 
   app.get("/platform/businesses", { config: AUTH, schema: { tags: ["platform"] } }, async (req) => {
@@ -176,6 +179,7 @@ export async function registerOwnerRoutes(
   }, async (req, reply) => {
     const a = await admin(req);
     const { tenant, invite } = await createBusiness(o.db, a, req.body, meta(req));
+    await ensureBuiltInModules(o.db, o.modules, tenant.id);
     return reply.status(201).send({
       business: { id: tenant.id, name: tenant.name, slug: tenant.slug, status: tenant.status },
       invitation: await deliver(req, tenant, invite),
