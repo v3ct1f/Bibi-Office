@@ -12,6 +12,7 @@ import postgres from "postgres";
 import pino from "pino";
 import { createDb } from "@office/db";
 import { createRegistry } from "@office/modules";
+import { configureMail, mailProviderFromEnv } from "@office/module-mail";
 import { deliverDue, dispatchEvent, InlineRunner, runDueJobs, SecretBox, type ExecDeps } from "@office/platform";
 import type { EventEnvelope } from "@office/sdk";
 import { relayBatch, type Publisher } from "../src/relay.ts";
@@ -32,6 +33,8 @@ const secrets = new SecretBox(process.env.SECRETS_KEY ?? Buffer.alloc(32, 1).toS
 const relaySql = postgres(relayUrl, { max: 4, onnotice: () => {} });
 const app = createDb(appUrl, { max: 10 });
 const registry = createRegistry();
+// Mail's every-minute job reads a real mail server (MAIL_PROVIDER=imap) from here, not inside page requests.
+configureMail(mailProviderFromEnv(process.env));
 const http = { allowPrivate: true, requireHttps: false };
 const exec: ExecDeps = { db: app.db, registry, secrets, http };
 const runner = new InlineRunner(exec);

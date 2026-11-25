@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, ne, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { uuidv7 } from "@office/db";
 import { moduleErrors as E, ModuleError, type ModuleContext } from "@office/sdk";
-import { accounts, attachments, labels, messageLabels, messages, FOLDERS, type Addr, type Folder } from "./schema.ts";
-import { getMailProvider, MailProviderError, type IncomingMail, type MailProvider } from "./provider.ts";
+import { accounts, attachments, labels, messageLabels, messages, remoteDeletions, FOLDERS, type Addr, type Folder } from "./schema.ts";
+import {
+  getMailLimits, getMailProvider, MailProviderError, type IncomingMail, type MailProvider, type RemoteChange, type RemoteFlags, type RemoteFolder,
+} from "./provider.ts";
 import { htmlToText, sanitizeHtml } from "./sanitize.ts";
 
 export const USE = "mail:inbox.use";
@@ -138,16 +140,41 @@ async function needAccount(ctx: ModuleContext, uid: string, opts: { active?: boo
 
 const accountDto = (a: Account) => ({
   id: a.id, address: a.address, name: a.displayName, signature: a.signature, source: a.source, status: a.status,
-  lastSyncedAt: a.lastSyncedAt ? iso(a.lastSyncedAt) : null,
+  lastSyncedAt: a.lastSyncedAt ? iso(a.lastSyncedAt) : null, lastSyncError: a.lastSyncError,
 });
+
+// ── Storage: how much one person keeps ───────────────────────────────────────
+/** Bytes of mail this person keeps in Office: text, cleaned HTML and attachments (rows of this person only, by the database rule). */
+export async function usedBytes(ctx: ModuleContext): Promise<number> {
+  const [r] = await rows<{ n: number }>(ctx, sql`select
+    (select coalesce(sum(octet_length(body_text) + coalesce(octet_length(body_html), 0)), 0) from mail_messages)
+    + (select coalesce(sum(size_bytes), 0) from mail_attachments) as n`);
+  return Number(r?.n ?? 0);
+}
+const FULL = "Your mailbox is full. Delete old mail or empty the Trash to receive and send again.";
+async function storage(ctx: ModuleContext) {
+  const used = await usedBytes(ctx), { quotaBytes } = getMailLimits();
+  return { usedBytes: used, quotaBytes, full: used >= quotaBytes };
+}
 
 export async function getAccount(ctx: ModuleContext) {
   const uid = await me(ctx);
   const a = await ensureAccount(ctx, uid);
+  const { trashDays } = getMailLimits();
   return {
     available: !!providerOrNull(), account: a ? accountDto(a) : null,
-    limits: { maxFileBytes: MAX_FILE_BYTES, maxTotalBytes: MAX_TOTAL_BYTES },
+    /** New mail is fetched by the server every minute (real mail server), not when the page asks. */
+    background: !!providerOrNull()?.background,
+    storage: a ? await storage(ctx) : null,
+    limits: { maxFileBytes: MAX_FILE_BYTES, maxTotalBytes: MAX_TOTAL_BYTES, trashDays },
   };
+}
+
+/** Asks Work email (by event) to link this person's work mailbox, e.g. one made before Mail was turned on. */
+export async function requestLink(ctx: ModuleContext) {
+  const uid = await me(ctx);
+  await ctx.events.emit("mail.mailboxes.requested", { userId: uid });
+  return { requested: true };
 }
 
 export async function patchAccount(ctx: ModuleContext, input: z.infer<typeof AccountPatch>) {
@@ -168,18 +195,23 @@ export async function onMailboxCreated(ctx: ModuleContext, p: Record<string, unk
   if (!userId || !address) return;
   await scopeTo(ctx, userId);
   const ref = typeof p.id === "string" ? p.id : null;
+  // A replayed mailbox (see "mail.mailboxes.requested") says whether it is switched off.
+  const status = p.status === "suspended" ? "paused" as const : "active" as const;
   const found = await loadAccount(ctx);
   if (found) {
     if (found.address !== address) {
       // A new mailbox on a new server: forget the old fetch position and the old server's ids so nothing new is skipped.
-      await ctx.db.update(messages).set({ remoteUid: null }).where(eq(messages.accountId, found.id));
-      await ctx.db.update(accounts).set({ address, source: "workmail", providerRef: ref, status: "active", syncCursor: null, updatedAt: new Date() }).where(eq(accounts.id, found.id));
+      await ctx.db.update(messages).set({ remoteUid: null, remoteDirty: false }).where(eq(messages.accountId, found.id));
+      await ctx.db.delete(remoteDeletions).where(eq(remoteDeletions.accountId, found.id));
+      await ctx.db.update(accounts).set({ address, source: "workmail", providerRef: ref, status, syncCursor: null, lastSyncError: null, updatedAt: new Date() }).where(eq(accounts.id, found.id));
+    } else if (p.replay && found.status !== status) {
+      await ctx.db.update(accounts).set({ status, updatedAt: new Date() }).where(eq(accounts.id, found.id));
     }
     return;
   }
   const person = await ctx.people.get(userId);
   await ctx.db.insert(accounts).values({
-    id: uuidv7(), tenantId: ctx.tenantId, userId, address, displayName: person?.name || address, source: "workmail", providerRef: ref,
+    id: uuidv7(), tenantId: ctx.tenantId, userId, address, displayName: person?.name || address, source: "workmail", providerRef: ref, status,
   });
 }
 export async function onMailboxState(ctx: ModuleContext, p: Record<string, unknown>, status: "active" | "paused") {
@@ -221,8 +253,8 @@ async function storeIncoming(ctx: ModuleContext, a: Account, m: IncomingMail): P
     messageIdHdr: m.messageId, inReplyTo: m.inReplyTo, refs, fromName: (m.from.name ?? "").slice(0, 200), fromEmail: m.from.email.toLowerCase().slice(0, 320),
     toAddrs: cleanAddrs(m.to ?? []), ccAddrs: cleanAddrs(m.cc ?? []), bccAddrs: [], subject, subjectNorm,
     bodyText: text + (keep.length < (m.files ?? []).length ? "\n\n[An attachment was too large and was not kept.]" : ""),
-    bodyHtml: cleaned?.html ?? null, snippet: snippetOf(text), isRead: false, isStarred: false, hasAttachments: keep.length > 0,
-    hasRemoteImages: cleaned?.hasRemoteImages ?? false, date: Number.isNaN(date.getTime()) ? new Date() : date,
+    bodyHtml: cleaned?.html ?? null, snippet: snippetOf(text), isRead: m.read ?? false, isStarred: m.starred ?? false, hasAttachments: keep.length > 0,
+    hasRemoteImages: cleaned?.hasRemoteImages ?? false, date: Number.isNaN(date.getTime()) ? new Date() : date, trashedAt: m.spam ? new Date() : null,
   });
   for (const f of keep) {
     await ctx.db.insert(attachments).values({
@@ -233,26 +265,122 @@ async function storeIncoming(ctx: ModuleContext, a: Account, m: IncomingMail): P
   return true;
 }
 
+// ── Two-way sync: changes made in Office go back to the mail server ──────────
+/** Remembers messages deleted for good, so the job deletes them on the mail server too (only where there is one to write to). */
+async function tombstone(ctx: ModuleContext, where: SQL) {
+  if (!providerOrNull()?.applyChanges) return;
+  await ctx.db.execute(sql`insert into mail_remote_deletions (tenant_id, user_id, account_id, remote_uid)
+    select m.tenant_id, m.user_id, m.account_id, m.remote_uid from mail_messages m where m.remote_uid is not null and m.folder <> 'drafts' and (${where})`);
+}
+
+/** Writes read/starred/moves/deletes made in Office to the mail server. Returns how many changes went out. */
+async function pushChanges(ctx: ModuleContext, a: Account, p: MailProvider): Promise<number> {
+  if (!p.applyChanges) return 0;
+  const dirty = await ctx.db.select({ id: messages.id, uid: messages.remoteUid, read: messages.isRead, starred: messages.isStarred, folder: messages.folder, ver: sql<string>`${messages.updatedAt}::text` })
+    .from(messages).where(and(eq(messages.accountId, a.id), eq(messages.remoteDirty, true), isNotNull(messages.remoteUid))).limit(200);
+  const gone = await ctx.db.select().from(remoteDeletions).where(eq(remoteDeletions.accountId, a.id)).limit(200);
+  const changes: RemoteChange[] = [
+    ...dirty.map((d) => ({ uid: d.uid!, read: d.read, starred: d.starred, folder: (d.folder === "drafts" ? "inbox" : d.folder) as RemoteFolder })),
+    ...gone.map((g) => ({ uid: g.remoteUid, read: true, starred: false, folder: "deleted" as const })),
+  ];
+  if (!changes.length) return 0;
+  const results = await p.applyChanges({ address: a.address, providerRef: a.providerRef }, changes);
+  const by = new Map(results.map((r) => [r.uid, r.newUid]));
+  for (const d of dirty) {
+    const newUid = by.has(d.uid!) ? by.get(d.uid!)! : d.uid;
+    // Changed again while we were writing? Then it stays marked, and goes out next time.
+    await ctx.db.update(messages).set({ remoteUid: newUid, remoteDirty: sql`${messages.updatedAt}::text <> ${d.ver}` as unknown as boolean })
+      .where(eq(messages.id, d.id));
+  }
+  if (gone.length) await ctx.db.delete(remoteDeletions).where(inArray(remoteDeletions.id, gone.map((g) => g.id)));
+  return changes.length;
+}
+
+/** Read/starred changes made in another mail app (phone, webmail). A change made in Office and not yet written back wins. */
+async function applyRemoteFlags(ctx: ModuleContext, a: Account, flags: RemoteFlags[]) {
+  if (!flags.length) return;
+  await ctx.db.execute(sql`update mail_messages m set is_read = f.read, is_starred = f.starred, updated_at = now()
+    from jsonb_to_recordset(${JSON.stringify(flags.slice(0, 2000))}::jsonb) as f(uid text, read boolean, starred boolean)
+    where m.account_id = ${a.id}::uuid and m.remote_uid = f.uid and not m.remote_dirty and (m.is_read <> f.read or m.is_starred <> f.starred)`);
+}
+
 async function syncNow(ctx: ModuleContext, a: Account): Promise<number> {
   const p = needProvider();
+  await viaProvider(() => pushChanges(ctx, a, p));
+  if ((await storage(ctx)).full) {
+    // Mail waits on the mail server (nothing is lost) until there is room again.
+    await ctx.db.update(accounts).set({ lastSyncError: FULL, lastSyncedAt: new Date() }).where(eq(accounts.id, a.id));
+    throw new ModuleError(409, "mailbox_full", FULL);
+  }
   const got = await viaProvider(() => p.fetchNew({ address: a.address, providerRef: a.providerRef }, a.syncCursor));
   let received = 0;
   for (const m of got.messages.slice(0, 500)) if (await storeIncoming(ctx, a, m)) received++;
-  await ctx.db.update(accounts).set({ syncCursor: got.cursor, lastSyncedAt: new Date() }).where(eq(accounts.id, a.id));
+  await applyRemoteFlags(ctx, a, got.flags ?? []);
+  await ctx.db.update(accounts).set({ syncCursor: got.cursor, lastSyncedAt: new Date(), lastSyncError: null }).where(eq(accounts.id, a.id));
   return received;
 }
 
 export async function sync(ctx: ModuleContext) {
   const uid = await me(ctx);
   const a = await needAccount(ctx, uid, { active: true });
+  // A real mail server is read by the worker every minute, never inside a page request.
+  if (needProvider().background) return { received: 0, background: true, lastSyncedAt: a.lastSyncedAt ? iso(a.lastSyncedAt) : null };
   return { received: await syncNow(ctx, a) };
 }
 
 /** Asks for new mail unless that was done a moment ago. A mail server that doesn't answer never breaks the page. */
 async function syncIfDue(ctx: ModuleContext, a: Account) {
-  if (a.status !== "active" || !providerOrNull()) return;
+  const p = providerOrNull();
+  if (a.status !== "active" || !p || p.background) return;
   if (a.lastSyncedAt && Date.now() - new Date(a.lastSyncedAt).getTime() < SYNC_EVERY_MS) return;
   try { await syncNow(ctx, a); } catch (e) { ctx.log.warn({ err: String(e) }, "mail sync failed"); }
+}
+
+// ── Jobs (run by the worker) ─────────────────────────────────────────────────
+/** Everyone's mailbox in this business (the database shows them one person at a time). */
+async function allAccounts(ctx: ModuleContext): Promise<Account[]> {
+  const out: Account[] = [];
+  for (const person of await ctx.people.list()) {
+    await scopeTo(ctx, person.userId);
+    const a = await loadAccount(ctx);
+    if (a) out.push(a);
+  }
+  return out;
+}
+
+/** Every minute: fetch new mail and write changes back, for a real mail server. Longest-waiting mailboxes first, within a time budget. */
+export async function syncJob(ctx: ModuleContext, opts: { budgetMs?: number; max?: number } = {}) {
+  const p = providerOrNull();
+  if (!p?.background) return { synced: 0 };
+  const due = (await allAccounts(ctx)).filter((a) => a.status === "active")
+    .sort((x, y) => (x.lastSyncedAt?.getTime() ?? 0) - (y.lastSyncedAt?.getTime() ?? 0));
+  const until = Date.now() + (opts.budgetMs ?? 40_000);
+  let synced = 0;
+  for (const a of due.slice(0, opts.max ?? 25)) {
+    if (Date.now() > until) break;
+    await scopeTo(ctx, a.userId);
+    try { await syncNow(ctx, a); synced++; }
+    catch (e) {
+      const msg = e instanceof ModuleError ? e.message : "The mail server couldn't be reached.";
+      await ctx.db.update(accounts).set({ lastSyncError: msg }).where(eq(accounts.id, a.id));
+      ctx.log.warn({ err: String(e), account: a.id }, "mail sync failed");
+    }
+  }
+  return { synced };
+}
+
+/** Every hour: mail that has been in Trash or Spam longer than the limit (30 days) is deleted for good. */
+export async function cleanUpJob(ctx: ModuleContext) {
+  const { trashDays } = getMailLimits();
+  let deleted = 0;
+  for (const a of await allAccounts(ctx)) {
+    await scopeTo(ctx, a.userId);
+    const old = sql`m.folder in ('trash','spam') and m.trashed_at < now() - make_interval(days => ${trashDays})`;
+    await tombstone(ctx, old);
+    const gone = await ctx.db.execute(sql`delete from mail_messages m where ${old} returning m.id`);
+    deleted += (gone as unknown as unknown[]).length;
+  }
+  return { deleted };
 }
 
 // ── Folders, counts and the menu badge ───────────────────────────────────────
@@ -471,7 +599,7 @@ export async function getMessage(ctx: ModuleContext, id: string) {
 export async function patchMessage(ctx: ModuleContext, id: string, input: z.infer<typeof MessagePatch>) {
   await me(ctx);
   const [m] = await ctx.db.update(messages).set({
-    ...(input.isRead !== undefined ? { isRead: input.isRead } : {}), ...(input.isStarred !== undefined ? { isStarred: input.isStarred } : {}), updatedAt: new Date(),
+    ...(input.isRead !== undefined ? { isRead: input.isRead } : {}), ...(input.isStarred !== undefined ? { isStarred: input.isStarred } : {}), remoteDirty: true, updatedAt: new Date(),
   }).where(eq(messages.id, id)).returning({ id: messages.id });
   if (!m) throw E.notFound("Message");
   return { ok: true };
@@ -485,34 +613,36 @@ export async function act(ctx: ModuleContext, input: z.infer<typeof ActionInput>
   const inThreads = inArray(messages.threadId, ids);
   const now = new Date();
   const upd = (set: Partial<typeof messages.$inferInsert>, where: SQL | undefined) =>
-    ctx.db.update(messages).set({ ...set, updatedAt: now }).where(and(inThreads, where));
+    ctx.db.update(messages).set({ ...set, remoteDirty: true, updatedAt: now }).where(and(inThreads, where));
   switch (input.action) {
     case "read": await upd({ isRead: true }, undefined); break;
     case "unread": {
       // Only the newest received message turns unread (like Gmail), so one click undoes "mark as read".
-      await ctx.db.execute(sql`update mail_messages set is_read = false, updated_at = now() where id in (
+      await ctx.db.execute(sql`update mail_messages set is_read = false, remote_dirty = true, updated_at = now() where id in (
         select distinct on (thread_id) id from mail_messages where thread_id in (${sql.join(ids.map((i) => sql`${i}::uuid`), sql`, `)})
           and folder in ('inbox','archive','spam','trash') order by thread_id, date desc)`);
       break;
     }
     case "star": {
-      await ctx.db.execute(sql`update mail_messages set is_starred = true, updated_at = now() where id in (
+      await ctx.db.execute(sql`update mail_messages set is_starred = true, remote_dirty = true, updated_at = now() where id in (
         select distinct on (thread_id) id from mail_messages where thread_id in (${sql.join(ids.map((i) => sql`${i}::uuid`), sql`, `)})
           and folder not in ('trash','spam') order by thread_id, date desc)`);
       break;
     }
     case "unstar": await upd({ isStarred: false }, undefined); break;
     case "archive": await upd({ folder: "archive" }, eq(messages.folder, "inbox")); break;
-    case "spam": await upd({ folder: "spam" }, inArray(messages.folder, ["inbox", "archive"])); break;
+    case "spam": await upd({ folder: "spam", trashedAt: now }, inArray(messages.folder, ["inbox", "archive"])); break;
     case "inbox":
       await upd({ folder: sql`case when ${messages.fromEmail} = ${a.address} then 'sent' else 'inbox' end` as unknown as Folder },
         inArray(messages.folder, ["archive", "trash", "spam"]));
+      await ctx.db.update(messages).set({ trashedAt: null }).where(and(inThreads, inArray(messages.folder, ["inbox", "sent"])));
       break;
     case "trash":
-      await upd({ folder: "trash" }, inArray(messages.folder, ["inbox", "archive", "sent", "spam"]));
+      await upd({ folder: "trash", trashedAt: now }, inArray(messages.folder, ["inbox", "archive", "sent", "spam"]));
       await ctx.db.delete(messages).where(and(inThreads, eq(messages.folder, "drafts")));
       break;
     case "delete":
+      await tombstone(ctx, sql`m.thread_id in (${sql.join(ids.map((i) => sql`${i}::uuid`), sql`, `)}) and m.folder in ('trash','spam')`);
       await ctx.db.delete(messages).where(and(inThreads, inArray(messages.folder, ["trash", "spam", "drafts"])));
       break;
     case "label": case "unlabel": {
@@ -535,6 +665,7 @@ export async function act(ctx: ModuleContext, input: z.infer<typeof ActionInput>
 
 export async function emptyTrash(ctx: ModuleContext) {
   await me(ctx);
+  await tombstone(ctx, sql`m.folder in ('trash','spam')`);
   await ctx.db.delete(messages).where(inArray(messages.folder, ["trash", "spam"]));
   return { ok: true };
 }
@@ -684,17 +815,20 @@ export async function sendDraft(ctx: ModuleContext, id: string) {
   if (all.length > MAX_RECIPIENTS) throw E.badRequest(`At most ${MAX_RECIPIENTS} people`);
   const bad = all.find((x) => !EMAIL.test(x.email));
   if (bad) throw E.badRequest(`"${bad.email}" isn't a valid email address`);
+  if ((await storage(ctx)).full) throw new ModuleError(409, "mailbox_full", FULL);
   const [today] = await rows<{ n: number }>(ctx, sql`select count(*)::int as n from mail_messages where folder = 'sent' and date > now() - interval '24 hours'`);
   if ((today?.n ?? 0) >= MAX_SENDS_PER_DAY) throw E.badRequest("You've reached today's sending limit. Try again tomorrow.");
   const files = await ctx.db.select().from(attachments).where(eq(attachments.messageId, id));
   const messageId = `<${randomUUID()}@${a.address.split("@")[1] ?? "office.local"}>`;
   const text = d.bodyText;
-  await viaProvider(() => p.send({ address: a.address, providerRef: a.providerRef }, {
+  const out = await viaProvider(() => p.send({ address: a.address, providerRef: a.providerRef }, {
     from: { name: a.displayName, email: a.address }, to, cc, bcc, subject: d.subject, text,
     html: `<div style="white-space:pre-wrap">${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`,
     messageId, inReplyTo: d.inReplyTo, references: d.refs, files: files.map((f) => ({ name: f.name, contentType: f.contentType, data: f.data })),
   }));
-  await ctx.db.update(messages).set({ folder: "sent", messageIdHdr: messageId, date: new Date(), isRead: true, updatedAt: new Date() }).where(eq(messages.id, id));
+  // The mail server's id for its copy in Sent (if it keeps one), so later moves and deletes reach it too.
+  const sentUid = out && typeof out === "object" ? out.uid : null;
+  await ctx.db.update(messages).set({ folder: "sent", messageIdHdr: messageId, remoteUid: sentUid, date: new Date(), isRead: true, updatedAt: new Date() }).where(eq(messages.id, id));
   return getMessage(ctx, id);
 }
 

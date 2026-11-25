@@ -32,6 +32,8 @@ export async function startMailServers(o: { user?: string; pass?: string; imapPo
 
   return {
     user, pass, imapPort, smtpPort, sent,
+    /** The IMAP server itself, to look at or change its folders in a test. */
+    imap: imap as { getMailbox(path: string): { messages: { uid: number; flags: string[] }[] } | undefined },
     /** The module settings that point at these servers. */
     settings: {
       address: user, fromName: "Shop Support", imapHost: "127.0.0.1", imapPort, imapSecurity: "none", imapUser: user, imapPassword: pass,

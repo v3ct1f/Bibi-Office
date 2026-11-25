@@ -9,7 +9,7 @@ import { stripeBilling } from "./billing.ts";
 import { keycloakIdentity } from "./keycloak.ts";
 import { scheduleErasure } from "./erasure.ts";
 import { fakeProvider } from "@office/module-workmail";
-import { fakeMailProvider } from "@office/module-mail";
+import { mailProviderFromEnv } from "@office/module-mail";
 import { FIXED_RATES, FixedRatesProvider, parseRatesJson } from "@office/core";
 
 const ratesFromConfig = (json: string | undefined) => {
@@ -18,6 +18,8 @@ const ratesFromConfig = (json: string | undefined) => {
 };
 
 const config = loadConfig();
+// The mail server behind everyone's Mail inbox (MAIL_PROVIDER=imap|fake|off and the MAIL_IMAP_*/MAIL_MASTER_* settings, see modules/mail/README.md).
+const mail = mailProviderFromEnv(process.env);
 const { db, close } = createDb(config.DATABASE_URL_APP, { max: 20 });
 const identity = keycloakIdentity({
     url: config.KEYCLOAK_URL, realm: config.KEYCLOAK_REALM, clientId: config.KEYCLOAK_ADMIN_CLIENT_ID, clientSecret: config.KEYCLOAK_ADMIN_CLIENT_SECRET,
@@ -32,7 +34,7 @@ const app = await buildApp({
   contactEmail: config.CONTACT_EMAIL,
   rates: ratesFromConfig(config.RATES_JSON),
   workmailProvider: (config.WORKMAIL_PROVIDER ?? (config.NODE_ENV === "production" ? "off" : "fake")) === "fake" ? fakeProvider() : null,
-  mailProvider: (config.MAIL_PROVIDER ?? (config.NODE_ENV === "production" ? "off" : "fake")) === "fake" ? fakeMailProvider() : null,
+  mailProvider: mail.provider, mailLimits: { quotaBytes: mail.quotaBytes, trashDays: mail.trashDays },
   platformAdmins: config.PLATFORM_ADMIN_EMAILS, selfSignup: config.SELF_SIGNUP, testPayments: config.TEST_PAYMENTS, platform: { registry: createRegistry(), secrets: new SecretBox(config.SECRETS_KEY) },
 });
 

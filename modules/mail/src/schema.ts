@@ -20,6 +20,7 @@ export const accounts = pgTable("mail_accounts", {
   signature: text("signature").notNull().default(""),
   syncCursor: text("sync_cursor"),
   lastSyncedAt: ts("last_synced_at"),
+  lastSyncError: text("last_sync_error"),
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
@@ -58,6 +59,8 @@ export const messages = pgTable("mail_messages", {
   isStarred: boolean("is_starred").notNull().default(false),
   hasAttachments: boolean("has_attachments").notNull().default(false),
   hasRemoteImages: boolean("has_remote_images").notNull().default(false),
+  remoteDirty: boolean("remote_dirty").notNull().default(false),
+  trashedAt: ts("trashed_at"),
   date: ts("date").notNull().defaultNow(),
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
@@ -80,4 +83,13 @@ export const messageLabels = pgTable("mail_message_labels", {
   userId: uuid("user_id").notNull(),
   messageId: uuid("message_id").notNull(),
   labelId: uuid("label_id").notNull(),
+});
+
+export const remoteDeletions = pgTable("mail_remote_deletions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  accountId: uuid("account_id").notNull(),
+  remoteUid: text("remote_uid").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
 });

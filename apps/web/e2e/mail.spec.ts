@@ -23,7 +23,7 @@ const openMail = async (p: Page) => { await nav(p).getByRole("link", { name: /^M
 
 test.beforeAll(async ({ browser }) => {
   mia = await newUser(browser, "mia.mail@example.com", "Mia Mail");
-  await mia.getByLabel("Company name").fill("Mail Co");
+  await mia.getByLabel("Company name").fill("Inbox Co");
   await mia.getByRole("button", { name: "Create workspace" }).click();
   await expect(mia.getByRole("heading", { name: "Welcome back, Mia" })).toBeVisible();
   slug = new URL(mia.url()).pathname.split("/")[2]!;
@@ -42,6 +42,7 @@ test("owner adds Mail and Leads; Mail shows in the menu with an unread number", 
   await expect(nav(mia).getByRole("link", { name: /^Mail/ })).toBeVisible();
   await openMail(mia);
   await expect(mia.getByTestId("my-address")).toHaveText("mia.mail@example.com");
+  await expect(mia.getByTestId("storage")).toContainText(/ KB of 2\.0 GB used/); // how much of the 2 GB is used
   await expect(rows(mia)).toHaveCount(3);               // Welcome, Quote (2 messages in one conversation), Big sale
   await expect(mia.getByTestId("count-inbox")).toHaveText("3");
   await expect(nav(mia).getByRole("link", { name: /^Mail/ })).toContainText("3");
@@ -213,4 +214,12 @@ test("a screenshot of the finished inbox", async () => {
   await row(mia, "Lunch on Friday?").getByRole("button").nth(1).click();
   await expect(mia.getByTestId("message-card")).toHaveCount(2);
   await mia.screenshot({ path: "test-results/mail-inbox.png" });
+});
+
+test("the Privacy Policy says how mail is kept and that only its owner can read it", async () => {
+  await mia.goto("/privacy");
+  await expect(mia.getByText(/A mailbox can be read only by the person it belongs to/)).toBeVisible();
+  await expect(mia.getByText(/Mail in Trash and Spam is deleted for good after 30 days/)).toBeVisible();
+  await mia.goto("/terms");
+  await expect(mia.getByText(/Each person may keep up to 2 GB of mail/)).toBeVisible();
 });

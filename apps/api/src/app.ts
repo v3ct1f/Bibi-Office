@@ -39,6 +39,8 @@ export interface AppDeps {
   workmailProvider?: WorkmailProvider | null;
   /** The mail server behind everyone's Mail inbox (IMAP/SMTP); null or missing = Mail says "not set up". */
   mailProvider?: MailProvider | null;
+  /** Most mail one person keeps, and days before Trash/Spam are emptied (defaults: 2 GB, 30 days). */
+  mailLimits?: { quotaBytes: number; trashDays: number };
   /** Where exchange rates come from (for showing prices in other currencies). Default: a fixed built-in table, no network. */
   rates?: RatesProvider;
   /** Receives public contact-form messages; without it (or without mail) the form is closed. */
@@ -135,7 +137,7 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
 
   const appUrl = (d.config.APP_URL ?? d.config.CORS_ORIGINS[0] ?? "http://localhost:5173").replace(/\/+$/, "");
   configureWorkmail({ provider: d.workmailProvider ? withOurDomainPrice(d.workmailProvider) : null, payments: workmailPayments(d.db, d.billing ?? null, appUrl, !!d.testPayments && !d.billing && d.config.NODE_ENV !== "production") });
-  configureMail({ provider: d.mailProvider ?? null });
+  configureMail({ provider: d.mailProvider ?? null, ...(d.mailLimits ?? {}) });
   await seedPlatformAdmins(d.db, d.platformAdmins ?? []);
   const inTenant = makeTenantRunner(d.db, d.platform.registry.all().flatMap((m) => m.manifest.roles.viewer ?? []));
   await app.register(registerRoutes, {
