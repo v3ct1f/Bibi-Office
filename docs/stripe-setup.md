@@ -27,10 +27,12 @@ Restart the API. Open `http://localhost:5173/start`, give an email and pay with 
 Use live keys, a public API address with HTTPS, working email (Gmail app password is fine to start), and add your terms and privacy policy (Stripe asks for them). Customers can manage or cancel their subscription from a Stripe customer portal link (Stripe dashboard -> Settings -> Billing -> Customer portal).
 
 ## Optional: the Work email extra
-In the same Stripe product catalogue add a second **recurring monthly** price (e.g. "Work email", EUR 9) and put it in `.env.local`:
+In the same Stripe product catalogue add a second **recurring monthly, per-unit** price: "Work email mailbox", **EUR 3 per unit** (the same
+number as `WORK_EMAIL.mailboxPerMonth` in `packages/core/src/plans.ts`; change both together). Office sets the quantity to the number of mailboxes
+(starting at 0 when Work email is turned on). Try it in Stripe test mode first. Put it in `.env.local`:
 ```
 STRIPE_WORKMAIL_PRICE_ID=price_...
-STRIPE_WORKMAIL_PRICE_LABEL=EUR 9 per month
+STRIPE_WORKMAIL_PRICE_LABEL=EUR 3 per mailbox per month
 ```
 Before going live with Work email at sign-up: the "Add work email" step (prices in `packages/core/src/plans.ts` `WORK_EMAIL`: EUR 3 per mailbox per month, EUR 19 per domain per year) is only offered with demo payments. With Stripe it needs a per-mailbox monthly price (quantity = mailboxes) and the checkout lines added; until then owners add Work email from Add features after sign-up.
 

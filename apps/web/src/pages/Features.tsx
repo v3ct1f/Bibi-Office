@@ -11,6 +11,7 @@ import { useTMutation, useTQuery } from "../api/hooks.ts";
 import { useTenant } from "../lib/tenant.tsx";
 import { fmtDate } from "../lib/format.ts";
 import { moduleIcon } from "../shell/icons.tsx";
+import { mailboxCostBefore } from "@office/module-workmail/ui";
 import { useAddons } from "../lib/addons.ts";
 
 export const CATEGORY_LABELS: Record<string, string> = {
@@ -110,7 +111,7 @@ export function FeaturesPage() {
                       ? <Button size="sm" variant="outline" aria-label={`Remove ${m.name}`} disabled={toggle.isPending} onClick={() => setRemoving(m)}>Remove</Button>
                       : <Button size="sm" aria-label={`Add ${m.name}`} loading={toggle.isPending && toggle.variables?.key === m.key}
                           disabled={toggle.isPending || missing.length > 0} title={missing.length ? `Add ${missing.map(nameOf).join(", ")} first` : undefined}
-                          onClick={() => (m.key === "workmail" && addons.data?.workmail.price ? setAddingPaid(m) : toggle.mutate({ key: m.key, name: m.name, on: true }))}><Plus /> Add</Button>)}
+                          onClick={() => (m.key === "workmail" && addons.data && addons.data.workmail.mailbox.mode !== "free" ? setAddingPaid(m) : toggle.mutate({ key: m.key, name: m.name, on: true }))}><Plus /> Add</Button>)}
                     {m.enabled && mainRoute(m) && (
                       <Button size="sm" variant="ghost" onClick={() => go(m, mainRoute(m)!.route!)}>Open {mainRoute(m)!.label ?? m.name} <ArrowRight /></Button>
                     )}
@@ -128,9 +129,9 @@ export function FeaturesPage() {
         title={`Remove ${removing?.name}?`} description="Its pages, automations and API access stop for everyone in this workspace. Nothing is deleted: add it again any time and everything is back."
         onConfirm={() => toggle.mutateAsync({ key: removing!.key, name: removing!.name, on: false })} />
 
-      <ConfirmDialog open={!!addingPaid} onOpenChange={(o) => !o && setAddingPaid(null)} confirmLabel="Add and pay"
+      <ConfirmDialog open={!!addingPaid} onOpenChange={(o) => !o && setAddingPaid(null)} confirmLabel={`Add ${addingPaid?.name ?? ""}`}
         title={`Add ${addingPaid?.name}?`}
-        description={`This adds ${addons.data?.workmail.price ?? "an extra charge"} to your subscription, charged to the card you already use (pro rata for this month). Then you pick a company domain and create mailboxes. You can remove it any time.`}
+        description={`Turning it on costs nothing by itself. ${addons.data ? mailboxCostBefore(addons.data.workmail.mailbox).replace("This adds", "Each work mailbox you create adds") : ""}${addons.data?.workmail.mailbox.mode === "stripe" ? " It's charged to the card you already use, pro rata for this month." : ""} A company domain is paid once a year when you get one. You can remove Work email any time.`}
         onConfirm={() => toggle.mutateAsync({ key: addingPaid!.key, name: addingPaid!.name, on: true })} />
 
       <Dialog open={!!configuring} onOpenChange={(o) => !o && setConfiguring(null)}>

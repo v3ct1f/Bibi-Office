@@ -24,7 +24,8 @@ test("adding a colleague offers to turn on Work email, and says what is still mi
   const d = page.getByRole("dialog");
   await expect(d.getByText("Give them a work email?")).toBeVisible();
   await d.getByRole("button", { name: "Turn on Work email" }).click();
-  await expect(d.getByText("No extra charge for your business.")).toBeVisible();
+  // The price is said before anything is turned on (demo server: nothing is charged).
+  await expect(d.getByText("Turning it on costs nothing by itself. Each work mailbox costs €3 per month (demo: nothing is charged).")).toBeVisible();
   await d.getByRole("button", { name: "Yes, turn it on" }).click();
   // On now, but no domain yet.
   await expect(d.getByText("you don't have a company domain yet")).toBeVisible();
@@ -103,10 +104,14 @@ test("add a colleague and give them a work email in one step", async () => {
   await d.getByRole("checkbox", { name: "Give them a work email" }).click();
   await expect(d.getByLabel("Work email name")).toHaveValue("anna");
   await expect(d.getByLabel("Work email domain")).toContainText("mailco.com");
-  await d.getByRole("button", { name: "Create account" }).click();
+  // Ticking the box says what it costs, before the button, and the button says it too.
+  await expect(d.getByTestId("mailbox-cost")).toContainText("Each work mailbox costs €3 per month (demo: nothing is charged).");
+  await expect(d.getByTestId("mailbox-cost")).toContainText("0 of 10 mailboxes used");
+  await d.getByRole("button", { name: "Create account and work email (+€3/month, demo)" }).click();
 
   await expect(d.getByRole("heading", { name: "Account ready" })).toBeVisible();
   await expect(d.getByText("anna@mailco.com")).toBeVisible();
+  await expect(d.getByTestId("mailbox-cost-after")).toHaveText("On a real subscription this adds €3/month (demo: nothing was charged).");
   await d.getByRole("button", { name: "Done" }).click();
   await expect(page.getByRole("table", { name: "Colleagues" })).toContainText("Anna Ruiz");
 
@@ -136,8 +141,11 @@ test("a mailbox can be made by hand, and its password is shown once", async () =
   const d = page.getByRole("dialog");
   await d.getByRole("textbox", { name: /^Name/ }).fill("Info desk");
   await d.getByLabel("Address").fill("info");
-  await d.getByRole("button", { name: "Create mailbox" }).click();
+  await expect(d.getByTestId("mailbox-cost")).toContainText("Each work mailbox costs €3 per month (demo: nothing is charged). (1 of 10 mailboxes used.)");
+  await d.getByRole("button", { name: "Create mailbox (+€3/month, demo)" }).click();
   await expect(d.getByRole("heading", { name: "Mailbox ready" })).toBeVisible();
+  await expect(d.getByTestId("mailbox-cost-after")).toContainText("€3/month");
+  await expect(page.getByTestId("mailbox-usage")).toContainText("2 of 10 mailboxes used.");
   await expect(d.getByText("info@mailco.com").first()).toBeVisible();
   await expect(d.getByText("shown", { exact: false })).toBeVisible();
   await d.getByRole("button", { name: "Done" }).click();
@@ -151,6 +159,10 @@ test("the feature can be taken off and keeps its data", async () => {
   await expect(page.getByRole("button", { name: "Add Work email" })).toBeVisible();
   await expect(nav().getByRole("link", { name: "Work email" })).toHaveCount(0);
   await page.getByRole("button", { name: "Add Work email" }).click();
+  // The price is said before it's turned back on.
+  const confirm = page.getByRole("dialog");
+  await expect(confirm).toContainText("Each work mailbox costs €3 per month (demo: nothing is charged).");
+  await confirm.getByRole("button", { name: "Add Work email" }).click();
   await nav().getByRole("link", { name: "Work email" }).click();
   await expect(page.getByTestId("domain-mailco.com")).toContainText("Ready");
 });

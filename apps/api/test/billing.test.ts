@@ -15,7 +15,7 @@ const billing: Billing = {
   label: "€29 per month", webhookSecret: SECRET,
   async createCheckout(i) { checkouts.push(i); return "https://checkout.stripe.test/c/abc"; },
   async portalUrl(customerId, returnUrl) { portals.push({ customerId, returnUrl }); return "https://billing.stripe.test/p/xyz"; },
-  workmailLabel: null, async addAddOn() {}, async removeAddOn() {}, async createPayment() { return { url: "", id: "" }; }, async paymentPaid() { return false; },
+  workmailLabel: null, async addAddOn() {}, async removeAddOn() {}, async setAddOnQuantity() {}, async createPayment() { return { url: "", id: "" }; }, async paymentPaid() { return false; },
 };
 const mailer: Mailer = { send: async (m) => { sent.push(m); } };
 

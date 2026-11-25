@@ -56,7 +56,17 @@ export interface WorkmailPayments {
   }): Promise<{ status: "paid" } | { status: "redirect"; url: string; ref: string }>;
   /** Has the payment started by a "redirect" result gone through? */
   isPaid(ref: string): Promise<boolean>;
+  /**
+   * What each work mailbox costs this business and how it is paid: "stripe" = added to its subscription,
+   * "demo" = a test business (nothing is charged), "free" = no extra charge for this business. Null = not known.
+   */
+  mailboxPrice?(tenantId: string): Promise<MailboxPrice | null>;
+  /** The number of mailboxes changed: bill that many (each mailbox that isn't deleted counts). Throws if billing failed. */
+  mailboxesChanged?(input: { tenantId: string; count: number }): Promise<void>;
 }
+
+/** The price of one work mailbox per month (from the platform's one price list) and how this business pays it. */
+export interface MailboxPrice { perMonth: number; currency: string; mode: "stripe" | "demo" | "free" }
 
 interface Runtime { provider: WorkmailProvider | null; payments: WorkmailPayments | null }
 let runtime: Runtime = { provider: null, payments: null };

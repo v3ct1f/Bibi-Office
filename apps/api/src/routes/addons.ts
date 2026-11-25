@@ -2,12 +2,11 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { AppError, type RequestContext } from "@office/core";
+import { AppError, WORK_EMAIL, type RequestContext } from "@office/core";
 import { tenants, type Db, type Tx } from "@office/db";
 import { disableModule, enableModule, enabledModuleKeys, type ModuleDeps } from "@office/platform";
 import { getProvider } from "@office/module-workmail";
-import { needsPayment, sqlAddAddon, sqlAllow, sqlRemove } from "../addons.ts";
-import { sql } from "drizzle-orm";
+import { needsPayment, sqlAddAddon, sqlAllow, sqlRemove, workmailCharging } from "../addons.ts";
 import type { Billing } from "../billing.ts";
 
 const AUTH = { auth: "authenticated" } as const;
@@ -19,7 +18,7 @@ const tenantHeader = z.object({ "x-tenant-id": z.uuid().optional() }).loose();
  */
 export async function registerAddonRoutes(
   app0: FastifyInstance,
-  o: { db: Db; billing: Billing | null; modules: ModuleDeps; inTenant: <T>(req: FastifyRequest, perm: string | null, fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T> },
+  o: { db: Db; billing: Billing | null; testPayments: boolean; modules: ModuleDeps; inTenant: <T>(req: FastifyRequest, perm: string | null, fn: (tx: Tx, ctx: RequestContext) => Promise<T>) => Promise<T> },
 ) {
   const app = app0.withTypeProvider<ZodTypeProvider>();
   const load = async (tenantId: string) => {
@@ -36,8 +35,10 @@ export async function registerAddonRoutes(
         workmail: {
           /** Can this business turn it on? (The feature exists and the server has an email provider.) */
           available: hasModule && !!getProvider(),
-          /** What it adds to the subscription, e.g. "EUR 9 per month"; null = free for this business. */
-          price: needsPayment(o.billing, { stripeSubscriptionId: t.sub }) ? o.billing!.workmailLabel : null,
+          /** What each work mailbox costs per month (core/plans.ts WORK_EMAIL) and how this business pays it (stripe | demo | free). */
+          mailbox: await workmailCharging(o.db, o.billing, o.testPayments, ctx.tenantId),
+          /** Turning it on costs nothing by itself; each mailbox is billed. Kept for older pages: "€3 per mailbox per month" when charged, else null. */
+          price: needsPayment(o.billing, { stripeSubscriptionId: t.sub }) ? `€${WORK_EMAIL.mailboxPerMonth} per mailbox per month` : null,
           active: t.addons.includes("workmail"), enabled,
         },
       };

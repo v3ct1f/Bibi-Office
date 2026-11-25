@@ -100,7 +100,21 @@ export async function config(ctx: ModuleContext) {
   return {
     available: !!p, maxMailboxes: settingsOf(ctx).maxMailboxes, paymentRequired: !!getPayments(),
     hasDomain: (activeDomains[0]?.n ?? 0) > 0,
+    /** Mailboxes that count (and are paid for): every one that isn't deleted, switched off or not. */
+    mailboxesUsed: await mailboxCount(ctx),
+    /** What one more mailbox costs per month and how this business pays it (shown before creating one). */
+    mailboxPrice: (await getPayments()?.mailboxPrice?.(ctx.tenantId)) ?? null,
   };
+}
+
+/** Mailboxes that count towards the limit and the bill: all that aren't deleted (a switched-off mailbox still exists). */
+async function mailboxCount(ctx: ModuleContext) {
+  const [{ n } = { n: 0 }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(mailboxes).where(ne(mailboxes.status, "deleted"));
+  return n;
+}
+/** Tells billing the new number of mailboxes. */
+async function billMailboxes(ctx: ModuleContext) {
+  await getPayments()?.mailboxesChanged?.({ tenantId: ctx.tenantId, count: await mailboxCount(ctx) });
 }
 
 export async function searchDomains(ctx: ModuleContext, q: string) {
@@ -286,9 +300,9 @@ export async function createMailbox(ctx: ModuleContext, input: z.infer<typeof Ma
   const dom = await loadDomain(ctx, input.domainId);
   if (dom.status !== "active") throw E.conflict(`${dom.name} isn't ready yet. ${dom.source === "connected" ? "Finish adding its records first." : "Finish paying first."}`);
   if (input.userId && !(await ctx.people.get(input.userId))) throw E.badRequest("The mailbox owner must be an active member of this business");
-  const [{ n } = { n: 0 }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(mailboxes).where(ne(mailboxes.status, "deleted"));
+  const n = await mailboxCount(ctx);
   const max = settingsOf(ctx).maxMailboxes;
-  if (n >= max) throw E.conflict(`Your Work email includes up to ${max} mailboxes. Remove one you don't use, or ask us for more.`);
+  if (n >= max) throw E.conflict(`This business can have up to ${max} work mailboxes. Delete one you don't use, or ask us for more.`);
   const [dup] = await ctx.db.select({ id: mailboxes.id }).from(mailboxes)
     .where(and(eq(mailboxes.domainId, dom.id), eq(mailboxes.localPart, input.localPart), ne(mailboxes.status, "deleted")));
   if (dup) throw E.conflict(`${input.localPart}@${dom.name} already exists.`);
@@ -304,6 +318,15 @@ export async function createMailbox(ctx: ModuleContext, input: z.infer<typeof Ma
   } catch (e) {
     await p.deleteMailbox(made.ref).catch(() => undefined);   // don't leave a mailbox nobody knows about
     throw e;
+  }
+  // Each mailbox is paid per month: the subscription follows the count. If billing fails, the mailbox is taken back.
+  try {
+    await billMailboxes(ctx);
+  } catch (e) {
+    await p.deleteMailbox(made.ref).catch(() => undefined);
+    await ctx.db.update(mailboxes).set({ status: "deleted", updatedAt: new Date() }).where(eq(mailboxes.id, row.id));
+    ctx.log.warn?.({ err: e }, "mailbox not billed; taken back");
+    throw E.conflict("The mailbox couldn't be added to your subscription, so it wasn't created. Check your card under Manage subscription, then try again.");
   }
   const [dto] = await mailboxDtos(ctx, [row]);
   await ctx.audit.log("mailbox.created", { type: "mailbox", id: row.id }, { address: dto!.address, userId: input.userId ?? null });
@@ -345,6 +368,8 @@ export async function deleteMailbox(ctx: ModuleContext, id: string) {
   const row = await loadMailbox(ctx, id);
   if (row.providerRef) await viaProvider(() => p.deleteMailbox(row.providerRef!));
   await ctx.db.update(mailboxes).set({ status: "deleted", updatedAt: new Date() }).where(eq(mailboxes.id, id));
+  // One less mailbox to pay for. The mailbox is gone either way, so a billing hiccup is only logged.
+  await billMailboxes(ctx).catch((err) => ctx.log.warn?.({ err, mailboxId: id }, "couldn't lower the mailbox count on the subscription"));
   await ctx.audit.log("mailbox.deleted", { type: "mailbox", id });
   await ctx.events.emit("workmail.mailbox.deleted", { id, userId: row.userId });
 }
@@ -385,4 +410,6 @@ export async function setFeature(ctx: ModuleContext, on: boolean) {
     if (p && row.providerRef) await p.setMailboxActive(row.providerRef, on).catch((err) => ctx.log.warn?.({ err, mailboxId: row.id }, "couldn't change mailbox at the provider"));
     await ctx.db.update(mailboxes).set({ status: on ? "active" : "suspended", suspendReason: on ? null : "feature_off", updatedAt: new Date() }).where(eq(mailboxes.id, row.id));
   }
+  // Back on: the subscription's Work email line goes back to the number of mailboxes kept.
+  if (on) await billMailboxes(ctx).catch((err) => ctx.log.warn?.({ err }, "couldn't set the mailbox count on the subscription"));
 }

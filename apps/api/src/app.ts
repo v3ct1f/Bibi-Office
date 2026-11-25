@@ -129,7 +129,7 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   });
 
   const appUrl = (d.config.APP_URL ?? d.config.CORS_ORIGINS[0] ?? "http://localhost:5173").replace(/\/+$/, "");
-  configureWorkmail({ provider: d.workmailProvider ? withOurDomainPrice(d.workmailProvider) : null, payments: workmailPayments(d.db, d.billing ?? null, appUrl) });
+  configureWorkmail({ provider: d.workmailProvider ? withOurDomainPrice(d.workmailProvider) : null, payments: workmailPayments(d.db, d.billing ?? null, appUrl, !!d.testPayments && !d.billing && d.config.NODE_ENV !== "production") });
   await seedPlatformAdmins(d.db, d.platformAdmins ?? []);
   const inTenant = makeTenantRunner(d.db, d.platform.registry.all().flatMap((m) => m.manifest.roles.viewer ?? []));
   await app.register(registerRoutes, {

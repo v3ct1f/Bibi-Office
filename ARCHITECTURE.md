@@ -452,6 +452,13 @@ pay -> `owner_signups.workmail_mailboxes / workmail_domain` (migration 0017) -> 
 `/t/<slug>/m/workmail/email?want=<domain>`, where `BuyDomainDialog` searches it at once. The domain is ordered and paid there (module flow).
 Add-ons survive plan changes: `changePlan` keeps `tenants.addons` in `allowed_modules`; `activateAddon` and `POST /billing/addons/workmail` add it.
 
+**Mailbox charging (Session 38).** Each mailbox that isn't deleted costs `WORK_EMAIL.mailboxPerMonth`. The module asks the platform through
+`WorkmailPayments` (injected in `app.ts`): `mailboxPrice(tenantId)` -> `{ perMonth, currency, mode: stripe | demo | free }` (`workmailCharging`
+in `addons.ts`), shown via `/m/workmail/config` (`mailboxesUsed`, `mailboxPrice`) and `/billing/addons` (`workmail.mailbox`); and
+`mailboxesChanged({ tenantId, count })` after a mailbox is created or deleted (and when the feature comes back on), which sets the Stripe
+Work email item's quantity (`Billing.setAddOnQuantity`). A failed raise takes the new mailbox back. The wording lives in
+`modules/workmail/ui/shared.tsx` (`mailboxCostBefore/After/Short`), exported from `@office/module-workmail/ui` for Colleagues and Add features.
+
 ## 16. Going-live pieces (Session 29, as built)
 `apps/api/src/keycloak.ts` implements `Identity` for Keycloak's admin API (service account, client credentials, token cached); `server.ts` picks it over the dev sign-in server when `KEYCLOAK_*` is set. Billing gained `portalUrl` (Stripe customer portal) behind `POST /billing/portal` (needs `core:tenant.manage`) and the checkout requires `acceptTerms`. Legal text lives in the web app (`pages/Legal.tsx`, `legal/company.ts`) because it is public and versioned with the code.
 

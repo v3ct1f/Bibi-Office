@@ -7,7 +7,8 @@ import {
 import { useModuleHost, type PageProps } from "@office/ui/module-ui";
 import { BuyDomainDialog, ConnectDomainDialog, RecordsTable, TransferDialog } from "./DomainDialogs.tsx";
 import {
-  DomainBadge, errorMessage, fmtDate, fmtMoney, REASON, useLoad, type Config, type Domain, type Mailbox, type Member, type NewMailbox,
+  DomainBadge, errorMessage, fmtDate, fmtMoney, mailboxCostAfter, mailboxCostBefore, mailboxCostShort, REASON, useLoad,
+  type Config, type Domain, type Mailbox, type MailboxPrice, type Member, type NewMailbox,
 } from "./shared.tsx";
 
 /** Work email: the company domain and the work mailboxes on it. */
@@ -26,7 +27,7 @@ export function WorkEmailPage(_: PageProps) {
   const [making, setMaking] = useState(false);
   const [removeDomain, setRemoveDomain] = useState<Domain | null>(null);
   const [removeBox, setRemoveBox] = useState<Mailbox | null>(null);
-  const [created, setCreated] = useState<{ address: string; password: string; webmailUrl: string | null; title: string } | null>(null);
+  const [created, setCreated] = useState<{ address: string; password: string; webmailUrl: string | null; title: string; cost?: string } | null>(null);
   const [records, setRecords] = useState<Domain | null>(null);
 
   // Straight after sign-up: the domain the owner chose there (?want=yourcompany.com) opens "Get a domain" with it searched.
@@ -118,7 +119,10 @@ export function WorkEmailPage(_: PageProps) {
       )}
 
       <Card>
-        <div className="flex items-center justify-between p-5 pb-0"><h2 className="font-semibold">Mailboxes</h2></div>
+        <div className="flex items-center justify-between p-5 pb-0"><h2 className="font-semibold">Mailboxes</h2>
+          <p className="text-xs text-muted-foreground" data-testid="mailbox-usage">
+            {cfg.data.mailboxesUsed} of {cfg.data.maxMailboxes} mailboxes used. {mailboxCostBefore(cfg.data.mailboxPrice).replace("This adds", "Each one adds")}
+          </p></div>
         {boxes.loading && !boxes.data ? <div className="grid gap-2 p-4"><Skeleton className="h-10" /><Skeleton className="h-10" /></div>
           : boxes.error ? <ErrorState error={boxes.error} onRetry={() => void boxes.reload()} />
           : !boxes.data?.length ? (
@@ -171,7 +175,8 @@ export function WorkEmailPage(_: PageProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <NewMailboxDialog open={making} domains={ready} onClose={() => setMaking(false)} onCreated={(m) => { setMaking(false); setCreated({ address: m.address, password: m.password, webmailUrl: m.webmailUrl, title: "Mailbox ready" }); reloadAll(); }} />
+      <NewMailboxDialog open={making} domains={ready} price={cfg.data.mailboxPrice} used={cfg.data.mailboxesUsed} max={cfg.data.maxMailboxes} onClose={() => setMaking(false)}
+        onCreated={(m) => { setMaking(false); setCreated({ address: m.address, password: m.password, webmailUrl: m.webmailUrl, title: "Mailbox ready", cost: mailboxCostAfter(cfg.data!.mailboxPrice) }); reloadAll(); }} />
       <Dialog open={!!created} onOpenChange={(o) => !o && setCreated(null)}>
         <DialogContent title={created?.title ?? ""} description={created?.address}>
           <div className="grid gap-2">
@@ -181,6 +186,7 @@ export function WorkEmailPage(_: PageProps) {
             <CopyField value={created?.password ?? ""} label="Copy password" />
           </div>
           <p className="text-xs text-muted-foreground">This is the only time the password is shown. Office doesn't keep it. You can make a new one anytime.</p>
+          {created?.cost && <p className="text-sm" role="status" data-testid="mailbox-cost-after">{created.cost}</p>}
           <DialogFooter>
             {created?.webmailUrl && <Button asChild variant="outline"><a href={created.webmailUrl} target="_blank" rel="noreferrer">Open webmail</a></Button>}
             <Button onClick={() => setCreated(null)}>Done</Button>
@@ -197,7 +203,9 @@ export function WorkEmailPage(_: PageProps) {
   );
 }
 
-function NewMailboxDialog({ open, domains, onClose, onCreated }: { open: boolean; domains: Domain[]; onClose: () => void; onCreated: (m: NewMailbox) => void }) {
+function NewMailboxDialog({ open, domains, price, used, max, onClose, onCreated }: {
+  open: boolean; domains: Domain[]; price: MailboxPrice | null; used: number; max: number; onClose: () => void; onCreated: (m: NewMailbox) => void;
+}) {
   const host = useModuleHost();
   const members = useLoad(() => (open ? host.core.get<Member[]>("/members") : Promise.resolve([] as Member[])), [host, open]);
   const [domainId, setDomainId] = useState("");
@@ -248,10 +256,13 @@ function NewMailboxDialog({ open, domains, onClose, onCreated }: { open: boolean
               </div>
             )}
           </Field>
+          <p className="rounded-md border bg-muted/50 px-3 py-2 text-sm" data-testid="mailbox-cost">
+            {mailboxCostBefore(price)} <span className="text-muted-foreground">({used} of {max} mailboxes used.)</span>
+          </p>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => { reset(); onClose(); }}>Cancel</Button>
-            <Button type="submit" loading={busy} disabled={!local || !name.trim()}>Create mailbox</Button>
+            <Button type="submit" loading={busy} disabled={!local || !name.trim()}>Create mailbox{mailboxCostShort(price)}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

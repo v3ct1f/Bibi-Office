@@ -262,13 +262,13 @@ describe("work email: mailboxes", () => {
     expect(((await A().get(`${M}/mailboxes`)).body as { address: string; status: string }[]).find((b) => b.address === "info@tribulis.com")!.status).toBe("active");
   });
 
-  it("stops at the number of mailboxes included", async () => {
+  it("stops at the most mailboxes this business can have", async () => {
     await A().patch("/modules/workmail/settings", { maxMailboxes: 3 });
     const n = ((await A().get(`${M}/mailboxes`)).body as unknown[]).length;
     for (let i = n; i < 3; i++) expect((await A().post(`${M}/mailboxes`, { domainId, localPart: `fill${i}`, name: "Fill" })).status).toBe(201);
     const r = await A().post(`${M}/mailboxes`, { domainId, localPart: "onetoomany", name: "Too many" });
     expect(r.status).toBe(409);
-    expect(r.body.title).toMatch(/up to 3 mailboxes/);
+    expect(r.body.title).toMatch(/up to 3 work mailboxes/);
   });
 
   it("can't remove a domain that still has mailboxes", async () => {

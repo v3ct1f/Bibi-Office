@@ -97,7 +97,7 @@ export const registerRoutes: FastifyPluginAsync<{
 
   await registerContactRoutes(app, { db, mailer: o.mailer, contactEmail: o.contactEmail, inTenant });
   await registerBillingRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, billing: o.billing, contactEmail: o.contactEmail, inTenant, testPayments: o.testPayments, modules: o.modules });
-  await registerAddonRoutes(app, { db, billing: o.billing, modules: o.modules, inTenant });
+  await registerAddonRoutes(app, { db, billing: o.billing, testPayments: o.testPayments, modules: o.modules, inTenant });
   await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, contactEmail: o.contactEmail, platformAdmin, modules: o.modules });
 
   // ───── Members ─────

@@ -1,8 +1,8 @@
 import { eq, sql } from "drizzle-orm";
-import { AppError, platformContext, type PlatformActor, type RequestContext } from "@office/core";
+import { AppError, platformContext, WORK_EMAIL, type PlatformActor, type RequestContext } from "@office/core";
 import { tenants, withTenant, type Db, type Tx } from "@office/db";
 import { enableModule, type ModuleDeps } from "@office/platform";
-import type { WorkmailPayments } from "@office/module-workmail";
+import type { MailboxPrice, WorkmailPayments } from "@office/module-workmail";
 import type { Billing } from "./billing.ts";
 
 /** Paid extras: a feature (module) that costs extra each month on the business's subscription. */
@@ -40,9 +40,27 @@ export const sqlAddAddon = (key: string) => sql`case when ${key} = any(${tenants
 export const sqlAllow = (key: string) => sql`case when ${tenants.allowedModules} is null or ${key} = any(${tenants.allowedModules}) then ${tenants.allowedModules} else array_append(${tenants.allowedModules}, ${key}) end`;
 export const sqlRemove = (key: string) => sql`array_remove(${tenants.addons}, ${key})`;
 
-/** Payments for domains, on top of Stripe. Without Stripe (local use) every domain is "paid" at once. */
-export function workmailPayments(db: Db, billing: Billing | null, appUrl: string): WorkmailPayments {
+/**
+ * How a business pays for Work email: each mailbox that isn't deleted costs WORK_EMAIL.mailboxPerMonth (core/plans.ts).
+ * "stripe": added to its Stripe subscription (the Work email line's quantity = number of mailboxes).
+ * "demo": a business made with a demo payment, or a server with test payments on: nothing is charged.
+ * "free": no Stripe subscription (e.g. set up by the program owner) or Work email isn't sold through Stripe here: no extra charge.
+ */
+export async function workmailCharging(db: Db, billing: Billing | null, testPayments: boolean, tenantId: string): Promise<MailboxPrice> {
+  const [t] = await db.select({ sub: tenants.stripeSubscriptionId, planTest: tenants.planTest }).from(tenants).where(eq(tenants.id, tenantId));
+  const mode = billing?.workmailLabel && t?.sub ? "stripe" : testPayments || t?.planTest ? "demo" : "free";
+  return { perMonth: WORK_EMAIL.mailboxPerMonth, currency: "EUR", mode };
+}
+
+/** Payments for Work email: domains (one-off, Stripe Checkout) and mailboxes (on the subscription). Without Stripe, domains are "paid" at once. */
+export function workmailPayments(db: Db, billing: Billing | null, appUrl: string, testPayments = false): WorkmailPayments {
   return {
+    mailboxPrice: (tenantId) => workmailCharging(db, billing, testPayments, tenantId),
+    async mailboxesChanged({ tenantId, count }) {
+      if (!billing?.workmailLabel) return;
+      const [t] = await db.select({ sub: tenants.stripeSubscriptionId }).from(tenants).where(eq(tenants.id, tenantId));
+      if (t?.sub) await billing.setAddOnQuantity(t.sub, "workmail", count);
+    },
     async chargeDomain(i) {
       if (!billing) return { status: "paid" };
       const [t] = await db.select({ customer: tenants.stripeCustomerId }).from(tenants).where(eq(tenants.id, i.tenantId));

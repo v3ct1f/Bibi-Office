@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import type { MailboxPrice } from "@office/module-workmail/ui";
 import { useTMutation, useTQuery } from "../api/hooks.ts";
 import { useTenant } from "./tenant.tsx";
 
@@ -7,8 +8,10 @@ export interface AddonInfo {
   workmail: {
     /** The feature exists and the server has an email provider. */
     available: boolean;
-    /** What it adds to the subscription (e.g. "EUR 9 per month"); null = no extra charge for this business. */
+    /** "€3 per mailbox per month" when this business pays through Stripe; null otherwise. */
     price: string | null;
+    /** What each work mailbox costs per month and how this business pays it: stripe | demo (nothing charged) | free. */
+    mailbox: MailboxPrice;
     active: boolean;
     enabled: boolean;
   };

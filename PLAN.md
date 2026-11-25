@@ -43,6 +43,7 @@
 | 35 | Owners set up their own business after paying (pay -> account -> create business); full region list; demo payment page | ✅ done |
 | 36 | Work email: company domain + work mailboxes (pretend provider) | ✅ done |
 | 37 | "Add work email" step in the sign-up, prices in one place | ✅ done |
+| 38 | Work email: each mailbox EUR 3/month, price shown before and after creating one | ✅ done |
 
 ## Defaults chosen (Session 2, user said "go"; revisit anytime)
 | Question | Default |
@@ -60,6 +61,14 @@
 - Each module in `/modules/<name>` with its own README.
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
+
+## Session 38, Work email: the price of each mailbox is said before it's made
+- **Bug:** adding a colleague with "Give them a work email" showed no price at all once Work email was on, and the billing code charged one flat extra (with up to 10 mailboxes) while the sign-up page said EUR 3 per mailbox.
+- **One rule now, everywhere:** turning Work email on costs nothing by itself; **each work mailbox costs EUR 3 per month** (`WORK_EMAIL.mailboxPerMonth`, `packages/core/src/plans.ts`); a company domain is paid once a year. A mailbox counts until it is deleted (a switched-off one still exists at the provider). The business setting "Mailboxes" is now only the most a business can have (default 10), not a number included for free: nothing is included.
+- **How each business pays** (`workmailCharging`, `apps/api/src/addons.ts`): *stripe* (it has a Stripe subscription and the server sells Work email through Stripe): the Work email line on the subscription is billed per mailbox, its quantity follows the number of mailboxes (pro rata); if Stripe refuses, the mailbox isn't created. *demo* (test payments on, or a business made with a demo payment): the price is shown with "demo: nothing is charged". *free* (no Stripe subscription, e.g. set up by the program owner): "No extra charge for your business".
+- **Shown before and after:** Add colleague -> ticking "Give them a work email" shows "This adds EUR 3 per month to your subscription" (or the demo / no-charge line) with "x of y mailboxes used", and the button becomes "Create account and work email (+EUR 3/month)"; afterwards "This added EUR 3/month to your subscription". Same on the Work email page (New mailbox dialog, the Mailboxes heading, Mailbox ready). Turning Work email on (Colleagues, Add features) says it costs nothing by itself and what each mailbox costs.
+- **Real charging changed on purpose (not live yet):** the Stripe Work email price must now be a **per-unit monthly price of EUR 3** (`STRIPE_WORKMAIL_PRICE_ID`); it was one flat price before. The line is added with quantity 0 and follows the mailbox count. Check this in Stripe test mode before going live (`docs/stripe-setup.md`).
+- Tests: api addons 8 (new: billed per mailbox, refused when Stripe fails, deleting lowers the count), signup-workmail (demo price), workmail 24; full api run 295 green. Browser workmail 8 (price before/after in Add colleague, New mailbox, Add features), colleagues, plans, owner: 24 green.
 
 ## Session 37, "Add work email" step in the sign-up (merged Work email from Session 36)
 - **New order:** `/plans` -> **Add work email** (`/start/email?plan=...&interval=...`) -> `/start` -> payment -> email -> create your business. The new page says "Give your team company email addresses like anna@yourcompany.com", shows the prices in euros (**your own domain EUR 19 per year, each work mailbox EUR 3 per month**) with a worked example ("your domain + 5 people = EUR 15 per month + EUR 19 per year, EUR 199 in the first year") and what it makes with the chosen plan. The customer picks how many mailboxes, types the domain they'd like and presses **Check** ("available" / "taken, free: ..."). **Skip, no thanks** (same size as Add) goes straight to `/start`; Work email can be added later from Add features.

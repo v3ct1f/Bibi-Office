@@ -8,7 +8,7 @@ import {
 } from "./service.ts";
 
 export { configureWorkmail, getProvider, ProviderError } from "./provider.ts";
-export type { WorkmailProvider, WorkmailPayments, DomainOffer, DnsRecord, Registrant } from "./provider.ts";
+export type { WorkmailProvider, WorkmailPayments, DomainOffer, DnsRecord, Registrant, MailboxPrice } from "./provider.ts";
 export { fakeProvider, freePayments } from "./fake-provider.ts";
 export type { FakeProvider } from "./fake-provider.ts";
 
@@ -45,7 +45,7 @@ export default defineModule({
     settings: {
       type: "object",
       properties: {
-        maxMailboxes: { type: "integer", title: "Mailboxes included", default: 10, minimum: 1, maximum: 200 },
+        maxMailboxes: { type: "integer", title: "Most mailboxes (each one is paid per month)", default: 10, minimum: 1, maximum: 200 },
       },
       additionalProperties: false,
     },

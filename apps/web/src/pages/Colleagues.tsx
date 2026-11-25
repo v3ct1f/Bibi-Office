@@ -12,6 +12,7 @@ import { useTenant } from "../lib/tenant.tsx";
 import { fmtDate, initials } from "../lib/format.ts";
 import { useAuth } from "../auth/auth.tsx";
 import { useAddons, useWorkmailSwitch } from "../lib/addons.ts";
+import { mailboxCostAfter, mailboxCostBefore, mailboxCostShort, type MailboxPrice } from "@office/module-workmail/ui";
 
 const MIN_PASSWORD = 10;
 
@@ -24,7 +25,7 @@ function makePassword() {
   return `${s.slice(0, 4)}-${s.slice(4, 8)}-${s.slice(8)}`;
 }
 
-interface Made { name: string; email: string; password: string; mailbox?: { address: string; password: string; webmailUrl: string | null } | undefined; mailboxError?: string | undefined }
+interface Made { name: string; email: string; password: string; mailbox?: { address: string; password: string; webmailUrl: string | null; cost: string } | undefined; mailboxError?: string | undefined }
 interface WmDomain { id: string; name: string; status: string }
 interface Invited { email: string; link: string; emailed: boolean; emailError: string | null }
 
@@ -56,6 +57,9 @@ export function ColleaguesPage() {
   const wmOffer = !wmOn && !!addons.data?.workmail.available && can("core:modules.manage");
   const wmDomains = useTQuery<WmDomain[]>(["workmail-domains"], "/m/workmail/domains", undefined, { enabled: open && wmOn });
   const readyDomains = (wmDomains.data ?? []).filter((d) => d.status === "active");
+  // What a mailbox costs this business, and how many it has (shown before the button, never hidden).
+  const wmConfig = useTQuery<{ mailboxesUsed: number; maxMailboxes: number; mailboxPrice: MailboxPrice | null }>(["workmail-config"], "/m/workmail/config", undefined, { enabled: open && wmOn });
+  const wmPrice = wmConfig.data?.mailboxPrice ?? addons.data?.workmail.mailbox ?? null;
   const [wantMail, setWantMail] = useState(false);
   const [local, setLocal] = useState("");
   const [localEdited, setLocalEdited] = useState(false);
@@ -82,7 +86,8 @@ export function ColleaguesPage() {
           const m = await api.post<{ address: string; password: string; webmailUrl: string | null }>("/m/workmail/mailboxes", {
             domainId: domainId || readyDomains[0]!.id, localPart: local, name: name.trim(), userId: acct.userId,
           });
-          result.mailbox = { address: m.address, password: m.password, webmailUrl: m.webmailUrl };
+          result.mailbox = { address: m.address, password: m.password, webmailUrl: m.webmailUrl, cost: mailboxCostAfter(wmPrice) };
+          void wmConfig.refetch();
         } catch (e) { result.mailboxError = errorMessage(e); }
       }
       setMade(result);
@@ -172,6 +177,7 @@ export function ColleaguesPage() {
                 <CopyField value={made.mailbox.address} label="Copy work email address" />
                 <CopyField value={made.mailbox.password} label="Copy work email password" />
                 <p className="text-xs text-muted-foreground">Also shown only once. {made.mailbox.webmailUrl && <a className="underline" href={made.mailbox.webmailUrl} target="_blank" rel="noreferrer">Open webmail</a>}</p>
+                {made.mailbox.cost && <p className="text-sm" role="status" data-testid="mailbox-cost-after">{made.mailbox.cost}</p>}
               </div>
             )}
             {made.mailboxError && <p role="alert" className="text-sm text-destructive">The account is ready, but the work email wasn't created: {made.mailboxError} You can create it later under Work email.</p>}
@@ -219,6 +225,12 @@ export function ColleaguesPage() {
                     <p className="text-xs text-muted-foreground">Work email is on, but you don't have a company domain yet. <Link className="underline" to={`/t/${tenant.slug}/m/workmail/email`}>Choose a domain</Link> first.</p>
                   )}
                   {wantMail && readyDomains.length > 0 && (
+                    <p className="rounded-md bg-muted/50 px-2 py-1.5 text-sm" data-testid="mailbox-cost">
+                      {mailboxCostBefore(wmPrice)}
+                      {wmConfig.data && <span className="text-muted-foreground"> ({wmConfig.data.mailboxesUsed} of {wmConfig.data.maxMailboxes} mailboxes used.)</span>}
+                    </p>
+                  )}
+                  {wantMail && readyDomains.length > 0 && (
                     <div className="flex items-center gap-2">
                       <Input aria-label="Work email name" required className="flex-1" value={local} placeholder="anna" onChange={(e) => { setLocal(e.target.value.toLowerCase()); setLocalEdited(true); }} />
                       <span className="text-muted-foreground">@</span>
@@ -237,8 +249,8 @@ export function ColleaguesPage() {
                   ) : (
                     <div className="grid gap-2">
                       <p className="text-muted-foreground">
-                        {addons.data?.workmail.price ? `This adds ${addons.data.workmail.price} to your subscription.` : "No extra charge for your business."}
-                        {" "}Then you choose a company domain and can give each colleague an address like anna@yourcompany.com.
+                        Turning it on costs nothing by itself. {addons.data ? mailboxCostBefore(addons.data.workmail.mailbox).replace("This adds", "Each work mailbox adds") : ""}
+                        {" "}Then you choose a company domain (paid once a year) and can give each colleague an address like anna@yourcompany.com.
                       </p>
                       <div className="flex gap-2">
                         <Button type="button" size="sm" loading={turnOn.isPending} onClick={() => turnOn.mutate(true, { onSuccess: () => setAskPay(false) })}>Yes, turn it on</Button>
@@ -256,7 +268,9 @@ export function ColleaguesPage() {
               )}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={close}>Cancel</Button>
-                <Button type="submit" loading={busy} disabled={!name.trim() || !email.trim() || !pwOk || (wantMail && !local)}>Create account</Button>
+                <Button type="submit" loading={busy} disabled={!name.trim() || !email.trim() || !pwOk || (wantMail && !local)}>
+                  {wantMail && wmOn && readyDomains.length > 0 ? `Create account and work email${mailboxCostShort(wmPrice)}` : "Create account"}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>

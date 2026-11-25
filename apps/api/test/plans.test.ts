@@ -103,7 +103,7 @@ describe("demo payment (no Stripe on this server)", () => {
     const stripe = await setup([crm], {
       mailer, testPayments: true,
       billing: { label: "€29 per month", webhookSecret: "whsec_x", createCheckout: async () => "https://checkout.stripe.test/c/1", portalUrl: async () => "x",
-        workmailLabel: null, addAddOn: async () => {}, removeAddOn: async () => {}, createPayment: async () => ({ url: "", id: "" }), paymentPaid: async () => false },
+        workmailLabel: null, addAddOn: async () => {}, removeAddOn: async () => {}, setAddOnQuantity: async () => {}, createPayment: async () => ({ url: "", id: "" }), paymentPaid: async () => false },
     });
     try {
       for (const x of [off, prod]) {

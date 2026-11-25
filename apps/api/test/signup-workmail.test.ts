@@ -81,6 +81,9 @@ describe("signing up with Work email", () => {
     expect(owner.made).toMatchObject({ plan: "starter", workmail: { mailboxes: 5, domain: "wendyswidgets.com", on: true } });
     expect((await owner.c.get("/billing/addons")).body.workmail).toMatchObject({ active: true, enabled: true });
     expect((await owner.c.get("/m/workmail/domains")).body).toEqual([]);   // nothing bought yet: that's the next step
+    // A demo business sees the real price per mailbox, marked as demo (nothing is charged).
+    expect((await owner.c.get("/m/workmail/config")).body).toMatchObject({ mailboxesUsed: 0, mailboxPrice: { perMonth: 3, currency: "EUR", mode: "demo" } });
+    expect((await owner.c.get("/billing/addons")).body.workmail).toMatchObject({ price: null, mailbox: { perMonth: 3, mode: "demo" } });
     const offers = (await owner.c.get("/m/workmail/domains/search?q=wendyswidgets.com")).body as { domain: string; priceCents: number }[];
     expect(offers[0]).toMatchObject({ domain: "wendyswidgets.com", priceCents: 1900 });
   });

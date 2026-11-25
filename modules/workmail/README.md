@@ -39,6 +39,11 @@ with `dns-ok` already has its records, others do not until `setDnsOk(domain)` (d
 and `failNext("registerDomain")` makes the next call of that name fail once.
 
 ## Paying
+- **What it costs (one rule, Session 38):** turning Work email on costs nothing; **each mailbox costs EUR 3 per month** (from `WORK_EMAIL`
+  in `packages/core/src/plans.ts`) until it is deleted; a domain is paid once a year. `maxMailboxes` is only the most a business can have.
+  Every screen that makes a mailbox says the price first and after ("This adds EUR 3 per month to your subscription" / demo / no charge).
+  The platform keeps the Stripe line's quantity equal to the number of mailboxes (`WorkmailPayments.mailboxesChanged`); if that fails the
+  mailbox is taken back.
 - **The extra monthly price** is handled by the platform (`apps/api/src/addons.ts`, `routes/addons.ts`, not by this module): it adds a second
   Stripe subscription item (`STRIPE_WORKMAIL_PRICE_ID`), stores `tenants.addons`, and enables this module. At sign-up the same price is a second
   checkout line. Removing it deletes the item. Businesses without a Stripe subscription (created by the program owner) or servers without the
@@ -89,5 +94,5 @@ Work email page (`nav.main`, `/email`: domains, mailboxes, buy / connect / trans
 7. Real Stripe test-mode run of the add-on item and domain payment (only faked so far).
 
 ## Not yet
-Per-mailbox pricing (it is one flat extra with `maxMailboxes` included), aliases and forwarding, shared inboxes, domain renewals and expiry reminders,
+Aliases and forwarding, shared inboxes, domain renewals and expiry reminders,
 catch-all, webmail single sign-on, moving a mailbox between colleagues, importing existing mail.

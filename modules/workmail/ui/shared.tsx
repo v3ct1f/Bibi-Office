@@ -14,7 +14,34 @@ export interface Mailbox {
 }
 export type NewMailbox = Mailbox & { password: string };
 export interface Offer { domain: string; available: boolean; priceCents: number | null; currency: string }
-export interface Config { available: boolean; maxMailboxes: number; paymentRequired: boolean; hasDomain: boolean }
+export interface MailboxPrice { perMonth: number; currency: string; mode: "stripe" | "demo" | "free" }
+export interface Config {
+  available: boolean; maxMailboxes: number; paymentRequired: boolean; hasDomain: boolean;
+  mailboxesUsed: number; mailboxPrice: MailboxPrice | null;
+}
+
+/** The price of one mailbox, e.g. "€3". */
+export function mailboxPriceText(p: MailboxPrice) {
+  try { return new Intl.NumberFormat(undefined, { style: "currency", currency: p.currency, minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(p.perMonth); }
+  catch { return `${p.perMonth} ${p.currency}`; }
+}
+/** Said before a mailbox is created: what it costs this business. */
+export function mailboxCostBefore(p: MailboxPrice | null): string {
+  if (!p || p.mode === "free") return "No extra charge for your business.";
+  if (p.mode === "demo") return `Each work mailbox costs ${mailboxPriceText(p)} per month (demo: nothing is charged).`;
+  return `This adds ${mailboxPriceText(p)} per month to your subscription.`;
+}
+/** Said after a mailbox was created. Empty when there's no charge. */
+export function mailboxCostAfter(p: MailboxPrice | null): string {
+  if (!p || p.mode === "free") return "";
+  if (p.mode === "demo") return `On a real subscription this adds ${mailboxPriceText(p)}/month (demo: nothing was charged).`;
+  return `This added ${mailboxPriceText(p)}/month to your subscription.`;
+}
+/** The price in the create button, e.g. " (+€3/month)". */
+export function mailboxCostShort(p: MailboxPrice | null): string {
+  if (!p || p.mode === "free") return "";
+  return ` (+${mailboxPriceText(p)}/month${p.mode === "demo" ? ", demo" : ""})`;
+}
 export interface Member { id: string; userId: string; name: string | null; email: string }
 
 export const DOMAIN_STATUS: Record<Domain["status"], { label: string; variant: "success" | "warning" | "neutral" }> = {

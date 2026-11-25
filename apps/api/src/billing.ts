@@ -24,10 +24,15 @@ export interface Billing {
   createCheckout(input: CheckoutInput): Promise<string>;
   /** Stripe's own page where a customer changes their card, sees invoices and cancels (it stays active until the paid month ends). */
   portalUrl(customerId: string, returnUrl: string): Promise<string>;
-  /** The Work email add-on as shown to customers, e.g. "EUR 9 per month"; null when the add-on isn't for sale on this server. */
+  /**
+   * Set when Work email is for sale through Stripe on this server (STRIPE_WORKMAIL_PRICE_ID, a price per mailbox per month
+   * matching WORK_EMAIL.mailboxPerMonth); null otherwise. Its text isn't shown: the price comes from core/plans.ts.
+   */
   workmailLabel: string | null;
-  /** Adds the add-on to an existing subscription (the card on file is charged, pro rata). Safe to repeat. */
-  addAddOn(subscriptionId: string, key: "workmail"): Promise<void>;
+  /** Adds the Work email line to an existing subscription, with `quantity` mailboxes (0 = none yet, nothing to pay). Safe to repeat. */
+  addAddOn(subscriptionId: string, key: "workmail", quantity?: number): Promise<void>;
+  /** Sets how many mailboxes the Work email line bills (pro rata). Does nothing when the line isn't on the subscription. */
+  setAddOnQuantity(subscriptionId: string, key: "workmail", quantity: number): Promise<void>;
   /** Takes the add-on off the subscription. Safe to repeat. */
   removeAddOn(subscriptionId: string, key: "workmail"): Promise<void>;
   /** A one-off payment page (e.g. for a domain); returns the page address and an id to check later. */
@@ -69,11 +74,18 @@ export function stripeBilling(o: { secretKey?: string | undefined; webhookSecret
     label: o.label || "",
     webhookSecret,
     workmailLabel: o.workmailPriceId ? o.workmailLabel || "extra per month" : null,
-    async addAddOn(subscriptionId) {
+    async addAddOn(subscriptionId, _key, quantity = 0) {
       if (!o.workmailPriceId) throw new Error("Stripe: the Work email price isn't set up");
       if (await addOnItem(subscriptionId)) return;   // already there (a repeat)
       await call("POST", "subscription_items", new URLSearchParams({
-        subscription: subscriptionId, price: o.workmailPriceId, quantity: "1", proration_behavior: "create_prorations", payment_behavior: "error_if_incomplete",
+        subscription: subscriptionId, price: o.workmailPriceId, quantity: String(quantity), proration_behavior: "create_prorations", payment_behavior: "error_if_incomplete",
+      }));
+    },
+    async setAddOnQuantity(subscriptionId, _key, quantity) {
+      const item = await addOnItem(subscriptionId);
+      if (!item) return;
+      await call("POST", `subscription_items/${item.id}`, new URLSearchParams({
+        quantity: String(quantity), proration_behavior: "create_prorations", payment_behavior: "error_if_incomplete",
       }));
     },
     async removeAddOn(subscriptionId) {
