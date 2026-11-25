@@ -30,7 +30,7 @@ export function IntervalToggle({ value, onChange }: { value: Interval; onChange:
   );
 }
 
-/** The three plans side by side. Each card shows only what it adds to the plan before it. */
+/** The three plans side by side. Each card lists everything it includes, so a dearer plan always shows more ticks. */
 export function PlanCards({ plans, interval, highlight, action }: {
   plans: PlanInfo[]; interval: Interval; highlight?: PlanInfo["key"];
   action: (p: PlanInfo) => ReactNode;
@@ -40,8 +40,6 @@ export function PlanCards({ plans, interval, highlight, action }: {
       {plans.map((p, idx) => {
         const before = plans[idx - 1];
         const had = new Set(before?.features.map((f) => f.key));
-        const added = p.features.filter((f) => !had.has(f.key));
-        const newCaps = p.capabilities.filter((c) => !before?.capabilities.includes(c));
         const featured = highlight === p.key;
         return (
           <Card key={p.key} data-testid={`plan-${p.key}`} className={cn("flex flex-col", featured && "border-primary shadow-md ring-1 ring-primary/30")}>
@@ -63,10 +61,18 @@ export function PlanCards({ plans, interval, highlight, action }: {
             </CardHeader>
             <CardContent className="flex flex-1 flex-col gap-4">
               <div className="grid gap-2 text-sm">
-                {before && <p className="font-medium">Everything in {before.name}, plus:</p>}
+                <p className="font-medium">{p.features.length + p.capabilities.length} features{before ? `, all of ${before.name} and more` : ""}</p>
                 <ul className="grid gap-1.5">
-                  {added.map((f) => <li key={f.key} className="flex items-start gap-2"><Check className="mt-0.5 size-4 shrink-0 text-success" />{f.name}</li>)}
-                  {newCaps.map((c) => <li key={c} className="flex items-start gap-2"><Check className="mt-0.5 size-4 shrink-0 text-success" />{CAPABILITY_LABEL[c]}</li>)}
+                  {p.features.map((f) => (
+                    <li key={f.key} className={cn("flex items-start gap-2", before && !had.has(f.key) && "font-medium")}>
+                      <Check className="mt-0.5 size-4 shrink-0 text-success" />{f.name}
+                    </li>
+                  ))}
+                  {p.capabilities.map((c) => (
+                    <li key={c} className={cn("flex items-start gap-2", before && !before.capabilities.includes(c) && "font-medium")}>
+                      <Check className="mt-0.5 size-4 shrink-0 text-success" />{CAPABILITY_LABEL[c]}
+                    </li>
+                  ))}
                 </ul>
               </div>
               <div className="mt-auto">{action(p)}</div>

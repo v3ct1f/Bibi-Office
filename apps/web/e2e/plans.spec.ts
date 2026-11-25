@@ -17,7 +17,12 @@ test("the public plans page shows the three plans; a visitor chooses one, pays o
   await expect(complete).toContainText("Up to 60 people");
   await expect(complete).toContainText("API keys and webhooks");
   await expect(starter).not.toContainText("Expenses");
-  await expect(business).toContainText("Everything in Starter, plus:");
+  await expect(business).toContainText("all of Starter and more");
+  // Every plan lists everything it includes, so the dearest plan shows the most.
+  await expect(complete).toContainText("Invoicing");
+  await expect(complete).toContainText("Staff Scheduling & Time Clock");
+  expect(await complete.locator("li").count()).toBeGreaterThan(await business.locator("li").count());
+  expect(await business.locator("li").count()).toBeGreaterThan(await starter.locator("li").count());
 
   await page.getByRole("button", { name: /^Yearly/ }).click();
   // Yearly shows a monthly price first, with the year's total in small print.
