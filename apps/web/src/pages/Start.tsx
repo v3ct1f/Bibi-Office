@@ -7,7 +7,9 @@ import { ApiError, request } from "../api/client.ts";
 import { config } from "../config.ts";
 import { COMPANY } from "../legal/company.ts";
 import { FullPage } from "./auth.tsx";
-import { eur, perMonth, priceText, type Interval, type PlanInfo } from "./PlanCards.tsx";
+import { perMonth, priceText, PriceNote, type Interval, type PlanInfo } from "./PlanCards.tsx";
+import { t, tx } from "../i18n/core.ts";
+import { useMoney } from "../lib/currency.tsx";
 import { usePublicPlans } from "./Plans.tsx";
 
 /** Work email prices, from the API (one place: packages/core/src/plans.ts WORK_EMAIL). Null when it isn't offered at sign-up. */
@@ -30,7 +32,7 @@ function choiceFrom(s: StartSearch, prices: WorkmailPrices | null): WorkmailChoi
 /** The extra cost of a Work email choice: per month for the mailboxes, per year for the domain. */
 const workmailCost = (c: WorkmailChoice, p: WorkmailPrices) => ({ perMonth: c.mailboxes * p.mailboxPerMonth, perYear: c.domain ? p.domainPerYear : 0 });
 const round2 = (n: number) => Math.round(n * 100) / 100;
-const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
+const people = (n: number) => t("common.people", { count: n });
 
 /** When the web app can't talk to the API at all (wrong address, API not started), say so plainly instead of showing the form. */
 function ServerUnreachable({ error, onRetry }: { error: unknown; onRetry: () => void }) {
@@ -47,23 +49,25 @@ function ServerUnreachable({ error, onRetry }: { error: unknown; onRetry: () => 
 }
 
 /** The Work email lines and the new monthly total, shown on /start and on the demo checkout page. */
-function WorkmailLines({ choice, prices, plan, interval }: { choice: WorkmailChoice; prices: WorkmailPrices; plan: PlanInfo; interval: Interval }) {
+function WorkmailLines({ choice, prices, plan, interval, exact }: { choice: WorkmailChoice; prices: WorkmailPrices; plan: PlanInfo; interval: Interval; exact?: boolean }) {
+  const m = useMoney();
+  const eur = exact ? m.exact : m.eur;
   const cost = workmailCost(choice, prices);
   return (
     <div className="grid gap-1 border-t pt-2" data-testid="workmail-lines">
       <p className="flex justify-between gap-3">
-        <span>Work email: {choice.mailboxes} {choice.mailboxes === 1 ? "mailbox" : "mailboxes"} × {eur(prices.mailboxPerMonth)}</span>
-        <span className="text-right">{eur(cost.perMonth)} per month</span>
+        <span>{t("wm.line")}: {t("wm.mailboxes", { count: choice.mailboxes })} × {eur(prices.mailboxPerMonth)}</span>
+        <span className="text-right">{t("wm.perMonth", { price: eur(cost.perMonth) })}</span>
       </p>
       {choice.domain && (
         <p className="flex justify-between gap-3">
-          <span className="truncate">Domain {choice.domain}</span>
-          <span className="shrink-0 text-right">{eur(prices.domainPerYear)} per year</span>
+          <span className="truncate">{t("wm.domainLine", { domain: choice.domain })}</span>
+          <span className="shrink-0 text-right">{t("wm.perYear", { price: eur(prices.domainPerYear) })}</span>
         </p>
       )}
       <p className="flex justify-between gap-3 border-t pt-1 font-medium" data-testid="new-total">
-        <span>New total</span>
-        <span className="text-right">{eur(round2(perMonth(plan, interval) + cost.perMonth))} per month{cost.perYear ? ` + ${eur(cost.perYear)} per year` : ""}</span>
+        <span>{t("wm.newTotal")}</span>
+        <span className="text-right">{t("wm.perMonth", { price: eur(round2(perMonth(plan, interval) + cost.perMonth)) })}{cost.perYear ? ` + ${t("wm.perYear", { price: eur(cost.perYear) })}` : ""}</span>
       </p>
       {choice.domain && <p className="text-xs text-muted-foreground">The domain is bought for your business right after you've set it up, in your business's name.</p>}
     </div>
@@ -76,6 +80,7 @@ function WorkmailLines({ choice, prices, plan, interval }: { choice: WorkmailCho
  * "Skip, no thanks" goes straight on; Work email can be added later from Add features.
  */
 export function WorkEmailStepPage() {
+  const { eur } = useMoney();
   const cfg = useSignupConfig();
   const plans = usePublicPlans();
   const navigate = useNavigate();
@@ -120,13 +125,13 @@ export function WorkEmailStepPage() {
       <Card className="w-full max-w-lg">
         <CardHeader className="items-center text-center">
           <AtSign className="mb-2 size-10 text-primary" />
-          <CardTitle className="text-lg">Add work email</CardTitle>
-          <CardDescription>Give your team company email addresses like anna@yourcompany.com. Optional: you can skip it and add it later.</CardDescription>
+          <CardTitle className="text-lg">{t("wm.title")}</CardTitle>
+          <CardDescription>{t("wm.desc")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-1.5 rounded-md border bg-muted/50 px-3 py-2 text-sm" data-testid="workmail-prices">
-            <p className="flex justify-between gap-3"><span>Your own domain</span><strong>{eur(prices.domainPerYear)} per year</strong></p>
-            <p className="flex justify-between gap-3"><span>Each work mailbox</span><strong>{eur(prices.mailboxPerMonth)} per month</strong></p>
+            <p className="flex justify-between gap-3"><span>{t("wm.domain")}</span><strong>{t("wm.perYear", { price: eur(prices.domainPerYear) })}</strong></p>
+            <p className="flex justify-between gap-3"><span>{t("wm.mailbox")}</span><strong>{t("wm.perMonth", { price: eur(prices.mailboxPerMonth) })}</strong></p>
             <p className="border-t pt-1.5 text-muted-foreground" data-testid="workmail-example">
               Example: your domain + {ex} people = {eur(exMonth)} per month + {eur(prices.domainPerYear)} per year
               ({eur(exMonth * 12 + prices.domainPerYear)} in the first year).
@@ -137,15 +142,15 @@ export function WorkEmailStepPage() {
           </div>
 
           <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (countOk && domainOk) add(); }}>
-            <Field label="How many work mailboxes?" hint={`One per person who needs an address. ${countOk ? `${people(n)}: ${eur(n * prices.mailboxPerMonth)} per month.` : `1 to ${prices.maxMailboxes}.`}`}>
+            <Field label={t("wm.howMany")} hint={`${t("wm.howManyHint")} ${countOk ? `${people(n)}: ${t("wm.perMonth", { price: eur(n * prices.mailboxPerMonth) })}.` : t("wm.range", { max: prices.maxMailboxes })}`}>
               {(a) => <Input {...a} type="number" min={1} max={prices.maxMailboxes} value={count} onChange={(e) => setCount(e.target.value)} className="w-28" />}
             </Field>
-            <Field label="The domain you'd like (optional)" hint="For example yourcompany.com. Already own one? Leave this empty and connect it after sign-up: no domain fee.">
+            <Field label={t("wm.domainLabel")} hint={t("wm.domainHint")}>
               {(a) => (
                 <div className="flex gap-2">
                   <Input {...a} value={domain} placeholder="yourcompany.com" maxLength={100} autoComplete="off"
                     onChange={(e) => { setDomain(e.target.value); setChecked(null); }} />
-                  <Button type="button" variant="outline" disabled={d.length < 2} loading={check.isPending} onClick={() => check.mutate(d)}>Check</Button>
+                  <Button type="button" variant="outline" disabled={d.length < 2} loading={check.isPending} onClick={() => check.mutate(d)}>{t("wm.check")}</Button>
                 </div>
               )}
             </Field>
@@ -163,14 +168,14 @@ export function WorkEmailStepPage() {
             ))}
             {d && !domainOk && !checked && <p className="text-xs text-muted-foreground">Press Check to see if it's free.</p>}
             <p className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
-              Nothing is bought yet. We buy the domain for you right after you've created your account and your business (it's registered in your business's name, so it stays yours).
+              {t("wm.nothingBought")}
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
-              <Button type="button" variant="outline" size="lg" onClick={() => void navigate({ to: "/start", search: base })}>Skip, no thanks</Button>
-              <Button type="submit" size="lg" disabled={!countOk || !domainOk}>Add work email</Button>
+              <Button type="button" variant="outline" size="lg" onClick={() => void navigate({ to: "/start", search: base })}>{t("wm.skip")}</Button>
+              <Button type="submit" size="lg" disabled={!countOk || !domainOk}>{t("wm.add")}</Button>
             </div>
           </form>
-          <Button asChild variant="ghost" className="w-full"><Link to="/plans">Back to plans</Link></Button>
+          <Button asChild variant="ghost" className="w-full"><Link to="/plans">{t("wm.backToPlans")}</Link></Button>
         </CardContent>
       </Card>
     </FullPage>
@@ -183,6 +188,7 @@ export function WorkEmailStepPage() {
  * Payment is Stripe's own page, or, on a local / try-out server without Stripe, our demo checkout page (nothing charged).
  */
 export function StartPage() {
+  const { eur } = useMoney();
   const cfg = useSignupConfig();
   const search = useSearch({ strict: false }) as StartSearch;
   const plans = usePublicPlans();
@@ -217,61 +223,59 @@ export function StartPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
           <Building2 className="mb-2 size-10 text-primary" />
-          <CardTitle className="text-lg">{plan ? `Start with ${plan.name}` : "Start your business on Office"}</CardTitle>
+          <CardTitle className="text-lg">{plan ? t("start.titlePlan", { plan: plan.name }) : t("start.title")}</CardTitle>
           <CardDescription>
-            {closed ? "Sign-up isn't open yet. Please check back soon."
-              : demo ? "Your email, then the (demo) payment. Afterwards we email you a link to create your account and set up your business."
-              : `Your own workspace for your team${cfg.data.price ? `: ${cfg.data.price}` : ""}. You pay on Stripe's secure page, then we email you a link to create your account and set up your business.`}
+            {closed ? t("start.descClosed") : demo ? t("start.descDemo") : t("start.descLive")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {plan && (
             <div className="grid gap-1 rounded-md border bg-muted/50 px-3 py-2 text-sm" data-testid="chosen-plan">
               <p className="flex items-center justify-between gap-2">
-                <span className="font-medium">{plan.name} plan</span>
-                <Link to="/plans" className="text-xs underline">Change plan</Link>
+                <span className="font-medium">{t("start.planName", { plan: plan.name })}</span>
+                <Link to="/plans" className="text-xs underline">{t("start.changePlan")}</Link>
               </p>
-              <p className="text-muted-foreground">{priceText(plan, interval)} · <Users className="inline size-3.5" /> up to {plan.people} people</p>
+              <p className="text-muted-foreground">{priceText(plan, interval, eur)} · <Users className="inline size-3.5" /> {t("start.upTo", { count: plan.people })}</p>
               {workmail && prices && (
                 <>
                   <WorkmailLines choice={workmail} prices={prices} plan={plan} interval={interval} />
                   <p className="flex gap-3 text-xs">
-                    <Link to="/start/email" search={search} className="underline">Change work email</Link>
-                    <Link to="/start" search={base} className="underline" aria-label="Remove work email">Remove</Link>
+                    <Link to="/start/email" search={search} className="underline">{t("start.changeWorkmail")}</Link>
+                    <Link to="/start" search={base} className="underline" aria-label="Remove work email">{t("start.remove")}</Link>
                   </p>
                 </>
               )}
               {!workmail && prices && (
-                <p className="text-xs"><Link to="/start/email" search={base} className="underline">Add work email</Link> <span className="text-muted-foreground">(addresses like anna@yourcompany.com, from {eur(prices.mailboxPerMonth)} per person per month)</span></p>
+                <p className="text-xs"><Link to="/start/email" search={base} className="underline">{t("start.addWorkmail")}</Link> <span className="text-muted-foreground">{t("start.addWorkmailHint", { price: eur(prices.mailboxPerMonth) })}</span></p>
               )}
-              {demo && <p className="flex items-start gap-1.5 pt-1 text-xs"><FlaskConical className="mt-0.5 size-3.5 shrink-0 text-primary" /><span><strong>Demo payment:</strong> no card needed and nothing is charged.</span></p>}
+              {demo && <p className="flex items-start gap-1.5 pt-1 text-xs"><FlaskConical className="mt-0.5 size-3.5 shrink-0 text-primary" /><span>{t("start.demoNote")}</span></p>}
+              <PriceNote className="pt-1" />
             </div>
           )}
           {!closed && (
             <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); go.mutate(); }}>
-              <Field label="Your email" hint="After paying, we send the link to create your account here. You'll sign in with it.">
+              <Field label={t("start.email")} hint={t("start.emailHint")}>
                 {(a) => <Input {...a} type="email" required autoFocus autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />}
               </Field>
               <label className="flex items-start gap-2 text-sm">
-                <Checkbox checked={business} onCheckedChange={(v) => setBusiness(v === true)} className="mt-0.5" aria-label="I am signing up for business or professional use" />
-                <span>I am signing up for <strong>business or professional use</strong>, not as a private consumer.</span>
+                <Checkbox checked={business} onCheckedChange={(v) => setBusiness(v === true)} className="mt-0.5" aria-label={t("start.businessStrong")} />
+                <span>{tx("start.business", { strong: <strong>{t("start.businessStrong")}</strong> })}</span>
               </label>
               <label className="flex items-start gap-2 text-sm">
-                <Checkbox checked={agreed} onCheckedChange={(v) => setAgreed(v === true)} className="mt-0.5" aria-label="I agree to the Terms and the Privacy Policy" />
+                <Checkbox checked={agreed} onCheckedChange={(v) => setAgreed(v === true)} className="mt-0.5" aria-label={t("start.agree", { terms: t("legal.terms"), privacy: t("legal.privacy") })} />
                 <span>
-                  I agree to the <Link to="/terms" target="_blank" className="underline">Terms</Link> and the <Link to="/privacy" target="_blank" className="underline">Privacy Policy</Link>.
-                  {demo ? " This is a demo: nothing is charged."
-                    : " The subscription renews monthly, you can cancel any time and keep access until the month ends, and payments aren't refundable."}
+                  {tx("start.agree", { terms: <Link to="/terms" target="_blank" className="underline">{t("legal.terms")}</Link>, privacy: <Link to="/privacy" target="_blank" className="underline">{t("legal.privacy")}</Link> })}
+                  {" "}{demo ? t("start.agreeDemo") : t("start.agreeLive")}
                 </span>
               </label>
               {go.isError && (go.error instanceof ApiError && go.error.status === 0
                 ? <ServerUnreachable error={go.error} onRetry={() => go.mutate()} /> : <ErrorState error={go.error} />)}
               <Button className="w-full" type="submit" loading={go.isPending || go.isSuccess} disabled={!agreed || !business || (demo && !plan)}>
-                Continue to payment
+                {t("start.continue")}
               </Button>
             </form>
           )}
-          <Button asChild variant="ghost" className="w-full"><Link to="/">Already have an account? Sign in</Link></Button>
+          <Button asChild variant="ghost" className="w-full"><Link to="/">{t("start.haveAccount")}</Link></Button>
         </CardContent>
       </Card>
     </FullPage>
@@ -315,11 +319,11 @@ export function DemoPayPage() {
               <div className="grid gap-2 rounded-md border bg-muted/50 p-3 text-sm" data-testid="demo-order">
                 <dl className="grid gap-2">
                   <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Plan</dt><dd className="font-medium">{q.data.plan.name}</dd></div>
-                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Price</dt><dd className="text-right">{priceText(q.data.plan, q.data.interval)}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Price</dt><dd className="text-right">{priceText(q.data.plan, q.data.interval, (n) => new Intl.NumberFormat(undefined, { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n))}</dd></div>
                   <div className="flex justify-between gap-3"><dt className="text-muted-foreground">People included</dt><dd>up to {q.data.plan.people}</dd></div>
                   <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Email</dt><dd className="truncate">{q.data.email}</dd></div>
                 </dl>
-                {q.data.workmail && <WorkmailLines choice={q.data.workmail} prices={{ ...q.data.prices, currency: "EUR" }} plan={q.data.plan} interval={q.data.interval} />}
+                {q.data.workmail && <WorkmailLines choice={q.data.workmail} prices={{ ...q.data.prices, currency: "EUR" }} plan={q.data.plan} interval={q.data.interval} exact />}
               </div>
             )}
           <p role="note" className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">

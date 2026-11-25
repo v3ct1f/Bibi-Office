@@ -5,16 +5,18 @@ import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitl
 import { request } from "../../api/client.ts";
 import { useTenant } from "../../lib/tenant.tsx";
 import { fmtDate } from "../../lib/format.ts";
+import { t } from "../../i18n/core.ts";
+import { DisplayCurrencyCard } from "./DisplayCurrency.tsx";
 
 export const SETTINGS_NAV = [
-  { path: "", label: "General", icon: Building, perm: undefined },
-  { path: "/plan", label: "Plan", icon: Sparkles, perm: undefined },
-  { path: "/members", label: "Members", icon: Users, perm: "core:members.read" },
-  { path: "/roles", label: "Roles", icon: Shield, perm: "core:roles.read" },
-  { path: "/api-keys", label: "API keys", icon: KeyRound, perm: "core:apikeys.manage" },
-  { path: "/webhooks", label: "Webhooks", icon: Webhook, perm: "core:webhooks.manage" },
-  { path: "/audit", label: "Audit log", icon: ScrollText, perm: "core:audit.read" },
-  { path: "/support", label: "Contact support", icon: LifeBuoy, perm: "core:members.manage" },
+  { path: "", label: t("set.general"), icon: Building, perm: undefined },
+  { path: "/plan", label: t("set.plan"), icon: Sparkles, perm: undefined },
+  { path: "/members", label: t("set.members"), icon: Users, perm: "core:members.read" },
+  { path: "/roles", label: t("set.roles"), icon: Shield, perm: "core:roles.read" },
+  { path: "/api-keys", label: t("set.apiKeys"), icon: KeyRound, perm: "core:apikeys.manage" },
+  { path: "/webhooks", label: t("set.webhooks"), icon: Webhook, perm: "core:webhooks.manage" },
+  { path: "/audit", label: t("set.audit"), icon: ScrollText, perm: "core:audit.read" },
+  { path: "/support", label: t("set.support"), icon: LifeBuoy, perm: "core:members.manage" },
 ];
 
 export function SettingsLayout() {
@@ -23,7 +25,7 @@ export function SettingsLayout() {
   const base = `/t/${tenant.slug}/settings`;
   return (
     <div className="grid gap-6 lg:grid-cols-[12rem_1fr]">
-      <nav aria-label="Settings" className="-mx-4 flex gap-1 overflow-x-auto px-4 lg:mx-0 lg:flex-col lg:px-0">
+      <nav aria-label={t("set.nav")} className="-mx-4 flex gap-1 overflow-x-auto px-4 lg:mx-0 lg:flex-col lg:px-0">
         {SETTINGS_NAV.filter((n) => can(n.perm)).map((n) => {
           const to = base + n.path;
           const active = path === to;
@@ -48,13 +50,13 @@ export function GeneralSettings() {
     onSuccess: (r) => { window.location.href = r.url; },
   });
   const rows: [string, React.ReactNode][] = [
-    ["Name", tenant.name], ["URL", <code key="s" className="font-mono text-xs">/t/{tenant.slug}</code>],
-    ["Workspace ID", <code key="i" className="font-mono text-xs break-all">{tenant.id}</code>],
-    ["Data region", tenant.region.toUpperCase()], ["Plan", <Badge key="p" variant="neutral">{tenant.plan}</Badge>], ["Created", fmtDate(tenant.createdAt)],
+    [t("set.name"), tenant.name], [t("set.url"), <code key="s" className="font-mono text-xs">/t/{tenant.slug}</code>],
+    [t("set.id"), <code key="i" className="font-mono text-xs break-all">{tenant.id}</code>],
+    [t("set.region"), tenant.region.toUpperCase()], [t("set.planRow"), <Badge key="p" variant="neutral">{tenant.plan}</Badge>], [t("set.created"), fmtDate(tenant.createdAt)],
   ];
   return (
     <>
-      <PageHeader title="General" description="Workspace details. Use the Workspace ID with API keys and integrations." />
+      <PageHeader title={t("set.general")} description={t("set.generalDesc")} />
       <div className="grid gap-6">
         <Card>
           <dl className="divide-y">
@@ -64,17 +66,18 @@ export function GeneralSettings() {
         {tenant.plan === "paid" && can("core:tenant.manage") && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Subscription</CardTitle>
-              <CardDescription>Change your card, see invoices or cancel. If you cancel, everything keeps working until the end of the month you've paid for.</CardDescription>
+              <CardTitle className="text-sm">{t("set.subscription")}</CardTitle>
+              <CardDescription>{t("set.subscriptionDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {portal.isError && <ErrorState error={portal.error} />}
-              <Button variant="outline" loading={portal.isPending || portal.isSuccess} onClick={() => portal.mutate()}>Manage subscription</Button>
+              <Button variant="outline" loading={portal.isPending || portal.isSuccess} onClick={() => portal.mutate()}>{t("set.manageSubscription")}</Button>
             </CardContent>
           </Card>
         )}
+        <DisplayCurrencyCard />
         <Card>
-          <CardHeader><CardTitle className="text-sm">Your access</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm">{t("set.access")}</CardTitle></CardHeader>
           <CardContent className="flex flex-wrap gap-1.5">
             {access.permissions.map((p) => <Badge key={p} variant="outline" className="font-mono">{p === "*" ? "* (owner: everything)" : p}</Badge>)}
           </CardContent>

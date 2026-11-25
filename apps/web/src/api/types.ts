@@ -2,11 +2,13 @@
 export interface TenantRef { id: string; slug: string; name: string; status: string; tenantStatus: "active" | "suspended" }
 export interface Me { kind: "user"; userId: string; email: string; tenants: TenantRef[]; platformAdmin: boolean; selfSignup: boolean;
   /** Paid (or was invited) to set up a business they haven't created yet. */
-  pendingBusiness?: boolean }
+  pendingBusiness?: boolean;
+  /** Language and currency they picked (null = not chosen yet). */
+  locale: string | null; currency: string | null }
 
 export interface UiSlot { slot: string; label?: string; icon?: string; route?: string; component?: string; permission?: string; badge?: string }
 export interface Access {
-  tenant: { id: string; slug: string; name: string; region: string; plan: string; createdAt: string };
+  tenant: { id: string; slug: string; name: string; region: string; plan: string; createdAt: string; displayCurrency: string };
   actor: { type: string; id: string };
   /** A program owner looking in read-only (not a member). */
   viewing?: boolean;

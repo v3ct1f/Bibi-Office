@@ -16,6 +16,7 @@ import { registerOwnerRoutes } from "./owner.ts";
 import { registerBillingRoutes } from "./billing.ts";
 import { registerAddonRoutes } from "./addons.ts";
 import { registerContactRoutes } from "./contact.ts";
+import { registerPreferenceRoutes } from "./preferences.ts";
 import type { Billing } from "../billing.ts";
 
 type InTenant = <T>(req: import("fastify").FastifyRequest, perm: string | null,
@@ -31,7 +32,7 @@ const Page = z.object({
 const tenantHeader = z.object({ "x-tenant-id": z.uuid().optional() }).loose();
 
 export const registerRoutes: FastifyPluginAsync<{
-  db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null; identity: Identity | null; selfSignup: boolean; testPayments: boolean; billing: Billing | null; contactEmail: string | undefined;
+  db: Db; inTenant: InTenant; pepper: string; appUrl: string; mailer: Mailer | null; identity: Identity | null; rates: import("@office/core").RatesProvider; selfSignup: boolean; testPayments: boolean; billing: Billing | null; contactEmail: string | undefined;
   modules: import("@office/platform").ModuleDeps;
 }> = async (app0, o) => {
   const app = app0.withTypeProvider<ZodTypeProvider>();
@@ -43,6 +44,11 @@ export const registerRoutes: FastifyPluginAsync<{
     return (await isPlatformAdmin(db, p.email)) ? { userId: p.userId, email: p.email.toLowerCase() } : null;
   };
 
+  const myPreferences = async (userId: string) => {
+    const [u] = await db.select({ locale: users.uiLocale, currency: users.uiCurrency }).from(users).where(eq(users.id, userId));
+    return { locale: u?.locale ?? null, currency: u?.currency ?? null };
+  };
+
   // ───── Me / tenants ─────
   app.get("/me", { config: AUTH, schema: { tags: ["me"] } }, async (req) => {
     const p = req.principal!;
@@ -50,6 +56,8 @@ export const registerRoutes: FastifyPluginAsync<{
     return {
       kind: "user", userId: p.userId, email: p.email, tenants: await listUserTenants(db, p.userId),
       platformAdmin: !!(await platformAdmin(req)), selfSignup: o.selfSignup,
+      /** The language and currency this person picked (null = not chosen; the app then uses the browser's language). */
+      ...(await myPreferences(p.userId)),
       /** Paid (or was invited) to set up a business they haven't created yet: the app shows "Create your business". */
       pendingBusiness: p.emailVerified && await hasOpenOwnerSignup(db, p.email),
     };
@@ -97,6 +105,7 @@ export const registerRoutes: FastifyPluginAsync<{
 
   await registerContactRoutes(app, { db, mailer: o.mailer, contactEmail: o.contactEmail, inTenant });
   await registerBillingRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, billing: o.billing, contactEmail: o.contactEmail, inTenant, testPayments: o.testPayments, modules: o.modules });
+  await registerPreferenceRoutes(app, { db, rates: o.rates, inTenant });
   await registerAddonRoutes(app, { db, billing: o.billing, modules: o.modules, inTenant });
   await registerOwnerRoutes(app, { db, appUrl: o.appUrl, mailer: o.mailer, identity: o.identity, contactEmail: o.contactEmail, platformAdmin, modules: o.modules });
 

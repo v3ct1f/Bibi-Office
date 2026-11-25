@@ -14,6 +14,8 @@ pnpm dev:worker                       # outbox -> NATS relay
 
 Set `PLATFORM_ADMIN_EMAILS` to your own email before the first start: you're the program owner at `/admin`, where you can also add co-owners or transfer ownership. Business owners set up their own business: they choose a plan on `/plans`, may add work email (`/start/email`: company domain and mailboxes, or skip) and pay on `/start` (Stripe, see `docs/stripe-setup.md`; locally, without Stripe keys, a demo payment page where nothing is charged) or you invite them from `/admin` (**Invite business owner**); either way they get an email to create their account, sign in and create their business (name, web address, region) at `/new-business`. With `SELF_SIGNUP=false` (default), nobody else can create a business.
 
+**Language and currency:** the app is available in English, Spanish, Dutch, French, German, Portuguese and Italian (picker in the top bar and on the public pages; the browser's language is the default). Prices are billed in euros; a visitor can see `/plans` and `/start` prices converted to their currency (marked as approximate). Exchange rates come from a built-in approximate table; set `RATES_JSON` (for example `{"USD":1.09,"GBP":0.86}`, units per 1 EUR) to use your own. How to add a language: `apps/web/src/i18n/README.md`.
+
 Local sign-in uses email + password accounts (`pnpm dev:oidc`). New people get a "Set your password" link in their invitation email; anyone can get one at `/forgot-password`. Put `MAIL_SMTP_URL` and `MAIL_FROM` in `.env.local` so those emails go out.
 
 ## Tests (real Postgres, no Docker needed)

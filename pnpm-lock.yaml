@@ -132,6 +132,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@office/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@office/module-ai':
         specifier: workspace:*
         version: link:../../modules/ai
