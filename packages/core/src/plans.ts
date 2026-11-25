@@ -1,5 +1,5 @@
 import { and, eq, isNull, ne, gt, sql } from "drizzle-orm";
-import { invitations, memberships, tenants, type Tx } from "@office/db";
+import { invitations, memberships, tenants, type Db, type Tx } from "@office/db";
 import { AppError } from "./errors.ts";
 
 /**
@@ -69,6 +69,23 @@ export const workEmailCost = (mailboxes: number, withDomain: boolean) => ({
   perMonth: mailboxes * WORK_EMAIL.mailboxPerMonth,
   perYear: withDomain ? WORK_EMAIL.domainPerYear : 0,
 });
+
+/**
+ * A business's allowed features are saved when it picks a plan, so a feature added to a plan later (Mail, say) would
+ * be missing for businesses already on it. On start-up this adds whatever each plan includes to the businesses on it.
+ * It only ever adds: a feature someone was given on top of the plan (or a paid extra) stays. Returns how many changed.
+ */
+export async function syncPlanFeatures(db: Db): Promise<number> {
+  let changed = 0;
+  for (const p of PLANS) {
+    const rows = await db.update(tenants)
+      .set({ allowedModules: sql`array(select distinct x from unnest(coalesce(${tenants.allowedModules}, '{}'::text[]) || ${sql.raw(`ARRAY[${p.features.map((f) => `'${f}'`).join(",")}]::text[]`)}) as x)` })
+      .where(and(eq(tenants.plan, p.key), ne(tenants.status, "deleted"), sql`not (${tenants.allowedModules} @> ${sql.raw(`ARRAY[${p.features.map((f) => `'${f}'`).join(",")}]::text[]`)})`))
+      .returning({ id: tenants.id });
+    changed += rows.length;
+  }
+  return changed;
+}
 
 export const planByKey = (key: string | null | undefined): Plan | undefined => PLANS.find((p) => p.key === key);
 export const planPrice = (p: Plan, interval: PlanInterval) => (interval === "yearly" ? p.yearly : p.monthly);

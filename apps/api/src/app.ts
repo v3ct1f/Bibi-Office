@@ -15,7 +15,7 @@ import { createAuthenticator } from "./plugins/auth.ts";
 import { registerErrorHandler } from "./plugins/errors.ts";
 import { makeTenantRunner } from "./tenant.ts";
 import { registerRoutes } from "./routes/index.ts";
-import { seedPlatformAdmins } from "@office/core";
+import { seedPlatformAdmins, syncPlanFeatures } from "@office/core";
 import { registerPlatformRoutes } from "./routes/platform.ts";
 import type { ModuleRegistry, SecretBox } from "@office/platform";
 import type { Config } from "./config.ts";
@@ -139,6 +139,7 @@ export async function buildApp(d: AppDeps): Promise<FastifyInstance> {
   configureWorkmail({ provider: d.workmailProvider ? withOurDomainPrice(d.workmailProvider) : null, payments: workmailPayments(d.db, d.billing ?? null, appUrl, !!d.testPayments && !d.billing && d.config.NODE_ENV !== "production") });
   configureMail({ provider: d.mailProvider ?? null, ...(d.mailLimits ?? {}) });
   await seedPlatformAdmins(d.db, d.platformAdmins ?? []);
+  await syncPlanFeatures(d.db).catch((e) => app.log.warn({ err: e }, "could not update plan features"));
   const inTenant = makeTenantRunner(d.db, d.platform.registry.all().flatMap((m) => m.manifest.roles.viewer ?? []));
   await app.register(registerRoutes, {
     prefix: "/api/v1", db: d.db, inTenant, pepper: d.config.API_KEY_PEPPER, mailer: d.mailer ?? null, identity: d.identity ?? null, rates: d.rates ?? new FixedRatesProvider(),

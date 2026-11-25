@@ -67,6 +67,7 @@
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
 ## Session 42, Mail: ready for a real mail server
+- **Fix: a feature added to a plan now reaches businesses already on it.** A business's allowed features are saved when it picks a plan, so businesses created before Mail couldn't add it ("Not part of your plan"). `syncPlanFeatures` (`packages/core/src/plans.ts`) runs when the API starts and adds whatever each plan includes to the businesses on it; it only adds (paid extras and features given on top stay; businesses without a plan stay unlimited). Test: api `plan-sync.test.ts` 2.
 - **What:** the whole "Before real use" list from Session 39. Mail can now use a real mail server. It hasn't been connected to one yet (that needs the host's details, see below).
 - **Real mail server:** `modules/mail/src/imap-provider.ts` reads over IMAP and sends over SMTP. Office signs in to each mailbox with a **master user** that the mail host gives Office (Dovecot and Stalwart have this), so no mailbox password is ever stored. Turned on with `MAIL_PROVIDER=imap` plus the `MAIL_IMAP_*`, `MAIL_SUBMIT_*` and `MAIL_MASTER_*` settings (server environment only; list in `modules/mail/README.md`).
 - **Fetching in the worker:** with a real server, new mail is fetched by the worker every minute (job `sync_mail`), never inside a page request. The pretend server still fetches when the page asks.
