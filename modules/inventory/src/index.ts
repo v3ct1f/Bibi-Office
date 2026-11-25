@@ -5,7 +5,7 @@ import { defineModule, route } from "@office/sdk";
 import {
   AdjustInput, adjust, archiveItem, cancelOrder, config, createItem, createOrder, deleteOrder, generateOrders, getItem, getOrder, ItemInput,
   ItemPatch, ItemQuery, listItems, listMovements, listOrders, MovementQuery, OrderInput, OrderPatch, OrderQuery, P, ReceiveInput, receiveOrder,
-  sendOrder, summary, suppliers, updateItem, updateOrder,
+  sendOrder, SetupInput, quickSetup, summary, suppliers, updateItem, updateOrder,
 } from "./service.ts";
 
 const Id = z.object({ id: z.uuid() });
@@ -26,7 +26,7 @@ export default defineModule({
         { key: P.ADJUST, label: "Record deliveries, usage, waste and stock counts" },
         { key: P.MANAGE, label: "Add and edit items, create, send and receive purchase orders" },
       ],
-      requires: ["core:companies.read", "core:members.read"],
+      requires: ["core:companies.read", "core:companies.write", "core:members.read"],
     },
     roles: { manager: [P.READ, P.ADJUST, P.MANAGE], member: [P.READ, P.ADJUST], viewer: [P.READ] },
     entities: ["item", "purchase_order"],
@@ -55,6 +55,7 @@ export default defineModule({
     route({ method: "GET", path: "/summary", permission: P.READ, handler: (ctx) => summary(ctx) }),
     route({ method: "GET", path: "/suppliers", permission: P.READ, handler: (ctx) => suppliers(ctx) }),
 
+    route({ method: "POST", path: "/setup", permission: P.MANAGE, body: SetupInput, handler: (ctx, { body }) => quickSetup(ctx, body) }),
     route({ method: "GET", path: "/items", permission: P.READ, query: ItemQuery, handler: (ctx, { query }) => listItems(ctx, query) }),
     route({ method: "POST", path: "/items", permission: P.MANAGE, status: 201, body: ItemInput, handler: (ctx, { body }) => createItem(ctx, body) }),
     route({ method: "GET", path: "/items/:id", permission: P.READ, params: Id, handler: (ctx, { params }) => getItem(ctx, params.id) }),

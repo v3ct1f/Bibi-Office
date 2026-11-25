@@ -66,6 +66,11 @@
 - End with 5-line handoff below.
 - New session reads only PLAN.md, ARCHITECTURE.md, and its target folder.
 
+## Session 44, an icon for each plan
+- Logo: a glass bubble with an office window on it (the app's old Bibi desktop orb, but not pink). **One icon per plan:** Starter = indigo bubble, Business = teal bubble with a halo ring, Complete = gold warmth inside the bubble. Files in `branding/plans/` (SVG + 512/1024 PNG), the other ideas in `branding/options/`.
+- **The browser tab's icon and the logo at the top of the menu follow the business's plan** (`apps/web/src/lib/brand.ts`: `planIcon`, `useTabIcon` called in `TenantLayout`; `apps/web/public/favicon-<plan>.svg`). A plan change updates them straight away because it refreshes the access summary. Sign-in, plans and program admin pages, and businesses without a plan, use `favicon.svg` (the Starter icon). New "Bibi Office" row at the top of the menu.
+- Test: browser plans flow checks the tab icon at no plan, Starter, Business and Complete, and the menu logo on Complete.
+
 ## Session 43, Add features by category; Work email is built in
 - **Add features** is now one section per category (Money, Sales, Team, Operations...), each with its own heading, instead of filter buttons.
 - **Work email is no longer a feature.** It is switched on for every business from the start (`BUILT_IN_MODULES` in `packages/core/src/plans.ts`; `ensureBuiltInModules` in `apps/api/src/addons.ts` runs at start-up and when a business is created, signs up or has its allowed features changed). It is not listed under Add features or on the program owner's "Choose features" screen, and can't be removed (`POST /modules/workmail/disable` and `DELETE /billing/addons/workmail` answer 409 `built_in`). "Cancel Work email" is gone.

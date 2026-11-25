@@ -171,3 +171,25 @@ describe("inventory module", () => {
     expect((await Vic().get(`${M}/items`)).body.data).toHaveLength(4);
   });
 });
+
+describe("quick setup", () => {
+  it("adds items with typed supplier names, creates missing suppliers, and orders what is low", async () => {
+    expect((await Max().post(`${M}/setup`, { items: [{ name: "Tea" }] })).status).toBe(403);
+    expect((await Mgr().post(`${M}/setup`, { items: [] })).status).toBe(400);
+    const r = (await Mgr().post(`${M}/setup`, {
+      items: [
+        { name: "Tea bags", supplier: "fresh farms", unit: "box", stock: 1, minStock: 5, reorderQty: 10, unitCostCents: 300 },
+        { name: "Honey", supplier: "Bee Happy", unit: "jar", stock: 20, minStock: 5, unitCostCents: 450 },
+        { name: "Tea bags", supplier: "Bee Happy" },
+        { name: "Salt" },
+      ],
+    })).body;
+    expect(r.created).toEqual(["Tea bags", "Honey", "Salt"]);
+    expect(r.failed).toHaveLength(1);
+    expect(r.addedSuppliers).toEqual(["Bee Happy"]);
+    expect(r.orders.created).toHaveLength(1);
+    expect(r.orders.created[0].supplierName).toBe("Fresh Farms");
+    const companies = (await Own().get("/companies?q=Fresh")).body.data as { name: string }[];
+    expect(companies.filter((c) => c.name === "Fresh Farms")).toHaveLength(1);
+  });
+});

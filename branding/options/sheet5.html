@@ -1,0 +1,33 @@
+<!doctype html><meta charset="utf-8">
+<body style="margin:0;background:#f4f4f6;font:16px 'Segoe UI',system-ui,sans-serif;color:#1e1b4b;width:1320px">
+<div style="padding:26px 30px 0;font-size:26px;font-weight:700;letter-spacing:-.02em">Ten window orbs</div>
+<div style="padding:4px 30px 0;color:#555">All keep the glossy circle with an office window reflected in it. They differ in colour, window and finish.</div>
+<div id="row" style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;padding:16px 30px 30px"></div>
+<script>
+let c=0;
+const opts=[
+["1","Teal glass","Teal sphere on deep teal.","W01-teal-glass"],
+["2","Golden hour","Gold sphere on indigo.","W02-golden-hour"],
+["3","Arched window","A church-like arch window with a cross bar.","W03-arched-window"],
+["4","Blinds","Violet sphere, venetian blinds.","W04-blinds"],
+["5","Light grid","Bigger sphere, 3 by 3 window, on a light tile.","W05-light-grid"],
+["6","Glass bubble","See-through bubble with a rim of light.","W06-glass-bubble"],
+["7","Night window","Dark sphere, one warm lit window, stars.","W07-night-window"],
+["8","Two windows","A tall and a small window: a building in the glass.","W08-two-windows"],
+["9","Flat badge","No gloss: flat disc, one amber pane lit. Minimal.","W09-flat-badge"],
+["10","City orb","A skyline with lit windows inside the sphere.","W10-city-orb"]];
+const row=document.getElementById("row");
+(async()=>{for(const [k,n,d,f] of opts){
+  const raw=await (await fetch(f+".svg")).text();
+  const mk=(w)=>{c++;return raw.replace(/id="([\w-]+)"/g,'id="$1_'+c+'"').replace(/url\(#([\w-]+)\)/g,'url(#$1_'+c+')').replace("<svg ",'<svg width="'+w+'" height="'+w+'" ')};
+  const el=document.createElement("div");
+  el.style.cssText="background:#fff;border-radius:16px;padding:16px 12px;box-shadow:0 1px 4px #0002;text-align:center";
+  el.innerHTML=`<div style="font-weight:700;color:#6366f1;font-size:18px">${k}</div>
+   <div style="width:150px;margin:8px auto">${mk(150)}</div>
+   <div style="font-weight:700;margin-top:4px">${n}</div><div style="font-size:12.5px;color:#555;min-height:34px;margin-top:3px">${d}</div>
+   <div style="display:flex;gap:10px;align-items:center;justify-content:center;margin-top:4px">${mk(32)}${mk(16)}</div>
+   <div style="display:flex;gap:7px;align-items:center;justify-content:center;margin-top:10px;background:#111827;border-radius:9px;padding:6px 8px">${mk(24)}<b style="color:#fff;font-size:16px;letter-spacing:-.01em">Bibi Office</b></div>
+   <div style="display:flex;gap:7px;align-items:center;justify-content:center;margin-top:7px;background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:6px 8px">${mk(24)}<b style="font-size:16px;letter-spacing:-.01em">Bibi Office</b></div>`;
+  row.appendChild(el);}
+ document.title="done";})();
+</script>

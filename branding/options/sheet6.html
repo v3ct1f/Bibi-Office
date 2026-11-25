@@ -1,0 +1,28 @@
+<!doctype html><meta charset="utf-8">
+<body style="margin:0;background:#f4f4f6;font:16px 'Segoe UI',system-ui,sans-serif;color:#1e1b4b;width:1320px">
+<div style="padding:26px 30px 0;font-size:26px;font-weight:700;letter-spacing:-.02em">Glass bubble: a better window</div>
+<div style="padding:4px 30px 0;color:#555">Left: the one you saw (flat square panes). Then four ways to reflect the window the way a real bubble does.</div>
+<div id="row" style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;padding:16px 30px 30px"></div>
+<script>
+let c=0;
+const opts=[
+["Before","Flat panes","The square panes sit on top of the bubble, which looks pasted on.","W06-glass-bubble"],
+["1","Curved window","The window bends around the edge of the bubble, in four glass panes.","B1-curved-window"],
+["2","Line window","The same curved window drawn as thin lines: light and delicate.","B2-line-window"],
+["3","Lit window","Warm amber panes with a glow: someone is working late.","B3-lit-window"],
+["4","Soft reflection","A small, slightly blurred window, like a real reflection.","B4-soft-reflection"]];
+const row=document.getElementById("row");
+(async()=>{for(const [k,n,d,f] of opts){
+  const raw=await (await fetch(f+".svg")).text();
+  const mk=(w)=>{c++;return raw.replace(/id="([\w-]+)"/g,'id="$1_'+c+'"').replace(/url\(#([\w-]+)\)/g,'url(#$1_'+c+')').replace("<svg ",'<svg width="'+w+'" height="'+w+'" ')};
+  const el=document.createElement("div");
+  el.style.cssText="background:#fff;border-radius:16px;padding:16px 12px;box-shadow:0 1px 4px #0002;text-align:center";
+  el.innerHTML=`<div style="font-weight:700;color:#6366f1;font-size:18px">${k}</div>
+   <div style="width:190px;margin:8px auto">${mk(190)}</div>
+   <div style="font-weight:700;margin-top:4px">${n}</div><div style="font-size:12.5px;color:#555;min-height:50px;margin-top:3px">${d}</div>
+   <div style="display:flex;gap:10px;align-items:center;justify-content:center;margin-top:4px">${mk(48)}${mk(32)}${mk(16)}</div>
+   <div style="display:flex;gap:7px;align-items:center;justify-content:center;margin-top:10px;background:#111827;border-radius:9px;padding:6px 8px">${mk(24)}<b style="color:#fff;font-size:16px;letter-spacing:-.01em">Bibi Office</b></div>
+   <div style="display:flex;gap:7px;align-items:center;justify-content:center;margin-top:7px;background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:6px 8px">${mk(24)}<b style="font-size:16px;letter-spacing:-.01em">Bibi Office</b></div>`;
+  row.appendChild(el);}
+ document.title="done";})();
+</script>

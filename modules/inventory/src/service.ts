@@ -457,6 +457,49 @@ export async function config(ctx: ModuleContext) {
   };
 }
 
+export const SetupInput = z.object({
+  items: z.array(z.object({
+    name: text(120).min(1, "Give the item a name"), supplier: text(120).nullish(), unit: text(20).default("unit"),
+    stock: qty("Stock must be a number").default(0), minStock: qty("Minimum must be a number").default(0),
+    reorderQty: positiveQty("Reorder amount must be a number").nullish(), unitCostCents: cents.default(0),
+  }).strict()).min(1, "Add at least one item").max(200),
+  createOrders: z.boolean().default(true),
+}).strict();
+
+/**
+ * One-step setup: items with their supplier typed by name. Suppliers that don't exist yet are added to Companies,
+ * each item is created (ones that can't be, like a name already in use, are reported, not fatal), and optionally the
+ * first purchase orders are made for whatever is already low.
+ */
+export async function quickSetup(ctx: ModuleContext, input: z.infer<typeof SetupInput>) {
+  const ids = new Map<string, string>();
+  const addedSuppliers: string[] = [];
+  const supplierId = async (name: string) => {
+    const key = name.toLowerCase();
+    const known = ids.get(key);
+    if (known) return known;
+    const found = (await ctx.data.companies.list({ q: name, limit: 20 })).data.find((c) => String(c.name ?? "").trim().toLowerCase() === key);
+    let id: string;
+    if (found) id = String(found.id);
+    else { id = String((await ctx.data.companies.create({ name })).id); addedSuppliers.push(name); }
+    ids.set(key, id);
+    return id;
+  };
+  const created: string[] = [];
+  const failed: { name: string; reason: string }[] = [];
+  for (const row of input.items) {
+    try {
+      const sid = row.supplier ? await supplierId(row.supplier) : null;
+      await createItem(ctx, { name: row.name, unit: row.unit || "unit", stock: row.stock, minStock: row.minStock, reorderQty: row.reorderQty ?? null, supplierId: sid, unitCostCents: row.unitCostCents });
+      created.push(row.name);
+    } catch (e) {
+      failed.push({ name: row.name, reason: e instanceof Error ? e.message : "Could not be added" });
+    }
+  }
+  const orders = input.createOrders && created.length ? await generateOrders(ctx) : { created: [], skipped: [] };
+  return { created, failed, addedSuppliers, orders };
+}
+
 export async function suppliers(ctx: ModuleContext) {
   const rows = await ctx.db.selectDistinct({ id: items.supplierId }).from(items).where(isNotNull(items.supplierId));
   const names = await supplierNames(ctx, rows.map((r) => r.id));

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Bibi Office">
+  <defs>
+    <linearGradient id="tile" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4a2370"/><stop offset="1" stop-color="#1c0d33"/></linearGradient>
+    <radialGradient id="body" gradientUnits="userSpaceOnUse" cx="27.94" cy="26.24" r="22.3"><stop offset="0" stop-color="#ffc4e6"/><stop offset=".38" stop-color="#ff74bd"/><stop offset=".76" stop-color="#ee2f96"/><stop offset="1" stop-color="#b3167e"/></radialGradient>
+    <radialGradient id="glow" gradientUnits="userSpaceOnUse" cx="35.44" cy="41.26" r="15.8"><stop offset="0" stop-color="#ffb4f0"/><stop offset="1" stop-color="#ffb4f0" stop-opacity="0"/></radialGradient>
+    <radialGradient id="shine" gradientUnits="userSpaceOnUse" cx="27.37" cy="25.62" r="8.69"><stop offset="0" stop-color="#fff"/><stop offset=".23" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#tile)"/>
+  <circle cx="32" cy="32" r="21.5" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-dasharray="118 17" transform="rotate(339 32 32)"/><circle cx="32" cy="32" r="12.5" fill="url(#body)"/><circle cx="32" cy="32" r="12.5" fill="url(#glow)"/><circle cx="32" cy="32" r="12.5" fill="url(#shine)"/><rect x="38.4" y="10.6" width="10" height="10" rx="2.7" fill="#fbbf24"/>
+</svg>

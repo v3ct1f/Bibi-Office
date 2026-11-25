@@ -40,7 +40,8 @@ export function Orders(_: PageProps) {
         : !list.data ? <Skeleton className="h-64" />
         : !list.data.length ? (
           <Card><EmptyState icon={<ShoppingCart />} title={tab === "open" ? "No open orders" : "No orders here"}
-            description={manage ? "Use “Order low stock” to create orders for everything that's running low, one per supplier." : undefined} /></Card>
+            description={manage ? "Use “Order low stock” to create orders for everything that's running low, one per supplier. Nothing to order from yet? Quick setup adds your items and suppliers in one go." : undefined}
+            action={manage ? <Button onClick={() => host.navigate("/inventory/setup")}>Quick setup</Button> : undefined} /></Card>
         ) : (
           <Card className="overflow-x-auto">
             <Table aria-label="Purchase orders">

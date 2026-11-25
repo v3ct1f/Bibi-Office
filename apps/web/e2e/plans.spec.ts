@@ -168,6 +168,8 @@ test("an owner sees the plan, upgrades and downgrades, and the features follow",
   await page.getByRole("link", { name: "Settings" }).click();
   await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Plan" }).click();
   await expect(page.getByTestId("current-plan")).toContainText("No plan chosen");
+  // The browser tab's icon follows the plan: the default one until a plan is chosen.
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/favicon.svg");
 
   // Choose Starter: only invoicing, leads and CRM stay available.
   await page.getByTestId("choose-starter").click();
@@ -176,6 +178,7 @@ test("an owner sees the plan, upgrades and downgrades, and the features follow",
   await expect(cur).toContainText("Starter plan");
   await expect(cur).toContainText("Test payment, nothing charged");
   await expect(cur).toContainText("1 of 15 people used");
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/favicon-starter.svg");
 
   await nav(page).getByRole("link", { name: "Add features" }).click();
   await expect(page.getByTestId("feature-expenses")).toContainText("Not part of your plan");
@@ -188,6 +191,7 @@ test("an owner sees the plan, upgrades and downgrades, and the features follow",
   await page.getByRole("dialog").getByRole("button", { name: "Confirm switch" }).click();
   await expect(page.getByTestId("current-plan")).toContainText("Business plan");
   await expect(page.getByTestId("current-plan")).toContainText("1 of 30 people used");
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/favicon-business.svg");
   await nav(page).getByRole("link", { name: "Add features" }).click();
   await expect(page.getByTestId("feature-expenses")).not.toContainText("Not part of your plan");
   await expect(page.getByTestId("feature-support")).toContainText("Not part of your plan");
@@ -204,4 +208,14 @@ test("an owner sees the plan, upgrades and downgrades, and the features follow",
   await nav(page).getByRole("link", { name: "Add features" }).click();
   await expect(page.getByTestId("feature-expenses")).toContainText("Not part of your plan");
   await expect(page.getByTestId("feature-expenses")).not.toContainText("Added");
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/favicon-starter.svg");
+
+  // Up to Complete: the top plan has its own tab icon, and the logo in the menu follows it too.
+  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Plan" }).click();
+  await page.getByTestId("choose-complete").click();
+  await page.getByRole("dialog").getByRole("button", { name: "Confirm switch" }).click();
+  await expect(page.getByTestId("current-plan")).toContainText("Complete plan");
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/favicon-complete.svg");
+  await expect(page.getByRole("link", { name: "Bibi Office" }).locator("img")).toHaveAttribute("src", "/favicon-complete.svg");
 });

@@ -3,6 +3,7 @@ import { History } from "./History.tsx";
 import { ItemDetail } from "./ItemDetail.tsx";
 import { ItemEditor } from "./ItemEditor.tsx";
 import { Items } from "./Items.tsx";
+import { QuickSetup } from "./QuickSetup.tsx";
 import { OrderDetail } from "./OrderDetail.tsx";
 import { NewOrder, Orders } from "./Orders.tsx";
 import { LowStockWidget } from "./widgets.tsx";
@@ -12,6 +13,7 @@ export default defineModuleUi({
   pages: {
     "/inventory": Items,
     "/inventory/new": ItemEditor,
+    "/inventory/setup": QuickSetup,
     "/inventory/history": History,
     "/inventory/:id": ItemDetail,
     "/inventory/:id/edit": ItemEditor,

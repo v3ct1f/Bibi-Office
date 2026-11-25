@@ -12,10 +12,11 @@ Turned off by default. An owner or admin adds it under **Add features**. Turning
 | `inventory:stock.adjust` | Record deliveries, usage, waste and counts | member, manager, admin, owner |
 | `inventory:purchasing.manage` | Add, edit and archive items; create, edit, send, receive and cancel purchase orders | manager, admin, owner |
 
-Suppliers are the workspace's core **Companies**, read through `ctx.data.companies`, so the module declares `core:companies.read`. It also declares `core:members.read` to show who made each change.
+Suppliers are the workspace's core **Companies**, read through `ctx.data.companies`, so the module declares `core:companies.read`. It also declares `core:members.read` to show who made each change. Quick setup also creates missing suppliers, so it declares `core:companies.write`.
 
 ## Pages
 
+- **Quick setup** (`/inventory/setup`): one table to start from. Type items, supplier names (new suppliers are added to Companies), minimum, reorder amount and cost, or paste rows from a spreadsheet. Optionally creates the first purchase orders for what is already low. Offered from the empty Inventory and Purchase orders pages. Items that can't be added (e.g. a name already used) are listed and stay in the table.
 - **Inventory** (`/inventory`): every item with its stock, minimum, supplier, unit cost and stock value.
   - Items at or below their minimum are red, with a banner to show only those.
   - You can filter by search, category, supplier, low stock and archived items.

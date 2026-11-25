@@ -1,0 +1,33 @@
+<!doctype html><meta charset="utf-8">
+<body style="margin:0;background:#f4f4f6;font:16px 'Segoe UI',system-ui,sans-serif;color:#1e1b4b;width:1320px">
+<div style="padding:26px 30px 0;font-size:26px;font-weight:700;letter-spacing:-.02em">More glass bubbles, in the style you liked</div>
+<div style="padding:4px 30px 0;color:#555">Same bubble with flat panes. Top left is the one you picked; the other nine change the colour, the window or a small detail.</div>
+<div id="row" style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;padding:16px 30px 30px"></div>
+<script>
+let c=0;
+const opts=[
+["Before","Your pick","Indigo bubble, four panes.","W06-glass-bubble"],
+["1","Teal","Teal bubble on deep teal.","G1-teal"],
+["2","Violet","Violet bubble on deep purple.","G2-violet"],
+["3","Light tile","A deeper blue bubble on a pale tile.","G3-light"],
+["4","Gold warmth","A warm golden glow inside the bubble.","G4-gold"],
+["5","Nine panes","A 3 by 3 grid of small panes.","G5-nine-panes"],
+["6","Two arches","Two arched windows side by side.","G6-arches"],
+["7","Big window","One big window with a cross bar.","G7-big-window"],
+["8","One light on","One pane lit amber, a light left on.","G8-one-lit"],
+["9","Playful","A small bubble floating by and a sparkle.","G9-playful"]];
+const row=document.getElementById("row");
+(async()=>{for(const [k,n,d,f] of opts){
+  const raw=await (await fetch(f+".svg")).text();
+  const mk=(w)=>{c++;return raw.replace(/id="([\w-]+)"/g,'id="$1_'+c+'"').replace(/url\(#([\w-]+)\)/g,'url(#$1_'+c+')').replace("<svg ",'<svg width="'+w+'" height="'+w+'" ')};
+  const el=document.createElement("div");
+  el.style.cssText="background:#fff;border-radius:16px;padding:16px 12px;box-shadow:0 1px 4px #0002;text-align:center";
+  el.innerHTML=`<div style="font-weight:700;color:#6366f1;font-size:18px">${k}</div>
+   <div style="width:160px;margin:8px auto">${mk(160)}</div>
+   <div style="font-weight:700;margin-top:4px">${n}</div><div style="font-size:12.5px;color:#555;min-height:34px;margin-top:3px">${d}</div>
+   <div style="display:flex;gap:10px;align-items:center;justify-content:center;margin-top:4px">${mk(40)}${mk(24)}${mk(16)}</div>
+   <div style="display:flex;gap:7px;align-items:center;justify-content:center;margin-top:10px;background:#111827;border-radius:9px;padding:6px 8px">${mk(24)}<b style="color:#fff;font-size:16px;letter-spacing:-.01em">Bibi Office</b></div>
+   <div style="display:flex;gap:7px;align-items:center;justify-content:center;margin-top:7px;background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:6px 8px">${mk(24)}<b style="font-size:16px;letter-spacing:-.01em">Bibi Office</b></div>`;
+  row.appendChild(el);}
+ document.title="done";})();
+</script>

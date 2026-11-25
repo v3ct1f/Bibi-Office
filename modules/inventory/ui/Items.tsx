@@ -81,7 +81,7 @@ function List({ cfg }: { cfg: Config }) {
           <Card>
             <EmptyState icon={<Package />} title={filtered ? "Nothing matches these filters" : "No items yet"}
               description={filtered ? "Try other filters." : "Add the things you buy and keep in stock, with a minimum so you know when to reorder."}
-              action={filtered ? <Button variant="outline" onClick={reset}>Clear filters</Button> : cfg.canManage ? <Button onClick={() => host.navigate("/inventory/new")}><Plus /> New item</Button> : undefined} />
+              action={filtered ? <Button variant="outline" onClick={reset}>Clear filters</Button> : cfg.canManage ? <div className="flex gap-2"><Button onClick={() => host.navigate("/inventory/setup")}><ShoppingCart /> Quick setup</Button><Button variant="outline" onClick={() => host.navigate("/inventory/new")}><Plus /> New item</Button></div> : undefined} />
           </Card>
         ) : (
           <Card className="overflow-x-auto">

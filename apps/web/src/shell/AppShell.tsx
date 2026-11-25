@@ -11,6 +11,7 @@ import { useAuth } from "../auth/auth.tsx";
 import { request } from "../api/client.ts";
 import type { Me } from "../api/types.ts";
 import { useTenant } from "../lib/tenant.tsx";
+import { planIcon } from "../lib/brand.ts";
 import { useTheme, type Theme } from "../lib/theme.tsx";
 import { initials } from "../lib/format.ts";
 import { moduleIcon } from "./icons.tsx";
@@ -176,6 +177,9 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   ].filter((d) => can(d.perm));
   return (
     <div className="flex h-full flex-col gap-2 p-3">
+      <Link to={base} aria-label="Bibi Office" className="flex items-center gap-2 px-2 pt-1 text-[0.95rem] font-semibold tracking-tight">
+        <img src={planIcon(tenant.plan)} alt="" className="size-6" /> Bibi Office
+      </Link>
       <TenantSwitcher />
       <nav className="flex-1 overflow-y-auto" aria-label={t("nav.main")}>
         <div className="grid gap-0.5 pt-2">

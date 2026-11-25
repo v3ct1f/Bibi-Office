@@ -5,6 +5,7 @@ import { Eye, PauseCircle, SearchX } from "lucide-react";
 import { Button, Card, EmptyState, ErrorState } from "@office/ui";
 import { request } from "../api/client.ts";
 import type { Access, TenantRef } from "../api/types.ts";
+import { useTabIcon } from "../lib/brand.ts";
 import { TenantProvider } from "../lib/tenant.tsx";
 import { AppShell, useMe } from "../shell/AppShell.tsx";
 import { FullPage, Loading, rememberTenant } from "./auth.tsx";
@@ -28,6 +29,7 @@ export function TenantLayout() {
     staleTime: 30_000,
   });
   useEffect(() => { if (member) rememberTenant(member.slug); }, [member]);
+  useTabIcon(access.data?.tenant.plan); // the browser tab's icon follows the business's plan
 
   if (!viewing && tenant?.tenantStatus === "suspended") {
     const others = (me.data?.tenants ?? []).some((t) => t.id !== tenant.id);
