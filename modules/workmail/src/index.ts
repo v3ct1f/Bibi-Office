@@ -3,7 +3,7 @@ import { z } from "zod";
 import { defineModule, route } from "@office/sdk";
 import {
   checkDomain, config, ConnectInput, connectDomain, confirmOrder, createMailbox, deleteMailbox, listDomains, listMailboxes, MailboxInput,
-  MailboxListQuery, OrderInput, orderDomain, removeDomain, resetPassword, resumeMailbox, SearchQuery, searchDomains, suspendForUser,
+  MailboxListQuery, OrderInput, orderDomain, removeDomain, resetPassword, replayMailboxes, resumeMailbox, SearchQuery, searchDomains, suspendForUser,
   suspendMailbox, setFeature, transferOut,
 } from "./service.ts";
 
@@ -36,7 +36,7 @@ export default defineModule({
     category: "operations",
     roles: { manager: [READ, WRITE], member: [READ], viewer: [] },
     entities: ["domain", "mailbox"],
-    events: { emits: EVENTS.map((type) => ({ type })), subscribes: ["core.member.removed"] },
+    events: { emits: EVENTS.map((type) => ({ type })), subscribes: ["core.member.removed", "mail.mailboxes.requested"] },
     ui: {
       slots: [
         { slot: "nav.main", label: "Work email", icon: "at-sign", route: "/email", permission: READ },
@@ -53,6 +53,11 @@ export default defineModule({
   },
   migrationsDir: fileURLToPath(new URL("../migrations", import.meta.url)),
   handlers: {
+    // Mail asks for the work mailboxes of everyone (userId null) or of one person, to link them to their inbox.
+    "mail.mailboxes.requested": async (ctx, e) => {
+      const userId = e.payload.userId;
+      await replayMailboxes(ctx, typeof userId === "string" ? userId : null);
+    },
     // Removing a colleague switches their work mailbox off (nothing is deleted; the owner can turn it back on).
     "core.member.removed": async (ctx, e) => {
       const userId = e.payload.userId;

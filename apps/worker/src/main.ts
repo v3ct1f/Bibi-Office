@@ -3,6 +3,7 @@ import { AckPolicy, connect, DeliverPolicy, RetentionPolicy, StorageType, type J
 import pino from "pino";
 import { createDb } from "@office/db";
 import { createRegistry } from "@office/modules";
+import { configureMail, mailProviderFromEnv } from "@office/module-mail";
 import {
   dispatchEvent, deliverDue, InlineRunner, runDueJobs, SecretBox, runRefFor, TemporalRunner, temporalActivities, TASK_QUEUE,
   type ExecDeps, type WorkflowRunner,
@@ -20,6 +21,8 @@ const relaySql = postgres(env("DATABASE_URL_RELAY"), { max: 4 });
 const app = createDb(env("DATABASE_URL_APP"), { max: 10 });
 const secrets = new SecretBox(env("SECRETS_KEY"));
 const registry = createRegistry();
+// Mail's every-minute job reads a real mail server (MAIL_PROVIDER=imap) from here, not inside page requests.
+configureMail(mailProviderFromEnv(process.env));
 const http = { allowPrivate, requireHttps: PROD };
 const exec: ExecDeps = { db: app.db, registry, secrets, http };
 

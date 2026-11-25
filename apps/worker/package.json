@@ -19,7 +19,8 @@
     "@office/modules": "workspace:*",
     "@office/platform": "workspace:*",
     "@office/sdk": "workspace:*",
-    "@temporalio/worker": "1.13.2"
+    "@temporalio/worker": "1.13.2",
+    "@office/module-mail": "workspace:*"
   },
   "devDependencies": {
     "@office/config": "workspace:*",

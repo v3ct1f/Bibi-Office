@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { uuidv7 } from "@office/db";
 import { moduleErrors as E, ModuleError, type ModuleContext } from "@office/sdk";
@@ -372,6 +372,21 @@ export async function suspendForUser(ctx: ModuleContext, userId: string) {
     await ctx.db.update(mailboxes).set({ status: "suspended", suspendReason: "colleague_removed", updatedAt: new Date() }).where(eq(mailboxes.id, row.id));
     await ctx.audit.log("mailbox.suspended", { type: "mailbox", id: row.id }, { reason: "colleague_removed" });
     await ctx.events.emit("workmail.mailbox.suspended", { id: row.id, reason: "colleague_removed", userId });
+  }
+  return rows.length;
+}
+
+/**
+ * Another feature (Mail) asks which work mailboxes belong to whom, e.g. right after it was turned on, or when a person
+ * presses "Link my work mailbox". Answered with the usual "created" event per mailbox, marked as a replay and with its status.
+ */
+export async function replayMailboxes(ctx: ModuleContext, userId: string | null) {
+  const where = [ne(mailboxes.status, "deleted"), isNotNull(mailboxes.userId)];
+  if (userId) where.push(eq(mailboxes.userId, userId));
+  const rows = await ctx.db.select().from(mailboxes).where(and(...where)).orderBy(asc(mailboxes.createdAt)).limit(1000);
+  if (!rows.length) return 0;
+  for (const m of await mailboxDtos(ctx, rows)) {
+    await ctx.events.emit("workmail.mailbox.created", { id: m.id, address: m.address, domain: m.domain, userId: m.userId, status: m.status, replay: true });
   }
   return rows.length;
 }

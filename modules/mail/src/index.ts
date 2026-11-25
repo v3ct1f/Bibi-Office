@@ -1,16 +1,18 @@
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { defineModule, route } from "@office/sdk";
+import { defineModule, job, route } from "@office/sdk";
 import {
   AccountPatch, act, ActionInput, addAttachment, addContact, addLead, AttachmentInput, AttachmentParams, createDraft, createLabel, deleteDraft,
   deleteLabel, DraftInput, DraftPatch, downloadAttachment, emptyTrash, folders, getAccount, getMessage, getThread, Id, LabelInput, LabelPatch,
-  listThreads, MessagePatch, onMailboxCreated, onMailboxState, patchAccount, patchMessage, removeAttachment, saveDraft, sendDraft, sync,
+  cleanUpJob, listThreads, MessagePatch, requestLink, syncJob, onMailboxCreated, onMailboxState, patchAccount, patchMessage, removeAttachment, saveDraft, sendDraft, sync,
   ThreadsQuery, unread, updateLabel, USE,
 } from "./service.ts";
 
-export { configureMail, getMailProvider, MailProviderError } from "./provider.ts";
-export type { MailProvider, IncomingMail, OutgoingMail, Party, MailFile, ProviderAccount } from "./provider.ts";
+export { configureMail, getMailProvider, getMailLimits, DEFAULT_QUOTA_BYTES, MailProviderError } from "./provider.ts";
+export type { MailProvider, IncomingMail, OutgoingMail, Party, MailFile, ProviderAccount, RemoteChange, RemoteChangeResult, RemoteFlags } from "./provider.ts";
 export { fakeMailProvider } from "./fake-provider.ts";
+export { imapMailProvider, imapProviderFromEnv, masterLogin } from "./imap-provider.ts";
+export { mailProviderFromEnv } from "./env.ts";
 export type { FakeMailProvider } from "./fake-provider.ts";
 export { sanitizeHtml, htmlToText } from "./sanitize.ts";
 
@@ -33,7 +35,7 @@ export default defineModule({
     roles: { manager: [USE], member: [USE], viewer: [USE] },
     entities: ["message", "label"],
     events: {
-      emits: [{ type: "mail.lead.requested" }],
+      emits: [{ type: "mail.lead.requested" }, { type: "mail.mailboxes.requested" }],
       subscribes: ["workmail.mailbox.created", "workmail.mailbox.suspended", "workmail.mailbox.resumed", "workmail.mailbox.deleted"],
     },
     ui: {
@@ -49,8 +51,18 @@ export default defineModule({
     "workmail.mailbox.deleted": async (ctx, e) => { await onMailboxState(ctx, e.payload, "paused"); },
     "workmail.mailbox.resumed": async (ctx, e) => { await onMailboxState(ctx, e.payload, "active"); },
   },
+  lifecycle: {
+    // Mailboxes made in Work email before Mail was turned on: ask for all of them again (Work email answers with its events).
+    enable: async (ctx) => { await ctx.events.emit("mail.mailboxes.requested", { userId: null }); },
+  },
+  jobs: {
+    // Only does something with a real mail server (MAIL_PROVIDER=imap); the pretend one is read when the page asks.
+    sync_mail: job({ label: "Fetch new mail and write changes back to the mail server", everyMinutes: 1, run: async (ctx) => { await syncJob(ctx); } }),
+    clean_up: job({ label: "Delete mail that has been in Trash or Spam for 30 days", everyMinutes: 60, run: async (ctx) => { await cleanUpJob(ctx); } }),
+  },
   routes: [
     route({ method: "GET", path: "/account", permission: USE, handler: (ctx) => getAccount(ctx) }),
+    route({ method: "POST", path: "/account/link", permission: USE, handler: (ctx) => requestLink(ctx) }),
     route({ method: "PATCH", path: "/account", permission: USE, body: AccountPatch, handler: (ctx, { body }) => patchAccount(ctx, body) }),
     route({ method: "GET", path: "/unread", permission: USE, handler: (ctx) => unread(ctx) }),
     route({ method: "POST", path: "/sync", permission: USE, handler: (ctx) => sync(ctx) }),
