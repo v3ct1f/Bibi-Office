@@ -91,7 +91,7 @@ test("the web form turns visitors into leads", async ({ browser }) => {
   await visitor.context().close();
 
   await page.goto(`/t/${slug}/m/leads/leads`);
-  await page.getByRole("cell", { name: /Samir Nagheenanajar/ }).click();
+  await page.getByRole("cell", { name: /^Samir Nagheenanajar samir@/ }).click();
   await expect(page.getByText("We need a new printer contract")).toBeVisible();
   await expect(page.getByText("Web form", { exact: true })).toBeVisible();
 });
